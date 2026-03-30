@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "axis"                # package name (can be anything, but keep consistent)
+version = "0.1.0"
+description = "Spatial transcriptomics analysis utilities"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}   # tell setuptools that packages live under src/
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
