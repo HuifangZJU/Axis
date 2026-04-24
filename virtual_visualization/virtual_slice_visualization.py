@@ -10,18 +10,20 @@ def get_Tg_time_para(mode):
     ORIG_Z_UM = {0: 2.5, 1: 5.7, 2: 17.9}
     # ORIG_Z_UM = {3: 2.5, 4: 5.7, 5: 13.4}
     GENE = "Arc"
+    # GENE = "axis_joint_domain"
 
     ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
 
     NET_IN  = os.path.join(ROOT, "network_input")
-    H5AD_DIR = os.path.join(ROOT, "h5ads/Tg")
-    GEN_DIR = os.path.join(ROOT, "virtual_tissue", f"Tg_time_grid256/{mode}")
-    GEN_PATTERN = os.path.join(GEN_DIR, "virtual_Tg_time_*.h5ad")
+    H5AD_DIR = os.path.join(ROOT, "h5ads")
+    GEN_DIR = os.path.join(ROOT, "virtual_tissue", f"Disease_delta_grid256/{mode}/differential/interpolations")
+    # GEN_DIR = os.path.join(ROOT, "virtual_tissue", f"Tg_time_grid256/{mode}")
+    GEN_PATTERN = os.path.join(GEN_DIR, "*.h5ad")
     OUT_PNG = os.path.join(GEN_DIR, f"{GENE}_real_virtual.png")
     S_REAL = 1
     S_VIRTUAL = 1
     INVERT_Y = False
-    return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,'Tg'
+    return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y
 
 def get_WT_time_para(mode):
     GROUP_ID = 0
@@ -81,5 +83,7 @@ def get_scc_z_para(mode):
     return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,None
 
 
-NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID = get_dlpfc_z_para('query')
-visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID)
+# NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID = get_dlpfc_z_para('query')
+# visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID)
+NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y = get_Tg_time_para('analysis')
+visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y)

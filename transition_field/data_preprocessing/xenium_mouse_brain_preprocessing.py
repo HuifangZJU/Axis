@@ -4,7 +4,7 @@ from utils import *
 import numpy as np
 
 def get_xenium_data():
-    data_dir = "/media/huifang/data/registration/xenium/cell_typing/joint_domains"
+    data_dir = "/media/huifang/data/registration/xenium/mouse_brain/original_data/group_0"
     sample_ids = [["Tg_2.5m", "Tg_5.7m", "Tg_17.9m"], ["WT_2.5m", "WT_5.7m", "WT_13.4m"]]
     image_paths = [["Xenium_V1_FFPE_TgCRND8_2_5_months", "Xenium_V1_FFPE_TgCRND8_5_7_months", "Xenium_V1_FFPE_TgCRND8_17_9_months"],
                   ["Xenium_V1_FFPE_wildtype_2_5_months", "Xenium_V1_FFPE_wildtype_5_7_months", "Xenium_V1_FFPE_wildtype_13_4_months"]]
@@ -160,15 +160,15 @@ for k,slices in enumerate(groups):
         # plt.show()
 
         feature_matrix, gene_mask= get_gene_feature_matrix_soft(coords, reduced_slice_data, (image_size, image_size),
-                                                            patch_size=16)
+                                                            patch_size=8)
 
 
-        feature_matrix = bilateral_smoothing(feature_matrix)
-        feature_matrix = remove_salt_pepper(feature_matrix)
+        # feature_matrix = bilateral_smoothing(feature_matrix)
+        # feature_matrix = remove_salt_pepper(feature_matrix)
         feature_matrix[feature_matrix < 0.01] = 0
         valid_mask = (feature_matrix > 0)
         gene_mask = np.any(valid_mask, axis=-1).astype(valid_mask.dtype)
-        # plot_dimensional_images_side_by_side(feature_matrix)
+        plot_dimensional_images_side_by_side(feature_matrix)
 
         # imageio.imwrite(
         #     f"/media/huifang/data/registration/xenium/{k}_{i}_image_{image_size}.png",
@@ -177,6 +177,6 @@ for k,slices in enumerate(groups):
         # plt.imsave("/media/huifang/data/registration/xenium/" + str(k) + "_" + str(i) + f"_image_{image_size}.png", image)
         # np.save("/media/huifang/data/registration/xenium/" + str(k) + "_" + str(i) + f"_pca_out_{image_size}.npy", feature_matrix)
         # np.save("/media/huifang/data/registration/xenium/" + str(k) + "_" + str(i) + f"_pca_mask_{image_size}.npy", gene_mask)
-        np.savez("/media/huifang/data/registration/xenium/" + str(k) + "_" + str(i) + f"_validation_{image_size}", coord=coords,label = labels)
+        # np.savez("/media/huifang/data/registration/xenium/" + str(k) + "_" + str(i) + f"_validation_{image_size}", coord=coords,label = labels)
 
 

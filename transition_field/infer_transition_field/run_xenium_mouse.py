@@ -35,35 +35,35 @@ def run_network():
 root_dir ="/media/huifang/data/registration/xenium/mouse_brain/"
 visualization = False
 for group_id in [0]:
-    sample_id=[3,4,5]
+    sample_id=[0,1,2,4,5]
     # run_network()
 
-    ref_id=4
+    ref_id=0
     paths_all = {
-        # 0: [0,ref_id],
-        # 1: [1,ref_id],
-        # 2: [2,ref_id],
-        3: [3, ref_id],
-        4: [4, ref_id],
+        0: [0,ref_id],
+        1: [1,ref_id],
+        2: [2,ref_id],
+        # 3: [3, ref_id],
+        4: [4,5, ref_id],
         5: [5, ref_id],
     }
 
-    ref_data = np.load(root_dir +f"network_input/{group_id}_{ref_id}_validation_1024.npz")
+    ref_data = np.load(root_dir +f"network_input/{group_id}_{ref_id}_validation.npz")
     ref_coords = ref_data["coord"]
     coords_dict = unify_group_to_reference(
         group_dir=f"{root_dir}/pairwise_output/group_{group_id}",
         sample_ids=sample_id,
         paths=paths_all,  # direct mode
         ref_coords=ref_coords,  # so we also save coords_slice0_to_0.npy
-        unified_subdir="widetype_refer4",  # optional; name the subfolder as you like
+        unified_subdir="delta_2.5",  # optional; name the subfolder as you like
     )
 
     visualize_unified_coords_with_domains(
         root_dir=root_dir,
         group_id=group_id,
         sample_ids=sample_id,
-        unified_subdir="widetype_refer4",  # must match unify_group_to_reference
-        label_npz_suffix="validation_1024.npz",  # or "validation_basesize.npz" if that's what you used
+        unified_subdir="delta_2.5",  # must match unify_group_to_reference
+        label_npz_suffix="validation.npz",  # or "validation_basesize.npz" if that's what you used
         point_size=4.0,
     )
 
