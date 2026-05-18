@@ -168,35 +168,90 @@ def aggregate_virtual_slices_max(
     output_name=None,
 ):
     """
-    Aggregate all analysis-mode virtual slices by taking coordinate-wise max.
+    Aggregate all analysis-mode virtual slices by taking coordinate-wise max
+    on the common gene set shared by all slices.
 
     Keeps:
       - obs / obsm / uns from the selected reference z slice
     Replaces:
-      - X with max across all slices
+      - X with max across all slices, restricted to common genes
+
+    Notes
+    -----
+    - All slices must share the same spatial geometry (same obs / coordinates layout).
+    - Gene sets may differ; this function first intersects var_names across all slices.
     """
     records = load_virtual_records(input_dir, biological_axis_name)
+    if len(records) == 0:
+        raise ValueError(f"No virtual slices found in: {input_dir}")
+
     ref_rec = choose_reference_record(records, reference_axis_value)
     ref_ad = ref_rec["adata"]
 
-    print(f"[AGG] using reference slice: z={ref_rec['z']:.3f}  file={os.path.basename(ref_rec['file'])}")
+    print(
+        f"[AGG] using reference slice: z={ref_rec['z']:.3f}  "
+        f"file={os.path.basename(ref_rec['file'])}"
+    )
 
-    agg_X = to_float32_X(records[0]["adata"].X)
+    # --------------------------------------------------------
+    # 1) Find common genes across all slices
+    # --------------------------------------------------------
+    common_genes = ref_ad.var_names.copy()
+    for rec in records:
+        common_genes = common_genes.intersection(rec["adata"].var_names)
+    if len(common_genes) == 0:
+        raise ValueError("No common genes found across all virtual slices.")
 
-    for i in range(1, len(records)):
-        cur_ad = records[i]["adata"]
-        assert_same_geometry_and_genes(ref_ad, cur_ad, ref_rec["file"], records[i]["file"])
+    print(f"[AGG] common genes across all slices: {len(common_genes)}")
+
+    # keep gene order following the reference slice
+    common_genes = ref_ad.var_names[ref_ad.var_names.isin(common_genes)]
+
+    # --------------------------------------------------------
+    # 2) Subset reference slice to common genes
+    # --------------------------------------------------------
+    ref_ad_common = ref_ad[:, common_genes].copy()
+
+    # initialize aggregation matrix
+    agg_X = to_float32_X(ref_ad_common.X)
+
+    # --------------------------------------------------------
+    # 3) Aggregate remaining slices on the same common gene set
+    # --------------------------------------------------------
+    for rec in records:
+        cur_ad = rec["adata"][:, common_genes].copy()
+
+        # geometry check only, since genes are now harmonized
+        if cur_ad.n_obs != ref_ad_common.n_obs:
+            raise ValueError(
+                f"Geometry mismatch in number of spots/cells:\n"
+                f"  reference: {ref_rec['file']} -> n_obs={ref_ad_common.n_obs}\n"
+                f"  current:   {rec['file']} -> n_obs={cur_ad.n_obs}"
+            )
+
+        if "spatial" in ref_ad_common.obsm and "spatial" in cur_ad.obsm:
+            if ref_ad_common.obsm["spatial"].shape != cur_ad.obsm["spatial"].shape:
+                raise ValueError(
+                    f"Spatial coordinate shape mismatch:\n"
+                    f"  reference: {ref_ad_common.obsm['spatial'].shape}\n"
+                    f"  current:   {cur_ad.obsm['spatial'].shape}"
+                )
+
         agg_X = matrix_maximum(agg_X, to_float32_X(cur_ad.X))
 
-    ad_out = ref_ad.copy()
+    # --------------------------------------------------------
+    # 4) Write output using reference slice metadata
+    # --------------------------------------------------------
+    ad_out = ref_ad_common.copy()
     ad_out.X = agg_X
 
-    # metadata
     uns_new = sanitize_uns_for_write(ad_out.uns)
     uns_new["derived_operation"] = "aggregation_max"
     uns_new["derived_from_n_slices"] = int(len(records))
     uns_new["derived_reference_axis_value"] = float(ref_rec["z"])
     uns_new["derived_source_axis_values"] = [float(r["z"]) for r in records]
+    uns_new["derived_common_genes_only"] = True
+    uns_new["derived_n_common_genes"] = int(len(common_genes))
     ad_out.uns = uns_new
 
     out_dir = os.path.join(input_dir, output_subdir)
@@ -207,6 +262,7 @@ def aggregate_virtual_slices_max(
 
     out_path = os.path.join(out_dir, output_name)
     ad_out.write_h5ad(out_path)
+
     print(f"[AGG] saved: {out_path}")
     return out_path
 

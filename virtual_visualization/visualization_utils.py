@@ -10,11 +10,11 @@ from matplotlib.cm import ScalarMappable, get_cmap
 from matplotlib.lines import Line2D
 import pandas as pd
 
-NCOLS = 4
+NCOLS = 6
 
 ALPHA = 0.9
 GEN_USE_VALID_MASK = True
-USE_LOG1P = False
+USE_LOG1P = True
 VMIN = 0.0
 VMAX_PCT_REAL = 0.995
 VMAX_PCT_VIRTUAL = 0.995
@@ -56,8 +56,10 @@ def extract_gene_vals(adata, gene):
         v = np.asarray(v.toarray()).ravel().astype(np.float32)
     else:
         v = np.asarray(v).ravel().astype(np.float32)
+
     if USE_LOG1P:
         v = np.log1p(v)
+
     return v
 
 def extract_obs_vals(
@@ -155,23 +157,57 @@ def robust_vrange(vals_list, low_pct=0.01, high_pct=0.99, hard_cap=None, hard_fl
 
     return vmin, vmax
 
-def plot_panel(ax, coords, vals, title, norm, s, invert_y, xlim=None, ylim=None):
+def plot_panel(ax, coords, vals, title, norm, s, invert_y, xlim=None, ylim=None,danshedline=None):
+    # all_labels = [0,1,2,3,4,5,6,7,8,9,10,11]
+    # base_cmap = plt.get_cmap("tab20")
+    #
+    # label_to_color = {
+    #     lab: base_cmap(i)
+    #     for i, lab in enumerate(all_labels)
+    # }
+    # colors = [label_to_color[v] for v in vals]
+    # ax.scatter(
+    #     coords[:, 0],
+    #     coords[:, 1],
+    #     c=colors,
+    #     s=s,
+    #     alpha=ALPHA,
+    #     linewidths=0,
+    #     rasterized=True
+    # )
+
     # ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA,cmap='tab20',
     #            norm=norm, linewidths=0, rasterized=True)
-    ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA,cmap="coolwarm",
+    # ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA,cmap="coolwarm",
+    #            norm=norm, linewidths=0, rasterized=True)
+    ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA, cmap="Reds",
                norm=norm, linewidths=0, rasterized=True)
-    ax.set_title(title, fontsize=9)
+    ax.set_title(title, fontsize=14)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_aspect("equal", adjustable="box")
+    ax.set_aspect("equal")
 
+    pad_ratio=0.12
     if xlim is not None:
         ax.set_xlim(xlim)          # e.g. (xmin, xmax)
-    if ylim is not None:
-        ax.set_ylim(ylim)          # e.g. (ymin, ymax)
+        ax.set_ylim(ylim)  # e.g. (ymin, ymax)
+    else:
 
+        min_limit = np.min([ np.min(coords[:, 1])])
+        max_limit = np.max([ np.max(coords[:, 1])])
+        pad = pad_ratio * (max_limit - min_limit)
+        y_length = 2*pad +max_limit-min_limit
+        x_middle = 0.5*(np.min([ np.min(coords[:, 0])])+np.max([ np.max(coords[:, 0])]))
+
+        ax.set_xlim([x_middle-y_length/2, x_middle+y_length/2])
+        ax.set_ylim([min_limit - pad, max_limit + pad])
     if invert_y:
         ax.invert_yaxis()
+    if danshedline:
+        for spine in ax.spines.values():
+            spine.set_linestyle((0, (6, 4)))   # 6 on, 6 off
+            spine.set_linewidth(1.0)
+            spine.set_edgecolor("black")
 
 def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID=None):
     real_panels = []
@@ -187,7 +223,6 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
                 ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
 
 
-
         coords = load_coords_npz(NET_IN,GROUP_ID, sid)
         try:
             vals = extract_gene_vals(ad, GENE)
@@ -201,7 +236,9 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
         coords = coords[:n]
         vals = vals[:n]
 
+
         z = ORIG_Z_UM.get(sid, None)
+        # title = f"Real ({z}um)" if z is not None else f"Real (sample {sid})"
         title = f"Real ({z}m)" if z is not None else f"Real (sample {sid})"
         real_panels.append({"title": title, "coords": coords, "vals": vals})
         real_vals_for_scale.append(vals)
@@ -214,6 +251,8 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
     virtual_vals_for_scale = []
     for f in gen_files:
         z = parse_z_from_filename(f)
+        # if z not in [80,160,240]:
+        #     continue
         ad = sc.read_h5ad(f)
 
         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
@@ -226,6 +265,8 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
         coords = coords[mask]
         vals = vals[mask]
 
+
+        # virtual_panels.append({"title": f"Virtual ({z}um)", "coords": coords, "vals": vals})
         virtual_panels.append({"title": f"Virtual ({z}m)", "coords": coords, "vals": vals})
         virtual_vals_for_scale.append(vals)
 
@@ -262,16 +303,16 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
     axes = np.array(axes).reshape(n_rows_total, NCOLS)
 
     # leave right margin for colorbars + a bit more top space for suptitle
-    fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=0.15, hspace=0.25)
+    fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=0.04, hspace=0.0)
 
     # Row 1: Real
     for c in range(NCOLS):
         ax = axes[0, c]
         if c < len(real_panels):
             p = real_panels[c]
-            # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y)
-            plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y, xlim=(-50, 1050),
-                       ylim=(-50, 1050))
+            plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y)
+            # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y, xlim=(0, 1024),
+            #            ylim=(0, 1024))
         else:
             ax.axis("off")
 
@@ -282,9 +323,9 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
             ax = axes[r, c]
             if idx < n_virtual:
                 p = virtual_panels[idx]
-                # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y)
-                plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
-                           xlim=(-50, 1050), ylim=(-50, 1050))
+                plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,danshedline=True)
+                # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
+                #            xlim=(-10, 520), ylim=(-10, 520))
                 idx += 1
             else:
                 ax.axis("off")
@@ -307,51 +348,67 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
         cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
         cbar_virtual.set_label(f"{GENE} log1p(counts) (Virtual)" if USE_LOG1P else f"{GENE} (Virtual)", rotation=90)
 
-    fig.suptitle(f"{GENE}: Real (row 1) vs Virtual (rows 2+), separate legends", y=0.995, fontsize=12)
+    # fig.suptitle(f"{GENE}: Real (row 1) vs Virtual (rows 2+), separate legends", y=0.995, fontsize=12)
+    if not OUT_PNG:
+        plt.show()
+    else:
+        plt.savefig(OUT_PNG, dpi=300)
+        plt.close(fig)
 
-    plt.savefig(OUT_PNG, dpi=220)
-    plt.close(fig)
+        print("Saved:", OUT_PNG)
 
-    print("Saved:", OUT_PNG)
-
-
-
-
-
-def make_rgba_with_value_alpha(vals, norm, cmap_name, alpha_min, alpha_max, gamma=1.0):
-    cmap = get_cmap(cmap_name)
-    frac = norm(vals)
-    frac = np.clip(np.asarray(frac, dtype=np.float32), 0.0, 1.0)
-
-    rgba = cmap(frac)
-    alpha = alpha_min + (frac ** gamma) * (alpha_max - alpha_min)
-    rgba[:, 3] = np.clip(alpha, 0.0, 1.0)
-    return rgba
 
 def make_rgba_with_value_alpha_abs(vals, norm, cmap_name, alpha_min, alpha_max, gamma=1.0):
     cmap = get_cmap(cmap_name)
-
     vals = np.asarray(vals, dtype=np.float32)
 
-    # For color: keep the original signed normalization
-    frac = norm(vals)
-    frac = np.clip(frac, 0.0, 1.0)
-    rgba = cmap(frac)
+    if hasattr(cmap, "colors"):
+        colors = np.asarray(cmap.colors, dtype=np.float32)
+        idx = np.clip(vals.astype(int), 0, len(colors) - 1)
+        base = colors[idx]
 
-    # For alpha: use absolute distance from real zero
-    abs_vals = np.abs(vals)
+        if base.shape[1] == 3:
+            rgba = np.concatenate(
+                [base, np.ones((base.shape[0], 1), dtype=np.float32)],
+                axis=1
+            )
+        else:
+            rgba = base.copy()
 
-    # Normalize abs(vals) to [0, 1] using the largest magnitude in the data
-    abs_max = np.max(abs_vals) if abs_vals.size > 0 else 1.0
-    if abs_max < 1e-12:
-        alpha_frac = np.zeros_like(abs_vals, dtype=np.float32)
+        # for categorical labels, use constant alpha
+        rgba[:, 3] = alpha_max
     else:
-        alpha_frac = abs_vals / abs_max
-
-    alpha = alpha_min + (alpha_frac ** gamma) * (alpha_max - alpha_min)
-    rgba[:, 3] = np.clip(alpha, 0.0, 1.0)
-
+        frac = np.clip(norm(vals), 0.0, 1.0)
+        rgba = np.asarray(cmap(frac), dtype=np.float32)
+        frac_alpha = np.clip(np.abs(norm(vals)), 0.0, 1.0) ** gamma
+        alpha = alpha_min + (alpha_max - alpha_min) * frac_alpha
+        rgba[:, 3] = alpha
     return rgba
+# def make_rgba_with_value_alpha_abs(vals, norm, cmap_name, alpha_min, alpha_max, gamma=1.0):
+#     cmap = get_cmap(cmap_name)
+#
+#
+#     vals = np.asarray(vals, dtype=np.float32)
+#
+#     # For color: keep the original signed normalization
+#     frac = norm(vals)
+#     frac = np.clip(frac, 0.0, 1.0)
+#     rgba = cmap(frac)
+#
+#     # For alpha: use absolute distance from real zero
+#     abs_vals = np.abs(vals)
+#
+#     # Normalize abs(vals) to [0, 1] using the largest magnitude in the data
+#     abs_max = np.max(abs_vals) if abs_vals.size > 0 else 1.0
+#     if abs_max < 1e-12:
+#         alpha_frac = np.zeros_like(abs_vals, dtype=np.float32)
+#     else:
+#         alpha_frac = abs_vals / abs_max
+#
+#     alpha = alpha_min + (alpha_frac ** gamma) * (alpha_max - alpha_min)
+#     rgba[:, 3] = np.clip(alpha, 0.0, 1.0)
+#
+#     return rgba
 
 def scatter_slice_horizontal_depth(
     ax,
@@ -413,7 +470,7 @@ def scatter_slice_horizontal_depth(
     #     fontsize=8,
     # )
 
-def plot_3d(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL,ELEV,AZIM,ALPHA_MIN,ALPHA_GAMMA,INVERT_Y,INVERT_X=False):
+def plot_3d(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL,ELEV,AZIM,ALPHA_MIN,ALPHA_GAMMA,CMAP="viridis",INVERT_Y=False,INVERT_X=False):
     # # --------------------
     # # Load Real
     # # --------------------
@@ -445,6 +502,7 @@ def plot_3d(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL
     gen_files = sorted(glob.glob(GEN_PATTERN), key=parse_z_from_filename)
     virtual_panels = []
     virtual_vals_for_scale = []
+
 
     for f in gen_files:
         z = parse_z_from_filename(f)
@@ -511,7 +569,332 @@ def plot_3d(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL
     all_z_um = [p["z"] for p in virtual_panels]
     xmin_depth = min(all_z_um) * DEPTH_SCALE
     xmax_depth = max(all_z_um) * DEPTH_SCALE
+    #
+    # ax.set_xlim(xmin_depth, xmax_depth)
+    ax.set_ylim(X_LIM)
+    ax.set_zlim(Y_LIM)
 
+    # visual aspect, not data aspect
+    ax.set_box_aspect((10, 1.3, 1.3))
+
+
+    # real
+    # for p in real_panels:
+    #     scatter_slice_horizontal_depth(
+    #         ax=ax,
+    #         coords=p["coords"],
+    #         vals=p["vals"],
+    #         z_um=p["z"],
+    #         norm=norm_real,
+    #         cmap_name="viridis",
+    #         s=S_REAL,
+    #         alpha_max=ALPHA_MAX_REAL,
+    #         label_prefix="Real",
+    #             DEPTH_SCALE,
+    #             ALPHA_MIN,
+    #             ALPHA_GAMMA
+    #     )
+
+    # virtual
+
+    for p in virtual_panels:
+        scatter_slice_horizontal_depth(
+            ax=ax,
+            coords=p["coords"],
+            vals=p["vals"],
+            z_um=p["z"],
+            norm=norm_virtual,
+            cmap_name=CMAP,
+            s=S_VIRTUAL,
+            alpha_max=ALPHA_MAX_VIRTUAL,
+            label_prefix="Virtual",
+            DEPTH_SCALE=DEPTH_SCALE,
+            ALPHA_MIN=ALPHA_MIN,
+            ALPHA_GAMMA=ALPHA_GAMMA
+        )
+
+    # axes
+    # all_z_um = [p["z"] for p in real_panels] + [p["z"] for p in virtual_panels]
+    # xmin_depth = min(all_z_um) * DEPTH_SCALE if all_z_um else 0.0
+    # xmax_depth = max(all_z_um) * DEPTH_SCALE if all_z_um else 1.0
+    # xpad = 0.08 * max(xmax_depth - xmin_depth, 1.0)
+    #
+    # ax.set_xlim(xmin_depth - xpad, xmax_depth + xpad)
+
+    if INVERT_Y:
+        ax.set_zlim(Y_LIM[::-1])
+    else:
+        ax.set_zlim(Y_LIM)
+
+    if INVERT_X:
+        ax.set_ylim(X_LIM[::-1])
+    else:
+        ax.set_ylim(X_LIM)
+
+    # ax.set_zlim(Y_LIM)
+
+    ax.set_xlabel(f"slice depth (original z * {DEPTH_SCALE:g})")
+    ax.set_ylabel("x")
+    ax.set_zlabel("y")
+
+    ax.view_init(elev=ELEV, azim=AZIM)
+
+    # keep depth wide and tissue plane readable
+    # try:
+    #     ax.set_box_aspect((
+    #         max(xmax_depth - xmin_depth, 1.0) + 2 * xpad,
+    #         X_LIM[1] - X_LIM[0],
+    #         Y_LIM[1] - Y_LIM[0],
+    #     ))
+    # except Exception:
+    #     pass
+    ax.set_aspect("auto")
+    ax.grid(False)
+
+    fig.suptitle(
+        f"{GENE}: 3D stack with horizontal slice depth and value-dependent transparency",
+        y=0.97,
+        fontsize=14,
+    )
+
+    # legend for slice type
+    legend_handles = [
+        # Line2D([0], [0], marker='o', color='w', label='Real slices',
+        #        markerfacecolor='gray', markersize=8, alpha=0.9),
+        Line2D([0], [0], marker='o', color='w', label='Virtual slices',
+               markerfacecolor='gray', markersize=8, alpha=0.6),
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(0.02, 0.98))
+    ax.set_proj_type("ortho")
+    # # separate colorbars
+    # sm_real = ScalarMappable(norm=norm_real, cmap="viridis")
+    # sm_real.set_array([])
+    sm_virtual = ScalarMappable(norm=norm_virtual, cmap="plasma")
+    sm_virtual.set_array([])
+
+    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
+
+    # cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.25])
+    # cbar_real = fig.colorbar(sm_real, cax=cax_real)
+    # cbar_real.set_label(
+    #     f"{GENE} log1p(counts) (Real)" if USE_LOG1P else f"{GENE} (Real)",
+    #     rotation=90
+    # )
+
+    cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
+    cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
+    cbar_virtual.set_label(
+        f"{GENE} log1p(counts) (Virtual)" if USE_LOG1P else f"{GENE} (Virtual)",
+        rotation=90
+    )
+    plt.show()
+
+
+
+def downsample_adata(adata, dsrate):
+    n_sub = max(1, int(adata.n_obs / dsrate))
+    print(f"Downsampling from {adata.n_obs} → {n_sub} cells")
+
+    # deterministic: evenly spaced indices
+    step = max(1, int(np.floor(adata.n_obs / n_sub)))
+    subset_idx = np.arange(0, adata.n_obs, step)[:n_sub]
+
+    adata_sub = adata[subset_idx].copy()
+    return adata_sub
+
+def plot_channel_3d(GEN_FILES,GENE_set,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL,ELEV,AZIM,ALPHA_MIN,ALPHA_GAMMA,INVERT_Y,INVERT_X=False):
+    virtual_panels = []
+    virtual_vals_for_scale = []
+    channel_z=0
+    cmapid=0
+    # cmaps=["Blues","Oranges"]
+    cmaps = ["viridis", "Oranges"]
+    for f,GENE in zip (GEN_FILES,GENE_set):
+
+        ad = sc.read_h5ad(f)
+        # ad = downsample_adata(ad,20000)
+        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+        for gene in GENE:
+            try:
+                vals = extract_gene_vals(ad, GENE)
+            except ValueError:
+                vals, meta = extract_obs_vals(ad, GENE)
+            if cmapid==0:
+                vals = vals*2
+            virtual_panels.append({
+                "title": f"Virtual ({gene})",
+                "coords": coords,
+                "vals": vals,
+                "z": float(channel_z),
+                'cmap':cmaps[cmapid]
+
+            })
+            virtual_vals_for_scale.append(vals)
+            channel_z = channel_z+1
+        cmapid = cmapid+1
+    # --------------------
+    # Norms
+    # --------------------
+    vmax_virtual = robust_vmax(virtual_vals_for_scale, VMAX_PCT_VIRTUAL, VMAX_HARD_CAP_VIRTUAL)
+    norm_virtual = Normalize(vmin=float(VMIN), vmax=float(vmax_virtual))
+    print(f"[SCALE] Virtual: vmin={VMIN}, vmax={vmax_virtual:.4f}")
+
+    # --------------------
+    # 3D Figure
+    # --------------------
+    fig = plt.figure(figsize=(20, 9))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # make the main 3D axes actually large
+    ax.set_position([0.03, 0.08, 0.80, 0.84])
+
+    # scientific-looking projection
+    ax.set_proj_type("ortho")
+    ax.set_box_aspect((1.3, 1.3, 1.3))
+    # ax.set_box_aspect((1.3, 1.3, 1.3))
+
+    # virtual
+    for p in virtual_panels:
+        scatter_slice_horizontal_depth(
+            ax=ax,
+            coords=p["coords"],
+            vals=p["vals"],
+            z_um=p["z"],
+            norm=norm_virtual,
+            cmap_name=p['cmap'],
+            s=S_VIRTUAL,
+            alpha_max=ALPHA_MAX_VIRTUAL,
+            label_prefix="Virtual",
+            DEPTH_SCALE=DEPTH_SCALE,
+            ALPHA_MIN=ALPHA_MIN,
+            ALPHA_GAMMA=ALPHA_GAMMA
+        )
+
+
+    if INVERT_Y:
+        ax.set_zlim(Y_LIM[::-1])
+    else:
+        ax.set_zlim(Y_LIM)
+
+    if INVERT_X:
+        ax.set_ylim(X_LIM[::-1])
+    else:
+        ax.set_ylim(X_LIM)
+
+    # ax.set_xlim(-10,25)
+
+    ax.set_xlabel(f"slice depth (original z * {DEPTH_SCALE:g})")
+    ax.set_ylabel("x")
+    ax.set_zlabel("y")
+
+    ax.view_init(elev=ELEV, azim=AZIM)
+    ax.set_aspect("auto")
+    ax.grid(False)
+
+    fig.suptitle(
+        f"{GENE}: 3D stack with horizontal slice depth and value-dependent transparency",
+        y=0.97,
+        fontsize=14,
+    )
+
+    # legend for slice type
+    legend_handles = [
+
+        Line2D([0], [0], marker='o', color='w', label='Virtual slices',
+               markerfacecolor='gray', markersize=8, alpha=0.6),
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(0.02, 0.98))
+    ax.set_proj_type("ortho")
+    sm_virtual = ScalarMappable(norm=norm_virtual, cmap="plasma")
+    sm_virtual.set_array([])
+
+    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
+
+    cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
+    cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
+    cbar_virtual.set_label(
+        f"{GENE} log1p(counts) (Virtual)" if USE_LOG1P else f"{GENE} (Virtual)",
+        rotation=90
+    )
+    plt.show()
+
+
+def plot_3d_compact(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL,ELEV,AZIM,ALPHA_MIN,ALPHA_GAMMA,INVERT_Y,INVERT_X=False):
+
+    # --------------------
+    # Load Virtual
+    # --------------------
+    gen_files = sorted(glob.glob(GEN_PATTERN), key=parse_z_from_filename)
+    virtual_panels = []
+    virtual_vals_for_scale = []
+
+
+    for f in gen_files:
+        z = parse_z_from_filename(f)
+        ad = sc.read_h5ad(f)
+
+        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+        if GENE is None:
+            vals = np.full(coords.shape[0], 1, dtype=float)
+        else:
+            try:
+                vals = extract_gene_vals(ad, GENE)
+            except ValueError:
+                vals, meta = extract_obs_vals(ad, GENE)
+        mask = get_valid_mask(ad)
+
+        coords = coords[mask]
+        vals = vals[mask]
+        virtual_panels.append({
+            "title": f"Virtual ({z}month)",
+            "coords": coords,
+            "vals": vals,
+            "z": float(-z),
+            # "z": float(5.7),
+        })
+
+        virtual_vals_for_scale.append(vals)
+
+    # print(f"[INFO] real={len(real_panels)} virtual={len(virtual_panels)}")
+
+    # --------------------
+    # Norms
+    # --------------------
+    # vmax_real = robust_vmax(real_vals_for_scale, VMAX_PCT_REAL, VMAX_HARD_CAP_REAL)
+    vmax_virtual = robust_vmax(virtual_vals_for_scale, VMAX_PCT_VIRTUAL, VMAX_HARD_CAP_VIRTUAL)
+
+    # norm_real = Normalize(vmin=float(VMIN), vmax=float(vmax_real))
+    norm_virtual = Normalize(vmin=float(VMIN), vmax=float(vmax_virtual))
+
+    # print(f"[SCALE] Real:    vmin={VMIN}, vmax={vmax_real:.4f}")
+    print(f"[SCALE] Virtual: vmin={VMIN}, vmax={vmax_virtual:.4f}")
+
+    # # vmin_real, vmax_real = robust_vrange(real_vals_for_scale, 1 - VMAX_PCT_REAL, VMAX_PCT_REAL)
+    # vmin_virtual, vmax_virtual = robust_vrange(virtual_vals_for_scale, 1 - VMAX_PCT_VIRTUAL, VMAX_PCT_VIRTUAL)
+    #
+    # # norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
+    # norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
+    #
+    # # print(f"[SCALE] Real: vmin={vmin_real}, vmax={vmax_real:.4f}")
+    # print(f"[SCALE] Virtual: vmin={vmin_virtual}, vmax={vmax_virtual:.4f}")
+
+    # --------------------
+    # 3D Figure
+    # --------------------
+    fig = plt.figure(figsize=(20, 9))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # make the main 3D axes actually large
+    ax.set_position([0.03, 0.08, 0.80, 0.84])
+
+    # scientific-looking projection
+    ax.set_proj_type("ortho")
+
+    # set your limits tightly
+    all_z_um = [p["z"] for p in virtual_panels]
+    xmin_depth = min(all_z_um) * DEPTH_SCALE
+    xmax_depth = max(all_z_um) * DEPTH_SCALE
+    #
     # ax.set_xlim(xmin_depth, xmax_depth)
     ax.set_ylim(X_LIM)
     ax.set_zlim(Y_LIM)
@@ -624,132 +1007,6 @@ def plot_3d(GEN_PATTERN,GENE,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL
     #     f"{GENE} log1p(counts) (Real)" if USE_LOG1P else f"{GENE} (Real)",
     #     rotation=90
     # )
-
-    cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
-    cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
-    cbar_virtual.set_label(
-        f"{GENE} log1p(counts) (Virtual)" if USE_LOG1P else f"{GENE} (Virtual)",
-        rotation=90
-    )
-    plt.show()
-
-
-
-def downsample_adata(adata, dsrate):
-    n_sub = max(1, int(adata.n_obs / dsrate))
-    print(f"Downsampling from {adata.n_obs} → {n_sub} cells")
-
-    # deterministic: evenly spaced indices
-    step = max(1, int(np.floor(adata.n_obs / n_sub)))
-    subset_idx = np.arange(0, adata.n_obs, step)[:n_sub]
-
-    adata_sub = adata[subset_idx].copy()
-    return adata_sub
-
-def plot_channel_3d(GEN_FILES,GENE_set,DEPTH_SCALE,X_LIM,Y_LIM,S_VIRTUAL,ALPHA_MAX_VIRTUAL,ELEV,AZIM,ALPHA_MIN,ALPHA_GAMMA,INVERT_Y,INVERT_X=False):
-    virtual_panels = []
-    virtual_vals_for_scale = []
-    channel_z=0
-    cmapid=0
-    # cmaps=["Blues","Oranges"]
-    cmaps = ["viridis", "Oranges"]
-    for f,GENE in zip (GEN_FILES,GENE_set):
-
-        ad = sc.read_h5ad(f)
-        # ad = downsample_adata(ad,20000)
-        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
-        for gene in GENE:
-            vals = extract_gene_vals(ad, gene)
-            if cmapid==0:
-                vals = vals*2
-            virtual_panels.append({
-                "title": f"Virtual ({gene})",
-                "coords": coords,
-                "vals": vals,
-                "z": float(channel_z),
-                'cmap':cmaps[cmapid]
-
-            })
-            virtual_vals_for_scale.append(vals)
-            channel_z = channel_z+1
-        cmapid = cmapid+1
-    # --------------------
-    # Norms
-    # --------------------
-    vmax_virtual = robust_vmax(virtual_vals_for_scale, VMAX_PCT_VIRTUAL, VMAX_HARD_CAP_VIRTUAL)
-    norm_virtual = Normalize(vmin=float(VMIN), vmax=float(vmax_virtual))
-    print(f"[SCALE] Virtual: vmin={VMIN}, vmax={vmax_virtual:.4f}")
-
-    # --------------------
-    # 3D Figure
-    # --------------------
-    fig = plt.figure(figsize=(20, 9))
-    ax = fig.add_subplot(111, projection="3d")
-
-    # make the main 3D axes actually large
-    ax.set_position([0.03, 0.08, 0.80, 0.84])
-
-    # scientific-looking projection
-    ax.set_proj_type("ortho")
-    ax.set_box_aspect((1.3, 1.3, 1.3))
-    # ax.set_box_aspect((1.3, 1.3, 1.3))
-
-    # virtual
-    for p in virtual_panels:
-        scatter_slice_horizontal_depth(
-            ax=ax,
-            coords=p["coords"],
-            vals=p["vals"],
-            z_um=p["z"],
-            norm=norm_virtual,
-            cmap_name=p['cmap'],
-            s=S_VIRTUAL,
-            alpha_max=ALPHA_MAX_VIRTUAL,
-            label_prefix="Virtual",
-            DEPTH_SCALE=DEPTH_SCALE,
-            ALPHA_MIN=ALPHA_MIN,
-            ALPHA_GAMMA=ALPHA_GAMMA
-        )
-
-
-    if INVERT_Y:
-        ax.set_zlim(Y_LIM[::-1])
-    else:
-        ax.set_zlim(Y_LIM)
-
-    if INVERT_X:
-        ax.set_ylim(X_LIM[::-1])
-    else:
-        ax.set_ylim(X_LIM)
-
-    # ax.set_xlim(-10,25)
-
-    ax.set_xlabel(f"slice depth (original z * {DEPTH_SCALE:g})")
-    ax.set_ylabel("x")
-    ax.set_zlabel("y")
-
-    ax.view_init(elev=ELEV, azim=AZIM)
-    ax.set_aspect("auto")
-    ax.grid(False)
-
-    fig.suptitle(
-        f"{GENE}: 3D stack with horizontal slice depth and value-dependent transparency",
-        y=0.97,
-        fontsize=14,
-    )
-
-    # legend for slice type
-    legend_handles = [
-
-        Line2D([0], [0], marker='o', color='w', label='Virtual slices',
-               markerfacecolor='gray', markersize=8, alpha=0.6),
-    ]
-    ax.legend(handles=legend_handles, loc="upper left", bbox_to_anchor=(0.02, 0.98))
-    ax.set_proj_type("ortho")
-    sm_virtual = ScalarMappable(norm=norm_virtual, cmap="plasma")
-    sm_virtual.set_array([])
-
-    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
 
     cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
     cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)

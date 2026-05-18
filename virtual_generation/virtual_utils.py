@@ -9,7 +9,8 @@ from anndata import AnnData
 from matplotlib import pyplot as plt
 from sklearn.decomposition import NMF
 from pandas.api.types import is_bool_dtype, is_categorical_dtype, is_numeric_dtype, is_object_dtype, is_string_dtype
-
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 def relative_position_on_axis(query_axis_value, axis_start_value, axis_end_value, clip=None):
     """
@@ -105,11 +106,7 @@ def plot_axis_kernel_weight_debug(
 
     # infer bandwidth the same way as compute_axis_kernel_weights
     if bandwidth is None:
-        diffs = np.diff(np.unique(np.sort(obs)))
-        diffs = diffs[diffs > 0]
-        bandwidth = float(np.median(diffs)) if diffs.size > 0 else 1.0
-        bandwidth = bandwidth/3
-    bandwidth = max(float(bandwidth), eps)
+        bandwidth = infer_axis_bandwidth(obs)
 
     # -------- left panel: raw kernel decay K(d) --------
     if max_decay_dist is None:
@@ -119,7 +116,6 @@ def plot_axis_kernel_weight_debug(
         d=dist_grid,
         kernel=kernel,
         bandwidth=bandwidth,
-        power=power,
         eps=eps,
     )
 
@@ -135,9 +131,9 @@ def plot_axis_kernel_weight_debug(
         w, _ = compute_axis_kernel_weights(
             observed_axis_positions=obs,
             query_axis_position=float(tau),
-            kernel=kernel,
+            # kernel=kernel,
             bandwidth=bandwidth,
-            power=power,
+
             eps=eps,
         )
         weight_curves.append(w)
@@ -146,9 +142,9 @@ def plot_axis_kernel_weight_debug(
     wq, _ = compute_axis_kernel_weights(
         observed_axis_positions=obs,
         query_axis_position=q,
-        kernel=kernel,
+        # kernel=kernel,
         bandwidth=bandwidth,
-        power=power,
+
         eps=eps,
     )
 
@@ -225,7 +221,6 @@ def compute_axis_kernel_weights(
     observed_axis_positions,
     query_axis_position,
     bandwidth=None,
-    power=2.0,
     eps=1e-8,
 ):
     """
@@ -260,10 +255,11 @@ def compute_axis_kernel_weights(
     if bandwidth is None:
         bandwidth = infer_axis_bandwidth(obs)
     bandwidth = max(float(bandwidth), eps)
+    print(f"biological bandwidth is {bandwidth}")
 
     d = np.abs(obs - query_axis_position)
 
-    #kernel == "gaussian":
+
     raw = np.exp(-0.5 * (d / bandwidth) ** 2)
 
     s = float(np.sum(raw))
@@ -379,11 +375,14 @@ def load_coords_npz(NET_IN, group_id, sample_id):
     d = np.load(path)
     return d["coord"].astype(np.float32)
 
-def load_axis_flow(AXIS_OUT, fixed_id, moving_id):
-    path = os.path.join(AXIS_OUT, "{}_{}_flow.npy".format(fixed_id, moving_id))
-    if not os.path.exists(path):
-        raise FileNotFoundError(path)
-    return np.load(path).astype(np.float32)
+def load_axis_flow(AXIS_OUT, fixed_id, moving_id,basesize=512):
+    if fixed_id == moving_id:
+        return np.zeros((2,basesize,basesize))
+    else:
+        path = os.path.join(AXIS_OUT, "{}_{}_flow.npy".format(fixed_id, moving_id))
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
+        return np.load(path).astype(np.float32)
 
 def load_h5ad_X_and_genes(H5AD_DIR, group_id, sample_id, attr_columns=None):
     path = os.path.join(H5AD_DIR, "{}_{}.h5ad".format(group_id, sample_id))
@@ -397,21 +396,6 @@ def load_h5ad_X_and_genes(H5AD_DIR, group_id, sample_id, attr_columns=None):
         attrs = ad.obs.loc[:, attr_columns].copy().reset_index(drop=True)
 
     return ad.X, np.asarray(ad.var_names), attrs
-
-
-def load_h5ad_X_and_genes_and_coords(H5AD_DIR, group_id, sample_id, attr_columns=None,spatial_key="spatial_axis"):
-    path = os.path.join(H5AD_DIR, "{}_{}.h5ad".format(group_id, sample_id))
-    ad = sc.read_h5ad(path)
-    if "valid" in ad.obs.columns:
-        ad = ad[ad.obs["valid"]].copy()
-    attrs = None
-    if attr_columns is not None and len(attr_columns) > 0:
-        missing = [c for c in attr_columns if c not in ad.obs.columns]
-        if len(missing) > 0:
-            raise KeyError(f"Missing obs columns in {path}: {missing}")
-        attrs = ad.obs.loc[:, attr_columns].copy().reset_index(drop=True)
-
-    return ad.X, np.asarray(ad.var_names), np.asarray(ad.obsm[spatial_key]), attrs
 
 def ensure_same_genes_keep_order(Xa, ga, Xb, gb):
     """
@@ -435,60 +419,267 @@ def stack_attribute_evidence(attrs_a, attrs_b):
 # ==================================================
 # make consistent grid for virtual tissue generation
 # ==================================================
-def compute_dense_tissue_mask_on_grid(
-    grid_pts, union_spots,
-    grid_size,
+
+def estimate_grid_spacing(grid_pts: np.ndarray) -> float:
+    """
+    Estimate the local spacing of the generated grid from nearest-neighbor distances.
+    Works for both square and hex-like grids.
+    """
+    grid_pts = np.asarray(grid_pts, dtype=np.float32)
+    if grid_pts.ndim != 2 or grid_pts.shape[1] != 2:
+        raise ValueError(f"grid_pts must have shape (N,2), got {grid_pts.shape}")
+    if grid_pts.shape[0] < 2:
+        raise ValueError("Need at least 2 grid points to estimate spacing")
+
+    tree = cKDTree(grid_pts)
+    dists, _ = tree.query(grid_pts, k=2)   # self + nearest neighbor
+    nn = dists[:, 1]
+    nn = nn[np.isfinite(nn)]
+    if nn.size == 0:
+        raise ValueError("Could not estimate grid spacing")
+    return float(np.median(nn))
+
+
+def keep_largest_connected_component_on_grid(
+    grid_pts: np.ndarray,
+    mask: np.ndarray,
+    neighbor_radius: float,
+) -> np.ndarray:
+    """
+    Keep only the largest connected component among masked grid points,
+    using a radius-based graph on grid_pts.
+    """
+    grid_pts = np.asarray(grid_pts, dtype=np.float32)
+    mask = np.asarray(mask, dtype=bool)
+
+    idx = np.where(mask)[0]
+    if idx.size == 0:
+        return mask
+    if idx.size == 1:
+        return mask
+
+    pts = grid_pts[idx]
+    tree = cKDTree(pts)
+    neighbors = tree.query_ball_tree(tree, r=float(neighbor_radius))
+
+    rows = []
+    cols = []
+    for i, nbrs in enumerate(neighbors):
+        for j in nbrs:
+            if i != j:
+                rows.append(i)
+                cols.append(j)
+
+    if len(rows) == 0:
+        # nothing connected, keep all masked points as-is
+        return mask
+
+    graph = csr_matrix(
+        (np.ones(len(rows), dtype=np.uint8), (rows, cols)),
+        shape=(len(idx), len(idx)),
+    )
+
+    n_comp, labels = connected_components(graph, directed=False)
+    if n_comp <= 1:
+        return mask
+
+    sizes = np.bincount(labels)
+    keep_label = np.argmax(sizes)
+
+    new_mask = np.zeros_like(mask, dtype=bool)
+    new_mask[idx[labels == keep_label]] = True
+    return new_mask
+
+
+def smooth_mask_on_grid(
+    grid_pts: np.ndarray,
+    mask: np.ndarray,
+    neighbor_radius: float,
+    min_keep_neighbors: int = 2,
+) -> np.ndarray:
+    """
+    Simple graph-based smoothing:
+    keep a point if enough of its nearby grid neighbors are also active.
+
+    This is a lightweight replacement for binary closing/opening that works
+    on both square and hex grids.
+    """
+    grid_pts = np.asarray(grid_pts, dtype=np.float32)
+    mask = np.asarray(mask, dtype=bool)
+
+    tree = cKDTree(grid_pts)
+    neighbors = tree.query_ball_point(grid_pts, r=float(neighbor_radius))
+
+    new_mask = np.zeros_like(mask, dtype=bool)
+    for i, nbrs in enumerate(neighbors):
+        active = np.sum(mask[nbrs])
+        new_mask[i] = active >= int(min_keep_neighbors)
+
+    return new_mask
+
+
+def compute_dense_tissue_mask_on_any_grid(
+    grid_pts,
+    union_spots,
     max_dist_px=9.0,
-    closing_iters=2,
+    smooth=True,
+    smooth_radius_factor=1.25,
+    min_keep_neighbors=2,
     keep_largest=True,
 ):
     """
-    Returns mask (M,) bool on grid cells: a solid tissue region with holes filled.
+    Support estimation that works for both square pixel grids and Visium-like hex grids.
+
+    Parameters
+    ----------
+    grid_pts : (M,2)
+        Generated common grid points.
+    union_spots : (N,2)
+        Union of spots from the slices.
+    max_dist_px : float
+        Initial nearest-spot threshold.
+    smooth : bool
+        Whether to apply simple graph-based smoothing.
+    smooth_radius_factor : float
+        Neighbor radius relative to grid spacing for smoothing and connectivity.
+    min_keep_neighbors : int
+        Minimum active neighbors for smoothing.
+    keep_largest : bool
+        Whether to keep only the largest connected supported region.
+
+    Returns
+    -------
+    mask : (M,) bool
+        Support mask directly aligned with grid_pts.
     """
+    grid_pts = np.asarray(grid_pts, dtype=np.float32)
+    union_spots = np.asarray(union_spots, dtype=np.float32)
+
+    if grid_pts.ndim != 2 or grid_pts.shape[1] != 2:
+        raise ValueError(f"grid_pts must have shape (M,2), got {grid_pts.shape}")
+    if union_spots.ndim != 2 or union_spots.shape[1] != 2:
+        raise ValueError(f"union_spots must have shape (N,2), got {union_spots.shape}")
+
     # 1) initial distance-threshold mask
-    tree = cKDTree(np.asarray(union_spots, dtype=np.float32))
-    dist, _ = tree.query(np.asarray(grid_pts, dtype=np.float32), k=1)
-    mask = (dist <= float(max_dist_px)).reshape(grid_size, grid_size)
+    tree = cKDTree(union_spots)
+    dist, _ = tree.query(grid_pts, k=1)
+    mask = dist <= float(max_dist_px)
 
-    # 2) connect gaps (closing) + 3) fill holes
-    if closing_iters > 0:
-        mask = binary_closing(mask, iterations=int(closing_iters))
-    mask = binary_fill_holes(mask)
+    # 2) graph-based smoothing (works on any grid layout)
+    spacing = estimate_grid_spacing(grid_pts)
+    neighbor_radius = float(smooth_radius_factor) * spacing
 
-    # 4) optionally keep only the largest connected component
+    if smooth:
+        mask = smooth_mask_on_grid(
+            grid_pts=grid_pts,
+            mask=mask,
+            neighbor_radius=neighbor_radius,
+            min_keep_neighbors=min_keep_neighbors,
+        )
+
+    # 3) keep largest connected component on the grid graph
     if keep_largest:
-        lab, n = label(mask)
-        if n > 1:
-            sizes = np.bincount(lab.ravel())
-            sizes[0] = 0  # background
-            keep = sizes.argmax()
-            mask = (lab == keep)
+        mask = keep_largest_connected_component_on_grid(
+            grid_pts=grid_pts,
+            mask=mask,
+            neighbor_radius=neighbor_radius,
+        )
 
-    return mask.reshape(-1)
+    return mask
 
-def make_common_grid_from_coords(coords, grid_size, pad_ratio=0.02):
+
+
+
+
+
+
+def make_common_grid_from_coords(grid_size, pad_ratio=0.00,type='pixel',basezize=512):
     """
     coords: (N,2)
     pad_ratio: small padding to avoid clipping boundary spots
     Returns: grid_pts (M,2), (x_edges, y_edges)
     """
-    coords = np.asarray(coords, dtype=np.float32)
-    min_x, min_y = coords.min(axis=0)
-    max_x, max_y = coords.max(axis=0)
+    if type == 'pixel':
+        min_x = 0
+        min_y= 0
+        max_x=basezize
+        max_y = basezize
+        dx = (max_x - min_x) * pad_ratio
+        dy = (max_y - min_y) * pad_ratio
+        min_x -= dx; max_x += dx
+        min_y -= dy; max_y += dy
 
-    dx = (max_x - min_x) * pad_ratio
-    dy = (max_y - min_y) * pad_ratio
-    min_x -= dx; max_x += dx
-    min_y -= dy; max_y += dy
+        x_edges = np.linspace(min_x, max_x, grid_size + 1, dtype=np.float32)
+        y_edges = np.linspace(min_y, max_y, grid_size + 1, dtype=np.float32)
 
-    x_edges = np.linspace(min_x, max_x, grid_size + 1, dtype=np.float32)
-    y_edges = np.linspace(min_y, max_y, grid_size + 1, dtype=np.float32)
+        x_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
+        y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
+        gx, gy = np.meshgrid(x_centers, y_centers)
+        grid_pts = np.vstack([gx.ravel(), gy.ravel()]).T.astype(np.float32)
+        return grid_pts, (x_edges, y_edges)
+    elif type == 'visium':
+        min_x = 0
+        min_y = 0
+        max_x = basezize
+        max_y = basezize
+        # small padding
+        dx = (max_x - min_x) * pad_ratio
+        dy = (max_y - min_y) * pad_ratio
+        min_x -= dx
+        max_x += dx
+        min_y -= dy
+        max_y += dy
 
-    x_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
-    y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
-    gx, gy = np.meshgrid(x_centers, y_centers)
-    grid_pts = np.vstack([gx.ravel(), gy.ravel()]).T.astype(np.float32)
-    return grid_pts, (x_edges, y_edges)
+
+        width = max_x - min_x
+        height = max_y - min_y
+
+        # target_x - min_x
+        height = max_y - min_y
+        area = width * height
+
+        # target about grid_size^2 hex centers over the area
+        target_n = max(int(grid_size) ** 2, 1)
+
+        # For a staggered hex lattice:
+        # horizontal spacing = sx
+        # vertical spacing   = sy = sqrt(3)/2 * sx
+        # density ~ 1 / (sx * sy) = 2 / (sqrt(3) * sx^2)
+        sx = np.sqrt((2.0 * area) / (np.sqrt(3.0) * target_n))
+        sy = (np.sqrt(3.0) / 2.0) * sx
+
+        # generate staggered rows
+        y_vals = np.arange(min_y, max_y + sy, sy, dtype=np.float32)
+
+        pts = []
+        for row_idx, y in enumerate(y_vals):
+            # alternate row offset by half-step to form hex arrangement
+            x_offset = 0.5 * sx if (row_idx % 2 == 1) else 0.0
+            x_vals = np.arange(min_x + x_offset, max_x + sx, sx, dtype=np.float32)
+
+            # keep only points inside padded bbox
+            keep = (x_vals >= min_x) & (x_vals <= max_x)
+            x_vals = x_vals[keep]
+
+            if x_vals.size > 0:
+                row_pts = np.column_stack([x_vals, np.full_like(x_vals, y)])
+                pts.append(row_pts)
+
+        if len(pts) == 0:
+            grid_pts = np.empty((0, 2), dtype=np.float32)
+        else:
+            grid_pts = np.vstack(pts).astype(np.float32)
+        meta = {
+            "bbox": (float(min_x), float(min_y), float(max_x), float(max_y)),
+            "width": float(width),
+            "height": float(height),
+            "target_n": int(target_n),
+            "n_generated": int(grid_pts.shape[0]),
+            "x_spacing": float(sx),
+            "y_spacing": float(sy),
+            "layout": "staggered_hex",
+        }
+        return grid_pts, meta
 
 
 
@@ -578,16 +769,13 @@ def _prepare_local_query_support(
     grid_pts,
     grid_support_mask=None,
     point_weights=None,
+    qc_total_counts=None,
+    qc_n_genes=None,
     spatial_bandwidth=None,
     knn=48,
     min_neighbors=6,
     radius=None,
     dtype=np.float32,
-    enforce_query_support=True,
-    max_support_dist=None,
-    min_confidence_abs=None,
-    min_confidence_ratio=0.05,
-    confidence_ref="median",
 ):
     coords = np.asarray(coords, dtype=dtype)
     grid_pts = np.asarray(grid_pts, dtype=dtype)
@@ -597,57 +785,29 @@ def _prepare_local_query_support(
     if grid_pts.ndim != 2 or grid_pts.shape[1] != 2:
         raise ValueError("grid_pts must have shape (M, 2).")
 
-    n_points = coords.shape[0]
-    n_grid = grid_pts.shape[0]
+    n_points, n_grid = coords.shape[0], grid_pts.shape[0]
 
-    if point_weights is None:
-        point_weights = np.ones((n_points,), dtype=dtype)
-    else:
-        point_weights = np.asarray(point_weights, dtype=dtype).reshape(-1)
-        if point_weights.shape[0] != n_points:
-            raise ValueError("point_weights length must match coords rows.")
+    point_weights = np.ones(n_points, dtype=dtype) if point_weights is None else np.asarray(point_weights, dtype=dtype).reshape(-1)
+    if point_weights.shape[0] != n_points:
+        raise ValueError("point_weights length must match coords rows.")
 
-    if grid_support_mask is None:
-        valid_mask = np.ones((n_grid,), dtype=bool)
-    else:
-        valid_mask = np.asarray(grid_support_mask, dtype=bool).reshape(-1)
-        if valid_mask.shape[0] != n_grid:
-            raise ValueError("grid_support_mask length must match grid_pts rows.")
+    valid_mask = np.ones(n_grid, dtype=bool) if grid_support_mask is None else np.asarray(grid_support_mask, dtype=bool).reshape(-1)
+    if valid_mask.shape[0] != n_grid:
+        raise ValueError("grid_support_mask length must match grid_pts rows.")
 
     if spatial_bandwidth is None:
         spatial_bandwidth = infer_grid_spacing(grid_pts)
     spatial_bandwidth = max(float(spatial_bandwidth), 1e-6)
-    print(f"spatial bandwidth is {spatial_bandwidth}")
 
+    confidence = np.zeros(n_grid, dtype=dtype)
+    nearest_dist = np.full(n_grid, np.inf, dtype=dtype)
+    active_query_support = np.zeros(n_grid, dtype=bool)
 
-    if max_support_dist is None:
-        max_support_dist = 1.5 * spatial_bandwidth
-    max_support_dist = float(max_support_dist)
-
-    confidence = np.zeros((n_grid,), dtype=dtype)
-    nearest_dist = np.full((n_grid,), np.inf, dtype=dtype)
-    active_query_support = np.zeros((n_grid,), dtype=bool)
-
-    if n_points == 0 or not np.any(valid_mask):
-        return {
-            "valid_mask": valid_mask,
-            "active_query_support": active_query_support,
-            "confidence": confidence,
-            "nearest_dist": nearest_dist,
-            "spatial_bandwidth": spatial_bandwidth,
-            "confidence_threshold_used": 0.0,
-            "query_idx_active": np.array([], dtype=np.int64),
-            "nn_idx_active": np.zeros((0, 1), dtype=np.int64),
-            "local_w": np.zeros((0, 1), dtype=dtype),
-        }
-
-    k = int(max(knn, min_neighbors))
-    k = max(1, min(k, n_points))
-
-    tree = cKDTree(coords)
+    k = max(1, min(int(max(knn, min_neighbors)), n_points))
     query_idx = np.where(valid_mask)[0]
     query_pts = grid_pts[query_idx]
 
+    tree = cKDTree(coords)
     try:
         dists, nn_idx = tree.query(query_pts, k=k, workers=-1)
     except TypeError:
@@ -657,86 +817,45 @@ def _prepare_local_query_support(
         dists = dists[:, None]
         nn_idx = nn_idx[:, None]
 
-    nearest_dist_valid = dists[:, 0].astype(dtype, copy=False)
-    nearest_dist[query_idx] = nearest_dist_valid
+    dists = np.where(np.isfinite(dists), dists, 1e9)
+    nearest_dist[query_idx] = dists[:, 0].astype(dtype, copy=False)
 
     neighbor_mask = np.ones_like(dists, dtype=bool)
     if radius is not None:
         neighbor_mask = dists <= float(radius)
-        if min_neighbors > 0:
-            neighbor_mask[:, :min(min_neighbors, k)] = True
-
-    if np.any(~np.isfinite(dists)):
-        neighbor_mask &= np.isfinite(dists)
-        dists = np.where(np.isfinite(dists), dists, 1e9)
+        neighbor_mask[:, :min(min_neighbors, k)] = True
 
     kernel_w = np.exp(-0.5 * (dists / spatial_bandwidth) ** 2).astype(dtype, copy=False)
     kernel_w *= neighbor_mask.astype(dtype, copy=False)
 
-    local_source_w = point_weights[nn_idx]
-    local_w_raw = kernel_w * local_source_w
+    local_w_raw = kernel_w * point_weights[nn_idx]
+
+    if qc_total_counts is not None and qc_n_genes is not None:
+        q_rel = compute_local_relative_quality_weights(
+            qc_total_local=np.asarray(qc_total_counts, dtype=dtype)[nn_idx],
+            qc_ngenes_local=np.asarray(qc_n_genes, dtype=dtype)[nn_idx],
+            gamma_counts=1.0,
+            gamma_genes=0.7,
+            rel_clip=(0.5, 2.0),
+        )
+        local_w_raw *= q_rel
 
     confidence_valid = np.sum(local_w_raw, axis=1).astype(dtype, copy=False)
     confidence[query_idx] = confidence_valid
 
-    # if enforce_query_support:
-    #     positive_conf = confidence_valid[confidence_valid > 0]
-    #
-    #     if min_confidence_abs is not None:
-    #         confidence_thresh = float(min_confidence_abs)
-    #     else:
-    #         if positive_conf.size == 0:
-    #             conf_ref_value = 0.0
-    #         else:
-    #             if confidence_ref == "median":
-    #                 conf_ref_value = float(np.median(positive_conf))
-    #             elif confidence_ref == "mean":
-    #                 conf_ref_value = float(np.mean(positive_conf))
-    #             elif confidence_ref == "max":
-    #                 conf_ref_value = float(np.max(positive_conf))
-    #             elif confidence_ref == "p75":
-    #                 conf_ref_value = float(np.percentile(positive_conf, 75))
-    #             else:
-    #                 raise ValueError("confidence_ref must be one of {'median','mean','max','p75'}")
-    #         confidence_thresh = float(min_confidence_ratio) * conf_ref_value
-    #
-    #     active_valid = (
-    #         (nearest_dist_valid <= max_support_dist) &
-    #         (confidence_valid >= confidence_thresh)
-    #     )
-    # else:
-    confidence_thresh = 0.0
-    active_valid = np.ones_like(confidence_valid, dtype=bool)
+    active_rows = np.where(confidence_valid > 0)[0]
+    active_query_support[query_idx[active_rows]] = True
+    query_idx_active = query_idx[active_rows]
+    nn_idx_active = nn_idx[active_rows]
+    local_w = local_w_raw[active_rows].copy()
 
-    active_query_support[query_idx] = active_valid
-    active_rows_local = np.where(active_valid)[0]
-
-    if active_rows_local.size == 0:
-        return {
-            "valid_mask": valid_mask,
-            "active_query_support": active_query_support,
-            "confidence": confidence,
-            "nearest_dist": nearest_dist,
-            "spatial_bandwidth": spatial_bandwidth,
-            "confidence_threshold_used": confidence_thresh,
-            "query_idx_active": np.array([], dtype=np.int64),
-            "nn_idx_active": np.zeros((0, 1), dtype=np.int64),
-            "local_w": np.zeros((0, 1), dtype=dtype),
-        }
-
-    local_w = local_w_raw[active_rows_local].copy()
-    nn_idx_active = nn_idx[active_rows_local]
     denom = np.sum(local_w, axis=1).astype(dtype, copy=False)
-
     zero_rows = denom <= 0
     if np.any(zero_rows):
-        fallback_sw = local_source_w[active_rows_local][zero_rows, 0]
-        local_w[zero_rows, 0] = np.maximum(fallback_sw, 1e-8)
+        local_w[zero_rows, 0] = np.maximum(point_weights[nn_idx_active][zero_rows, 0], 1e-8)
         denom = np.sum(local_w, axis=1).astype(dtype, copy=False)
 
-    local_w = local_w / np.maximum(denom[:, None], 1e-8)
-
-    query_idx_active = query_idx[active_rows_local]
+    local_w /= np.maximum(denom[:, None], 1e-8)
 
     return {
         "valid_mask": valid_mask,
@@ -744,11 +863,89 @@ def _prepare_local_query_support(
         "confidence": confidence,
         "nearest_dist": nearest_dist,
         "spatial_bandwidth": spatial_bandwidth,
-        "confidence_threshold_used": float(confidence_thresh),
         "query_idx_active": query_idx_active,
         "nn_idx_active": nn_idx_active,
         "local_w": local_w,
     }
+
+
+def _prepare_local_query_support_attr(
+    coords,
+    grid_pts,
+    grid_support_mask=None,
+    point_weights=None,
+    spatial_bandwidth=None,
+    knn=48,
+    min_neighbors=6,
+    radius=None,
+    dtype=np.float32,
+):
+    coords = np.asarray(coords, dtype=dtype)
+    grid_pts = np.asarray(grid_pts, dtype=dtype)
+    n_points, n_grid = coords.shape[0], grid_pts.shape[0]
+
+    point_weights = np.ones(n_points, dtype=dtype) if point_weights is None else np.asarray(point_weights, dtype=dtype).reshape(-1)
+    valid_mask = np.ones(n_grid, dtype=bool) if grid_support_mask is None else np.asarray(grid_support_mask, dtype=bool).reshape(-1)
+    spatial_bandwidth = max(float(spatial_bandwidth), 1e-6)
+
+    confidence = np.zeros(n_grid, dtype=dtype)
+    nearest_dist = np.full(n_grid, np.inf, dtype=dtype)
+    active_query_support = np.zeros(n_grid, dtype=bool)
+
+    k = max(1, min(int(max(knn, min_neighbors)), n_points))
+    query_idx = np.where(valid_mask)[0]
+    query_pts = grid_pts[query_idx]
+
+    tree = cKDTree(coords)
+    try:
+        dists, nn_idx = tree.query(query_pts, k=k, workers=-1)
+    except TypeError:
+        dists, nn_idx = tree.query(query_pts, k=k)
+
+    if k == 1:
+        dists = dists[:, None]
+        nn_idx = nn_idx[:, None]
+
+    dists = np.where(np.isfinite(dists), dists, 1e9)
+    nearest_dist[query_idx] = dists[:, 0].astype(dtype, copy=False)
+
+    neighbor_mask = np.ones_like(dists, dtype=bool)
+    if radius is not None:
+        neighbor_mask = dists <= float(radius)
+        neighbor_mask[:, :min(min_neighbors, k)] = True
+
+    kernel_w = np.exp(-0.5 * (dists / spatial_bandwidth) ** 2).astype(dtype, copy=False)
+    kernel_w *= neighbor_mask.astype(dtype, copy=False)
+
+    local_w_raw = kernel_w * point_weights[nn_idx]
+    confidence_valid = np.sum(local_w_raw, axis=1).astype(dtype, copy=False)
+    confidence[query_idx] = confidence_valid
+
+    active_rows = np.where(confidence_valid > 0)[0]
+    active_query_support[query_idx[active_rows]] = True
+    query_idx_active = query_idx[active_rows]
+    nn_idx_active = nn_idx[active_rows]
+    local_w = local_w_raw[active_rows].copy()
+
+    denom = np.sum(local_w, axis=1).astype(dtype, copy=False)
+    zero_rows = denom <= 0
+    if np.any(zero_rows):
+        local_w[zero_rows, 0] = np.maximum(point_weights[nn_idx_active][zero_rows, 0], 1e-8)
+        denom = np.sum(local_w, axis=1).astype(dtype, copy=False)
+
+    local_w /= np.maximum(denom[:, None], 1e-8)
+
+    return {
+        "valid_mask": valid_mask,
+        "active_query_support": active_query_support,
+        "confidence": confidence,
+        "nearest_dist": nearest_dist,
+        "spatial_bandwidth": spatial_bandwidth,
+        "query_idx_active": query_idx_active,
+        "nn_idx_active": nn_idx_active,
+        "local_w": local_w,
+    }
+
 
 
 def infer_attr_schema_from_df(df):
@@ -772,174 +969,86 @@ def infer_attr_schema_from_df(df):
     return schema
 
 
-def generate_virtual_tissue_fixed_grid(
-    coords,
-    X,
-    grid_pts,
-    var_names=None,
-    attrs=None,
-    attr_schema=None,
-    grid_support_mask=None,
-    point_weights=None,
-    spatial_bandwidth=None,
-    knn=48,
-    min_neighbors=6,
-    radius=None,
-    chunk_size=64,
-    fill_value=0.0,
-    dtype=np.float32,
-    # query support
-    enforce_query_support=True,
-    max_support_dist=None,
-    min_confidence_abs=None,
-    min_confidence_ratio=0.05,
-    confidence_ref="median",
-    # gene generation
-    gene_mode="mean",   # "mean", "kl", "latent_kl"
-    program_model=None,
-    n_programs=32,
-    random_state=0,
+
+
+
+def compute_qc_covariates(X):
+    if sp.issparse(X):
+        total_counts = np.asarray(X.sum(axis=1)).ravel().astype(np.float32)
+        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float32)
+    else:
+        Xd = np.asarray(X, dtype=np.float32)
+        total_counts = Xd.sum(axis=1).astype(np.float32)
+        n_genes = (Xd > 0).sum(axis=1).astype(np.float32)
+    return total_counts, n_genes
+
+def compute_local_relative_quality_weights(
+    qc_total_local,
+    qc_ngenes_local=None,
+    gamma_counts=0.5,
+    gamma_genes=0.5,
+    rel_clip=(0.5, 2.0),
     eps=1e-8,
 ):
     """
-    Generate one final virtual tissue AnnData on a fixed grid.
-
-    Inputs
-    ------
-    coords : (N, 2)
-        Transported evidence coordinates in the query frame.
-    X : (N, G)
-        Evidence gene matrix.
-    grid_pts : (M, 2)
-        Fixed shared grid centers.
-    var_names : list-like or None
-        Gene names for X.
-    attrs : pandas DataFrame or dict of arrays or None
-        Evidence-level attributes aligned with coords/X rows.
-    attr_schema : dict or None
-        Example:
-            {
-                "label": "categorical",
-                "score": "continuous",
-                "is_tumor": "boolean",
-            }
+    qc_total_local: (Q, k)
+    qc_ngenes_local: (Q, k) or None
 
     Returns
     -------
-    AnnData
-        .X                  -> generated virtual gene matrix on grid
-        .obs[...]           -> generated virtual attributes
-        .obsm["spatial"]    -> fixed grid coordinates
-        .obs diagnostics    -> valid, active_query_support, confidence, nearest_dist
-        .obsm["*_probs"]    -> categorical / boolean probability maps
+    q_rel : (Q, k)
+        Local relative quality factors for each neighborhood.
     """
-    if X.shape[0] != coords.shape[0]:
-        raise ValueError("X rows must match coords rows.")
+    qc_total_local = np.asarray(qc_total_local, dtype=np.float32)
+    q_total = np.log1p(qc_total_local)
 
+    med_total = np.median(q_total, axis=1, keepdims=True)
+    rel_total = q_total / np.maximum(med_total, eps)
+    rel_total = np.clip(rel_total, rel_clip[0], rel_clip[1]) ** gamma_counts
+
+    if qc_ngenes_local is None:
+        return rel_total.astype(np.float32, copy=False)
+
+    qc_ngenes_local = np.asarray(qc_ngenes_local, dtype=np.float32)
+    q_ngenes = np.log1p(qc_ngenes_local)
+
+    med_ngenes = np.median(q_ngenes, axis=1, keepdims=True)
+    rel_ngenes = q_ngenes / np.maximum(med_ngenes, eps)
+    rel_ngenes = np.clip(rel_ngenes, rel_clip[0], rel_clip[1]) ** gamma_genes
+
+    q_rel = rel_total * rel_ngenes
+    return q_rel.astype(np.float32, copy=False)
+
+
+def generate_gene_sets(grid_pts,X,support,fill_value,chunk_size,dtype):
     n_grid = grid_pts.shape[0]
     n_genes = X.shape[1]
-
-    # -------------------------
-    # 1) shared local query support
-    # -------------------------
-    support = _prepare_local_query_support(
-        coords=coords,
-        grid_pts=grid_pts,
-        grid_support_mask=grid_support_mask,
-        point_weights=point_weights,
-        spatial_bandwidth=spatial_bandwidth,
-        knn=knn,
-        min_neighbors=min_neighbors,
-        radius=radius,
-        dtype=dtype,
-        enforce_query_support=enforce_query_support,
-        max_support_dist=max_support_dist,
-        min_confidence_abs=min_confidence_abs,
-        min_confidence_ratio=min_confidence_ratio,
-        confidence_ref=confidence_ref,
-    )
-
     query_idx_active = support["query_idx_active"]
     nn_idx_active = support["nn_idx_active"]
     local_w = support["local_w"]
-
-    # -------------------------
-    # 2) gene generation
-    # -------------------------
     Y = np.full((n_grid, n_genes), fill_value, dtype=dtype)
-
-    if gene_mode == "latent_kl" and program_model is None:
-        program_model = fit_latent_gene_program_model(
-            X=X,
-            n_programs=n_programs,
-            random_state=random_state,
-            dtype=dtype,
-            eps=eps,
-        )
-
     if query_idx_active.size > 0:
         for start in range(0, query_idx_active.shape[0], int(chunk_size)):
             end = min(start + int(chunk_size), query_idx_active.shape[0])
 
             q_rows = query_idx_active[start:end]
-            idx_block = nn_idx_active[start:end]   # (B, k)
-            w_block = local_w[start:end]           # (B, k)
+            idx_block = nn_idx_active[start:end]  # (B, k)
+            w_block = local_w[start:end]  # (B, k)
             B, k = idx_block.shape
 
             flat_idx = idx_block.reshape(-1)
             X_block = _extract_dense_rows(X, flat_idx, dtype=dtype).reshape(B, k, n_genes)
             X_block = np.maximum(X_block, 0.0)
-
-            if gene_mode == "mean":
-                Y_block = np.einsum("bk,bkg->bg", w_block, X_block, optimize=True).astype(dtype, copy=False)
-
-            else:
-                libs = np.maximum(np.sum(X_block, axis=2), eps)   # (B, k)
-                P_block = X_block / libs[:, :, None]
-
-                if gene_mode == "kl":
-                    # compositional KL barycenter directly in gene space
-                    P_hat = _weighted_geometric_barycenter(P_block, w_block, eps=eps)
-
-                elif gene_mode == "latent_kl":
-                    # KL barycenter in latent gene-program space
-                    nmf_model = program_model["nmf_model"]
-                    H_topic = np.asarray(program_model["H_topic"], dtype=dtype)
-
-                    P_2d = P_block.reshape(B * k, n_genes)
-                    Z_2d = nmf_model.transform(P_2d).astype(dtype, copy=False)
-                    Z_2d = Z_2d / np.maximum(Z_2d.sum(axis=1, keepdims=True), eps)
-                    Z_block = Z_2d.reshape(B, k, -1)
-
-                    Z_hat = _weighted_geometric_barycenter(Z_block, w_block, eps=eps)
-                    P_hat = (Z_hat @ H_topic).astype(dtype, copy=False)
-                    P_hat = P_hat / np.maximum(P_hat.sum(axis=1, keepdims=True), eps)
-
-                else:
-                    raise ValueError("gene_mode must be one of {'mean','kl','latent_kl'}")
-
-                # preserve local library size trend
-                lib_hat = np.einsum("bk,bk->b", w_block, libs, optimize=True).astype(dtype, copy=False)
-                Y_block = (lib_hat[:, None] * P_hat).astype(dtype, copy=False)
-
+            Y_block = np.einsum("bk,bkg->bg", w_block, X_block, optimize=True).astype(dtype, copy=False)
             Y[q_rows] = Y_block
 
-    # -------------------------
-    # 3) create final AnnData
-    # -------------------------
-    ad = AnnData(X=Y, dtype=Y.dtype)
-    if var_names is not None:
-        ad.var_names = np.asarray(var_names).astype(str)
+    return Y
 
-    ad.obsm["spatial"] = np.asarray(grid_pts, dtype=dtype)
-    ad.obs["valid"] = support["valid_mask"]
-    ad.obs["active_query_support"] = support["active_query_support"]
-    ad.obs["confidence"] = support["confidence"]
-    ad.obs["nearest_dist"] = support["nearest_dist"]
-
-    # -------------------------
-    # 4) generate attributes into the same AnnData
-    # -------------------------
+def generate_attr_sets(ad,grid_pts,support,attrs,attr_schema,dtype):
+    n_grid = grid_pts.shape[0]
+    query_idx_active = support["query_idx_active"]
+    nn_idx_active = support["nn_idx_active"]
+    local_w = support["local_w"]
 
     if attrs is not None:
         if not isinstance(attrs, pd.DataFrame):
@@ -967,7 +1076,7 @@ def generate_virtual_tissue_fixed_grid(
                 labels = np.full((n_grid,), None, dtype=object)
 
                 if query_idx_active.size > 0:
-                    code_block = codes[nn_idx_active]   # (Q, k)
+                    code_block = codes[nn_idx_active]  # (Q, k)
                     rows = np.repeat(np.arange(query_idx_active.shape[0]), nn_idx_active.shape[1])
                     cols = code_block.reshape(-1)
                     vals_w = local_w.reshape(-1)
@@ -1004,23 +1113,93 @@ def generate_virtual_tissue_fixed_grid(
 
             else:
                 raise ValueError(f"Unsupported attr kind for '{col}': {kind}")
+    return ad
+
+def generate_virtual_tissue_fixed_grid(
+    coords,
+    X,
+    grid_pts,
+    var_names=None,
+    attrs=None,
+    attr_schema=None,
+    grid_support_mask=None,
+    point_weights=None,
+    spatial_bandwidth=None,
+    attr_spatial_bandwidth=None,
+    knn=48,
+    min_neighbors=6,
+    radius=None,
+    chunk_size=64,
+    fill_value=0.0,
+    dtype=np.float32,
+):
+
+    if X.shape[0] != coords.shape[0]:
+        raise ValueError("X rows must match coords rows.")
+
+
+    qc_total_counts,qc_n_genes = compute_qc_covariates(X)
+    # -------------------------
+    # 1) shared local query support
+    # -------------------------
+    support = _prepare_local_query_support(
+        coords=coords,
+        grid_pts=grid_pts,
+        grid_support_mask=grid_support_mask,
+        point_weights=point_weights,
+        qc_total_counts=qc_total_counts,
+        qc_n_genes=qc_n_genes,
+        spatial_bandwidth=spatial_bandwidth,
+        knn=knn,
+        min_neighbors=min_neighbors,
+        radius=radius,
+        dtype=dtype,
+
+    )
+    # -------------------------
+    # 2) gene generation
+    # -------------------------
+    Y = generate_gene_sets(grid_pts,X,support,fill_value,chunk_size,dtype)
+
+    # -------------------------
+    # 3) create final AnnData
+    # -------------------------
+    if attr_spatial_bandwidth:
+        support = _prepare_local_query_support(
+            coords=coords,
+            grid_pts=grid_pts,
+            grid_support_mask=grid_support_mask,
+            point_weights=point_weights,
+            qc_total_counts=qc_total_counts,
+            qc_n_genes=qc_n_genes,
+            spatial_bandwidth=attr_spatial_bandwidth,
+            knn=knn,
+            min_neighbors=min_neighbors,
+            radius=radius,
+            dtype=dtype,
+        )
+
+    ad = AnnData(X=Y, dtype=Y.dtype)
+    if var_names is not None:
+        ad.var_names = np.asarray(var_names).astype(str)
+
+    ad.obsm["spatial"] = np.asarray(grid_pts, dtype=dtype)
+    ad.obs["valid"] = support["valid_mask"]
+    ad.obs["active_query_support"] = support["active_query_support"]
+    ad.obs["confidence"] = support["confidence"]
+    ad.obs["nearest_dist"] = support["nearest_dist"]
+
+    # -------------------------
+    # 4) generate attributes into the same AnnData
+    # -------------------------
+    ad = generate_attr_sets(ad,grid_pts,support,attrs,attr_schema,dtype)
 
     # -------------------------
     # 5) metadata
     # -------------------------
-    ad.uns["generator"] = "transition_guided_virtual_tissue_generation"
-    ad.uns["gene_mode"] = str(gene_mode)
     ad.uns["spatial_bandwidth"] = float(support["spatial_bandwidth"])
-    ad.uns["confidence_threshold_used"] = float(support["confidence_threshold_used"])
-    ad.uns["enforce_query_support"] = bool(enforce_query_support)
-    ad.uns["max_support_dist"] = None if max_support_dist is None else float(max_support_dist)
-    ad.uns["min_confidence_abs"] = None if min_confidence_abs is None else float(min_confidence_abs)
-    ad.uns["min_confidence_ratio"] = float(min_confidence_ratio)
-    ad.uns["confidence_ref"] = str(confidence_ref)
-
-    if gene_mode == "latent_kl":
-        ad.uns["n_programs"] = int(program_model["n_programs"])
-
+    if attr_spatial_bandwidth is not None:
+        ad.uns["attr_spatial_bandwidth"] = attr_spatial_bandwidth
     return ad
 
 # ===========================================================================
@@ -1060,12 +1239,7 @@ def generate_anchor_state_on_grid(
         knn=knn,
         min_neighbors=min_neighbors,
         radius=radius,
-        dtype=dtype,
-        enforce_query_support=False,   # keep simple for now
-        max_support_dist=None,
-        min_confidence_abs=None,
-        min_confidence_ratio=0.0,
-        confidence_ref="median",
+        dtype=dtype
     )
 
     query_idx_active = support["query_idx_active"]

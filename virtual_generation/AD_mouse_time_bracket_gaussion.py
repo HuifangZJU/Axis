@@ -8,7 +8,7 @@ import scipy.sparse as sp
 # CONFIG
 # =========================
 BIOLOGICAL_AXIS_NAME = "Tg_time"
-MODE = "analysis"   # "query" or "analysis"
+MODE = "query"   # "query" or "analysis"
 
 AXIS_POSITIONS = {
     0: 2.5,
@@ -28,10 +28,10 @@ QUERY_AXIS_VALUES = np.arange(2.5, 20, 1.0).tolist()
 
 ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
 NET_IN = os.path.join(ROOT, "network_input")
-H5AD_DIR = os.path.join(ROOT, "h5ads")
+H5AD_DIR = os.path.join(ROOT, "h5ads/Tg")
 AXIS_OUT = os.path.join(ROOT, "pairwise_output", f"group_{GROUP_ID}")
 
-GRID_SIZE = 256
+GRID_SIZE = 128
 MAX_DIST_PX = 5.0
 
 # preprocessing / weighting
@@ -100,7 +100,6 @@ def maybe_log1p(X):
 def resolve_support_kwargs(mode):
     if mode == "query":
         return dict(
-            enforce_query_support=False,
             max_support_dist=QUERY_MAX_SUPPORT_DIST,
             min_confidence_abs=QUERY_MIN_CONFIDENCE_ABS,
             min_confidence_ratio=QUERY_MIN_CONFIDENCE_RATIO,
@@ -108,7 +107,6 @@ def resolve_support_kwargs(mode):
         )
     elif mode == "analysis":
         return dict(
-            enforce_query_support=ANALYSIS_ENFORCE_QUERY_SUPPORT,
             max_support_dist=ANALYSIS_MAX_SUPPORT_DIST,
             min_confidence_abs=ANALYSIS_MIN_CONFIDENCE_ABS,
             min_confidence_ratio=ANALYSIS_MIN_CONFIDENCE_RATIO,
@@ -185,7 +183,7 @@ def load_anchor_bank():
         elif MODE == "query":
             coords_i = load_coords_npz(NET_IN, GROUP_ID, aid)
             expr_raw, genes_i, attrs_i = load_h5ad_X_and_genes(
-                H5AD_DIR, "Tg", AXIS_POSITIONS[aid],
+                H5AD_DIR, GROUP_ID, aid,
                 attr_columns=ATTRIBUTE_COLUMNS if USE_ATTRIBUTES else None
             )
         else:
@@ -209,13 +207,11 @@ def build_fixed_analysis_grid(anchor_bank, reference_anchor_id):
     Build one fixed grid/support from the chosen reference anchor only.
     """
     coords_ref = np.asarray(anchor_bank[reference_anchor_id]["coords"], dtype=np.float32)
-    grid_pts, _ = make_common_grid_from_coords(coords_ref, GRID_SIZE)
-    grid_support = compute_dense_tissue_mask_on_grid(
+    grid_pts, _ = make_common_grid_from_coords(GRID_SIZE,basezize=1024)
+    grid_support = compute_dense_tissue_mask_on_any_grid(
         grid_pts=grid_pts,
         union_spots=coords_ref,
-        grid_size=GRID_SIZE,
         max_dist_px=MAX_DIST_PX,
-        closing_iters=1,
         keep_largest=True,
     )
     return grid_pts, grid_support
@@ -243,13 +239,11 @@ def build_query_grid_and_evidence(
 
     union_coords = np.vstack([coords_a_q, coords_b_q]).astype(np.float32)
 
-    grid_pts, _ = make_common_grid_from_coords(union_coords, GRID_SIZE)
-    grid_support = compute_dense_tissue_mask_on_grid(
+    grid_pts, _ = make_common_grid_from_coords(GRID_SIZE,basezize=1024)
+    grid_support = compute_dense_tissue_mask_on_any_grid(
         grid_pts=grid_pts,
         union_spots=union_coords,
-        grid_size=GRID_SIZE,
         max_dist_px=MAX_DIST_PX,
-        closing_iters=1,
         keep_largest=True,
     )
 
@@ -423,9 +417,6 @@ for query_axis_value in QUERY_AXIS_VALUES:
         radius=RADIUS,
         chunk_size=64,
         fill_value=0.0,
-        gene_mode=GENE_MODE,
-        program_model=program_model,
-        n_programs=N_PROGRAMS,
         **support_kwargs,
     )
 
