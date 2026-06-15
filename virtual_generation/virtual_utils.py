@@ -593,17 +593,13 @@ def compute_dense_tissue_mask_on_any_grid(
 
 
 
-def make_common_grid_from_coords(grid_size, pad_ratio=0.00,type='pixel',basezize=512):
+def make_common_grid_from_coords(grid_size, pad_ratio=0.00,type='pixel',max_x=512,max_y=512,min_x=0,min_y=0):
     """
     coords: (N,2)
     pad_ratio: small padding to avoid clipping boundary spots
     Returns: grid_pts (M,2), (x_edges, y_edges)
     """
     if type == 'pixel':
-        min_x = 0
-        min_y= 0
-        max_x=basezize
-        max_y = basezize
         dx = (max_x - min_x) * pad_ratio
         dy = (max_y - min_y) * pad_ratio
         min_x -= dx; max_x += dx
@@ -616,12 +612,9 @@ def make_common_grid_from_coords(grid_size, pad_ratio=0.00,type='pixel',basezize
         y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
         gx, gy = np.meshgrid(x_centers, y_centers)
         grid_pts = np.vstack([gx.ravel(), gy.ravel()]).T.astype(np.float32)
+
         return grid_pts, (x_edges, y_edges)
     elif type == 'visium':
-        min_x = 0
-        min_y = 0
-        max_x = basezize
-        max_y = basezize
         # small padding
         dx = (max_x - min_x) * pad_ratio
         dy = (max_y - min_y) * pad_ratio
@@ -798,6 +791,8 @@ def _prepare_local_query_support(
     if spatial_bandwidth is None:
         spatial_bandwidth = infer_grid_spacing(grid_pts)
     spatial_bandwidth = max(float(spatial_bandwidth), 1e-6)
+    print(f'spatial bandwidth is {spatial_bandwidth}')
+
 
     confidence = np.zeros(n_grid, dtype=dtype)
     nearest_dist = np.full(n_grid, np.inf, dtype=dtype)
@@ -1164,20 +1159,6 @@ def generate_virtual_tissue_fixed_grid(
     # -------------------------
     # 3) create final AnnData
     # -------------------------
-    if attr_spatial_bandwidth:
-        support = _prepare_local_query_support(
-            coords=coords,
-            grid_pts=grid_pts,
-            grid_support_mask=grid_support_mask,
-            point_weights=point_weights,
-            qc_total_counts=qc_total_counts,
-            qc_n_genes=qc_n_genes,
-            spatial_bandwidth=attr_spatial_bandwidth,
-            knn=knn,
-            min_neighbors=min_neighbors,
-            radius=radius,
-            dtype=dtype,
-        )
 
     ad = AnnData(X=Y, dtype=Y.dtype)
     if var_names is not None:
@@ -1192,7 +1173,23 @@ def generate_virtual_tissue_fixed_grid(
     # -------------------------
     # 4) generate attributes into the same AnnData
     # -------------------------
-    ad = generate_attr_sets(ad,grid_pts,support,attrs,attr_schema,dtype)
+    if attr_spatial_bandwidth:
+        attr_support = _prepare_local_query_support(
+            coords=coords,
+            grid_pts=grid_pts,
+            grid_support_mask=grid_support_mask,
+            point_weights=point_weights,
+            qc_total_counts=qc_total_counts,
+            qc_n_genes=qc_n_genes,
+            spatial_bandwidth=attr_spatial_bandwidth,
+            knn=knn,
+            min_neighbors=min_neighbors,
+            radius=radius,
+            dtype=dtype,
+        )
+        ad = generate_attr_sets(ad, grid_pts, attr_support, attrs, attr_schema, dtype)
+    else:
+        ad = generate_attr_sets(ad,grid_pts,support,attrs,attr_schema,dtype)
 
     # -------------------------
     # 5) metadata

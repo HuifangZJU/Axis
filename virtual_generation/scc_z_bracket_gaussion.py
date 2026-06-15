@@ -449,69 +449,6 @@ def run_virtual_counterfactual():
     print("DONE. Output folder:", OUT_DIR)
 
 
-def run_spatial_syncronization():
-    grid_pts, _ = make_common_grid_from_coords(GRID_SIZE, type='visium')
-    for anchor_id in ANCHOR_IDS:
-        axis_value = float(AXIS_POSITIONS[anchor_id])
-        rec = anchor_bank[anchor_id]
-
-        expr_raw = rec["expr_raw"]
-        genes = rec["genes"]
-        attrs_raw = rec["attrs"]
-        coords = rec["coords"]
-
-        expr = maybe_log1p(expr_raw)
-
-        print(
-            f"[GEN] {BIOLOGICAL_AXIS_NAME}={axis_value:.3f}  "
-            f"anchors=({anchor_id}"
-        )
-        grid_support, point_weights = build_synchronization_evidence(
-            coords=coords,
-            grid_pts=grid_pts,
-            expr=expr
-        )
-
-        if USE_ATTRIBUTES:
-            attrs_cat = attrs_raw
-        else:
-            attrs_cat = None
-
-        ad_grid = generate_virtual_tissue_fixed_grid(
-            coords=coords,
-            X=expr,
-            grid_pts=grid_pts,
-            var_names=genes,
-            attrs=attrs_cat,
-            attr_schema=ATTRIBUTE_SCHEMA,
-            grid_support_mask=grid_support,
-            point_weights=point_weights,
-            spatial_bandwidth=SPATIAL_BANDWIDTH,
-            knn=KNN,
-            min_neighbors=MIN_NEIGHBORS,
-            radius=RADIUS,
-            chunk_size=64,
-            fill_value=0.0,
-        )
-
-        # metadata
-        ad_grid.uns["biological_axis_name"] = BIOLOGICAL_AXIS_NAME
-        ad_grid.uns["mode"] = MODE
-        ad_grid.uns["grid_size"] = int(GRID_SIZE)
-        ad_grid.uns["apply_log1p_before_generation"] = bool(APPLY_LOG1P_BEFORE_GENERATION)
-
-
-        axis_tag = str(BIOLOGICAL_AXIS_NAME).replace(" ", "_")
-        out_path = os.path.join(
-            OUT_DIR,
-            f"virtual_{axis_tag}_{axis_value:.3f}.h5ad"
-        )
-        ad_grid.write_h5ad(out_path)
-        print("  saved:", out_path)
-
-    print("DONE. Output folder:", OUT_DIR)
-
-
 
 def run_analysis():
     grid_pts, _ = make_common_grid_from_coords(GRID_SIZE, type='visium')
@@ -663,15 +600,8 @@ for GROUP_ID in [2,5,9,10]:
             anchor_bank = load_anchor_bank()
             run_analysis()
 
-        if MODE =='virtual_cf':
-            ANCHOR_IDS = [0, 2]
-            QUERY_AXIS_VALUES = [10]
-            anchor_bank = load_anchor_bank()
-            run_virtual_counterfactual()
-
-
-        if MODE =='spatial_sync':
-            ANCHOR_IDS = [0,1,2]
-            GENE_SUBSET=None
-            anchor_bank = load_anchor_bank()
-            run_spatial_syncronization()
+        # if MODE =='virtual_cf':
+        #     ANCHOR_IDS = [0, 2]
+        #     QUERY_AXIS_VALUES = [10]
+        #     anchor_bank = load_anchor_bank()
+        #     run_virtual_counterfactual()
