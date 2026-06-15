@@ -14,7 +14,6 @@ import glob
 import os
 import scanpy as sc
 import matplotlib.pyplot as plt
-
 def draw_slice_plane_frame(
     ax,
     z_um,
@@ -238,6 +237,8 @@ def plot_virtual_3d(
                 label=p["title"] if SHOW_SLICE_LABEL else None,
                 label_color=REAL_FRAME_COLOR,
                 label_fontsize=14,
+                label_z_frac=0.15,
+                label_y_frac=0.18
             )
 
         for p in virtual_panels:
@@ -260,6 +261,9 @@ def plot_virtual_3d(
                 label=p["title"] if SHOW_SLICE_LABEL else None,
                 label_color=VIRTUAL_FRAME_COLOR,
                 label_fontsize=14,
+                label_z_frac=0.15,
+                label_y_frac=0.18
+
             )
 
     # --------------------
@@ -332,53 +336,87 @@ def plot_virtual_3d(
     # --------------------
     # Legend
     # --------------------
-    legend_handles = [
-        Line2D(
-            [0], [0],
-            color=REAL_FRAME_COLOR,
-            linestyle=REAL_FRAME_STYLE,
-            linewidth=REAL_FRAME_WIDTH,
-            label="Real slices (solid frame)",
-        ),
-        Line2D(
-            [0], [0],
-            color=VIRTUAL_FRAME_COLOR,
-            linestyle=VIRTUAL_FRAME_STYLE,
-            linewidth=VIRTUAL_FRAME_WIDTH,
-            label="Virtual slices (dashed frame)",
-        ),
-    ]
-    ax.legend(
-        handles=legend_handles,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 0.98),
-        frameon=True,
-    )
-    #
+    # legend_handles = [
+    #     Line2D(
+    #         [0], [0],
+    #         color=REAL_FRAME_COLOR,
+    #         linestyle=REAL_FRAME_STYLE,
+    #         linewidth=REAL_FRAME_WIDTH,
+    #         label="Real slices",
+    #     ),
+    #     Line2D(
+    #         [0], [0],
+    #         color=VIRTUAL_FRAME_COLOR,
+    #         linestyle=VIRTUAL_FRAME_STYLE,
+    #         linewidth=VIRTUAL_FRAME_WIDTH,
+    #         label="Virtual slices",
+    #     ),
+    # ]
+    # ax.legend(
+    #     handles=legend_handles,
+    #     loc="upper left",
+    #     bbox_to_anchor=(0.88, 0.9),
+    #     frameon=True,
+    #     fontsize=12,
+    # )
+
+
+    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
+
     # --------------------
-    # Colorbars
+    # Categorical legend for cluster labels
+    # --------------------
+    # cluster_labels = sorted(np.unique(np.concatenate(real_vals_for_scale)).astype(int).tolist())
+    # cmap_obj = plt.get_cmap(CMAP)
+    #
+    # handles = [
+    #     Line2D(
+    #         [0], [0],
+    #         marker="o",
+    #         linestyle="",
+    #         markerfacecolor=cmap_obj(norm_real(lab)),
+    #         markeredgecolor="none",
+    #         markersize=8,
+    #         label=str(lab),
+    #     )
+    #     for lab in cluster_labels
+    # ]
+    #
+    # fig.legend(
+    #     handles=handles,
+    #     title="Cluster",
+    #     loc="center left",
+    #     bbox_to_anchor=(0.8, 0.5),
+    #     frameon=False,
+    #     ncol=1,
+    #     handlelength=0.8,
+    #     handletextpad=0.4,
+    #     labelspacing=0.28,
+    #     borderaxespad=0.0,
+    #     fontsize=13,
+    #     title_fontsize=15,
+    # )
+
+
+    # --------------------
+    # Continuous Colorbars
     # --------------------
     sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
     sm_real.set_array([])
 
-    sm_virtual = ScalarMappable(norm=norm_virtual, cmap=CMAP)
-    sm_virtual.set_array([])
-
-    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
-
-    cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
+    cax_real = fig.add_axes([0.8, 0.4, 0.02, 0.21])
     cbar_real = fig.colorbar(sm_real, cax=cax_real)
     cbar_real.set_label(
         f"{GENE} log1p(counts) " if USE_LOG1P else f"{GENE} ",
-        rotation=90,
+        rotation=90,fontsize=13
     )
 
-    cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
-    cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
-    cbar_virtual.set_label(
-        f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
-        rotation=90,
-    )
+    # cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
+    # cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
+    # cbar_virtual.set_label(
+    #     f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
+    #     rotation=90,
+    # )
 
     plt.show()
 
@@ -446,7 +484,7 @@ def plot_real_3d(
     z_range = abs(Y_LIM[1] - Y_LIM[0])
 
     # optional exaggeration of depth for visual clarity
-    ax.set_box_aspect((1.4*y_range, y_range, z_range))
+    ax.set_box_aspect((1.2*y_range, y_range, z_range))
     ax.set_position([0.03, 0.08, 0.80, 0.84])
 
     ax.set_proj_type("ortho")
@@ -473,6 +511,8 @@ def plot_real_3d(
                 label=p["title"] if SHOW_SLICE_LABEL else None,
                 label_color="black",
                 label_fontsize=16,
+                label_z_frac=0.15,
+                label_y_frac=0.25
             )
     # --------------------
     # Scatter real slices
@@ -519,26 +559,57 @@ def plot_real_3d(
         y=0.97,
         fontsize=14,
     )
-
+    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
     # --------------------
     # Legend
     # --------------------
-    #
+
+
     # --------------------
-    # Colorbars
+    # Categorical legend for cluster labels
     # --------------------
-    sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
-    sm_real.set_array([])
+    cluster_labels = sorted(np.unique(np.concatenate(real_vals_for_scale)).astype(int).tolist())
+    cmap_obj = plt.get_cmap(CMAP)
 
+    handles = [
+        Line2D(
+            [0], [0],
+            marker="o",
+            linestyle="",
+            markerfacecolor=cmap_obj(norm_real(lab)),
+            markeredgecolor="none",
+            markersize=8,
+            label=str(lab),
+        )
+        for lab in cluster_labels
+    ]
 
-    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
-
-    cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
-    cbar_real = fig.colorbar(sm_real, cax=cax_real)
-    cbar_real.set_label(
-        f"{GENE} log1p(counts) " if USE_LOG1P else f"{GENE} ",
-        rotation=90,
+    fig.legend(
+        handles=handles,
+        title="Cluster",
+        loc="center left",
+        bbox_to_anchor=(0.8, 0.5),
+        frameon=False,
+        ncol=1,
+        handlelength=0.8,
+        handletextpad=0.4,
+        labelspacing=0.28,
+        borderaxespad=0.0,
+        fontsize=13,
+        title_fontsize=15,
     )
+
+    # --------------------
+    #  Continuous legend for cluster labels
+    # --------------------
+    # sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
+    # sm_real.set_array([])
+    # cax_real = fig.add_axes([0.8, 0.4, 0.02, 0.21])
+    # cbar_real = fig.colorbar(sm_real, cax=cax_real)
+    # cbar_real.set_label(
+    #     f"{GENE} log1p(counts) " if USE_LOG1P else f"{GENE} ",
+    #     rotation=90,fontsize=13
+    # )
 
 
     plt.show()
@@ -800,12 +871,12 @@ def get_3c_paras():
     return ORIG_SAMPLES,dir,ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL
 
 ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_3a_paras()
-plot_real_3d(GENE = "KRT1", CMAP="Reds")
-# plot_real_3d(GENE = "original_clusters", CMAP='tab20')
+# plot_real_3d(GENE = "KRT1", CMAP="Reds")
+plot_real_3d(GENE = "original_clusters", CMAP='tab20')
 #
 ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL = get_3b_paras()
 plot_virtual_3d(GENE = "KRT1", CMAP="Reds")
-plot_virtual_3d(GENE = "original_clusters", CMAP='tab20')
+# plot_virtual_3d(GENE = "original_clusters", CMAP='tab20')
 
 
 ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_3c_paras()

@@ -1509,10 +1509,10 @@ def plot_from_cache(cache_path=RESULTS_CACHE):
     #     save_path=os.path.join(OUTDIR, "reference_curve_layer5_geometry.png"),
     # )
     #
-    # plot_case_gene_distance_density_heatmap_from_cache(
-    #     cache,
-    #     save_path=os.path.join(OUTDIR, "pcp4_distance_density_heatmap.png"),
-    # )
+    plot_case_gene_distance_density_heatmap_from_cache(
+        cache,
+        save_path=os.path.join(OUTDIR, "pcp4_distance_density_heatmap.png"),
+    )
 
     # plot_case_gene_distance_violin_map(
     #     dist_dict_spatialz=cache["violin"]["dist_dict_spatialz"],

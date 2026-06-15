@@ -60,6 +60,10 @@ METRIC_LABELS = {
 # Basic helpers
 # ============================================================
 
+
+
+
+
 def _identity_label(x):
     return str(x)
 
@@ -193,42 +197,6 @@ def aggregate_pair_level(df,metrics=["dice", "spatial_corr", "center_shift"]):
     return pair_df
 
 
-def aggregate_domain_distance(
-    df,
-    method="axis",
-    group_id=None,
-    metric="dice",
-    mode="distance_bin",
-    DISTANCE_ORDER=None,
-    DISTANCE_BIN_ORDER=None
-):
-    if group_id is None:
-        raise ValueError("group_id must be provided for domain-based analysis")
-
-    sub = subset_one_group(df, group_id=group_id, method=method)
-
-    if mode == "distance_bin":
-        agg = (
-            sub.groupby(["domain", "distance_bin"], as_index=False)[metric]
-            .mean()
-        )
-        pivot = agg.pivot(index="domain", columns="distance_bin", values=metric)
-        pivot = pivot.reindex(columns=DISTANCE_BIN_ORDER)
-
-    elif mode == "distance_um":
-        agg = (
-            sub.groupby(["domain", "distance_um"], as_index=False)[metric]
-            .mean()
-        )
-        pivot = agg.pivot(index="domain", columns="distance_um", values=metric)
-        cols = [d for d in DISTANCE_ORDER if d in pivot.columns]
-        pivot = pivot.reindex(columns=cols)
-
-    else:
-        raise ValueError("mode must be 'distance_bin' or 'distance_um'")
-
-    pivot = pivot.reindex(index=get_domain_order(sub))
-    return pivot
 
 
 def aggregate_domain_near_far(df, method="axis", group_id=None, metric="dice"):
@@ -266,88 +234,6 @@ def find_best_competing_method(df, metric="dice"):
 # ============================================================
 
 
-def plot_overall_metric_across_methods(
-    df,
-    metric="dice",
-    save_path=None,
-    figsize=(8, 5),
-):
-    """
-    One figure for one metric.
-    Each dot = one pair-level average across domains.
-    """
-    pair_df = aggregate_pair_level(df,metric)
-    order = get_method_order(pair_df)
-
-    plt.figure(figsize=figsize)
-    ax = plt.gca()
-
-    sns.boxplot(
-        data=pair_df,
-        x="method_display",
-        y=metric,
-        order=order,
-        ax=ax,
-        showfliers=False,
-        width=0.6,
-        color="white",
-        linewidth=1.2,
-    )
-
-    sns.stripplot(
-        data=pair_df,
-        x="method_display",
-        y=metric,
-        order=order,
-        ax=ax,
-        color="0.35",
-        size=6,
-        alpha=0.75,
-        jitter=0.18,
-    )
-
-    mean_df = (
-        pair_df.groupby("method_display", as_index=False)[metric]
-        .mean()
-        .set_index("method_display")
-        .reindex(order)
-        .reset_index()
-    )
-
-    ax.scatter(
-        np.arange(len(order)),
-        mean_df[metric].values,
-        marker="D",
-        s=70,
-        color="crimson",
-        zorder=5,
-        label="Mean across pairs",
-    )
-
-    ax.set_xlabel("")
-    ax.set_ylabel(get_metric_label(metric))
-    ax.set_title(f"Overall method comparison: {get_metric_label(metric)}")
-    ax.tick_params(axis="x", rotation=25)
-    # ax.legend(frameon=False)
-    ax.grid(axis="y", alpha=0.25)
-
-    fig = ax.figure
-
-    ax.xaxis.tick_top()
-    ax.xaxis.set_label_position("top")
-    ax.tick_params(
-        axis="x",
-        top=True,
-        labeltop=True,
-        bottom=False,
-        labelbottom=False,
-        length=0,
-        rotation=25,
-    )
-
-    fig.tight_layout()
-    save_or_show(fig, save_path=save_path)
-
 def plot_overall_metric_across_methods_vertical_compact(
     df,
     metric="dice",
@@ -355,6 +241,7 @@ def plot_overall_metric_across_methods_vertical_compact(
     figsize=(5, 5),
 ):
     pair_df = aggregate_pair_level(df,metric)
+
     order = get_method_order(pair_df)
 
     plt.figure(figsize=figsize)
@@ -519,52 +406,7 @@ def plot_single_pair_metric_across_methods_vertical_compact(
 # Plot 2: AXIS domain heatmap, near vs far
 # ============================================================
 
-def plot_axis_domain_heatmap(
-    df,
-    metric="dice",
-    method="axis",
-    group_id=None,
-    mode="distance_bin",
-    annotate=True,
-    save_path=None,
-    figsize=(5.5, 4.5),
-):
-    if group_id is None:
-        raise ValueError("group_id must be provided for AXIS domain-based analysis")
 
-    pivot = aggregate_domain_distance(
-        df,
-        method=method,
-        group_id=group_id,
-        metric=metric,
-        mode=mode,
-    )
-
-    plt.figure(figsize=figsize)
-    ax = plt.gca()
-
-    sns.heatmap(
-        pivot,
-        ax=ax,
-        cmap=default_cmap(metric),
-        annot=annotate,
-        fmt=".2f",
-        linewidths=0.5,
-        linecolor="white",
-        cbar_kws={"label": get_metric_label(metric)},
-    )
-
-    title_suffix = "Near vs far" if mode == "distance_bin" else "by exact distance"
-    ax.set_xlabel("")
-    ax.set_ylabel("")
-    ax.set_title(
-        f"{METHOD_DISPLAY.get(method, method.upper())} | Group {group_id}: "
-        f"{get_metric_label(metric)} ({title_suffix})"
-    )
-
-    fig = ax.figure
-    fig.tight_layout()
-    save_or_show(fig, save_path=save_path)
 
 
 # ============================================================
@@ -703,141 +545,4 @@ def plot_domain_distance_method_lines(
 
     save_or_show(g.figure, save_path=save_path)
 
-def plot_domain_distance_method_heatmaps(
-    df,
-    metric="dice",
-    group_id=None,
-    methods=None,
-    save_path=None,
-    figsize=(16, 8),
-    annotate=True,
-    format_distance_label=None,
-    format_domain_label=None,
-    xtick_shift=(0.0, 0.0),
-    ytick_shift=(0.0, 0.0),
-    DISTANCE_ORDER=None
-):
-    """
-    One heatmap per method, all in one figure.
-    Each heatmap:
-      rows = domains
-      cols = distance_um
-    """
-    if group_id is None:
-        raise ValueError("group_id must be provided")
 
-    sub = df[df["group_id"] == group_id].copy()
-    if methods is not None:
-        methods = [m.lower() for m in methods]
-        sub = sub[sub["method"].isin(methods)]
-
-    if sub.empty:
-        raise ValueError(f"No rows found for group_id={group_id}")
-
-    domain_order = get_domain_order(sub)
-    method_order = get_method_order(sub)
-
-    method_display_to_raw = (
-        sub[["method", "method_display"]]
-        .drop_duplicates()
-        .set_index("method_display")["method"]
-        .to_dict()
-    )
-
-    methods_present = [m for m in method_order if m in sub["method_display"].unique()]
-    n_methods = len(methods_present)
-
-    ncols = 4
-    nrows = int(np.ceil(n_methods / ncols))
-
-    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
-
-    vmin = sub[metric].min()
-    vmax = sub[metric].max()
-    cmap = default_cmap(metric)
-
-    for ax, method_display in zip(axes.flat, methods_present):
-        method_raw = method_display_to_raw[method_display]
-        sub_m = sub[sub["method"] == method_raw]
-
-        agg = (
-            sub_m.groupby(["domain", "distance_um"], as_index=False)[metric]
-            .mean()
-        )
-
-        pivot = agg.pivot(index="domain", columns="distance_um", values=metric)
-        # cols = [d for d in DISTANCE_ORDER if d in pivot.columns]
-        pivot = pivot.reindex(index=domain_order, columns=pivot.columns)
-
-
-
-        sns.heatmap(
-            pivot,
-            ax=ax,
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-            annot=annotate,
-            fmt=".2f",
-            linewidths=0.5,
-            linecolor="white",
-            cbar=False,
-        )
-
-        apply_heatmap_tick_format(
-            ax=ax,
-            pivot=pivot,
-            format_distance_label=format_distance_label,
-            format_domain_label=format_domain_label,
-            xtick_rotation=0,
-            ytick_rotation=0,
-            xtick_fontsize=14,
-            ytick_fontsize=12,
-            xtick_shift=xtick_shift,
-            ytick_shift=ytick_shift,
-        )
-
-
-        ax.set_title(method_display)
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-
-
-        # ax.set_xticklabels(
-        #     [format_distance_label(c) for c in pivot.columns],
-        #     rotation=0, fontsize=14
-        # )
-        # for label in ax.get_xticklabels():
-        #     x, y = label.get_position()
-        #     label.set_position((x, y + 0.05))
-        #
-        # ax.set_yticklabels(
-        #     [format_domain_label(r) for r in pivot.index],
-        #     rotation=0
-        # )
-        # for label in ax.get_yticklabels():
-        #     x, y = label.get_position()
-        #     label.set_position((x+0.05, y))
-
-    # hide unused panels
-    for ax in axes.flat[n_methods:]:
-        ax.axis("off")
-
-    # shared colorbar
-    mappable = axes.flat[0].collections[0]
-    # cbar = fig.colorbar(
-    #     mappable,
-    #     ax=axes,
-    #     shrink=0.8,
-    #     location="right",
-    #     pad=0.02,
-    # )
-    # cbar.set_label(get_metric_label(metric))
-
-    fig.suptitle(
-        f"Group {group_id}: domain × distance heatmaps across methods ({get_metric_label(metric)})",
-        y=0.98,
-    )
-    fig.tight_layout()
-
-    save_or_show(fig, save_path=save_path)

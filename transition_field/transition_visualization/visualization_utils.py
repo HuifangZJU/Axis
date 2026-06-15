@@ -70,6 +70,52 @@ def draw_slice_plane(
         linewidth=0.7,
     )
 
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+import numpy as np
+
+def add_soft_trajectory_3d(
+    ax,
+    x0, x1,
+    y0, y1,
+    z0, z1,
+    color="k",
+    n_seg=20,
+    alpha_start=0.8,
+    alpha_end=0.1,
+    lw_start=1.8,
+    lw_end=0.3,
+):
+    # interpolate points
+    t = np.linspace(0, 1, n_seg + 1)
+    xs = x0 + (x1 - x0) * t
+    ys = y0 + (y1 - y0) * t
+    zs = z0 + (z1 - z0) * t
+
+    # build short segments
+    segments = []
+    colors = []
+    lws = []
+
+    rgba_base = np.array(plt.matplotlib.colors.to_rgba(color))
+
+    for k in range(n_seg):
+        seg = [
+            (xs[k], ys[k], zs[k]),
+            (xs[k + 1], ys[k + 1], zs[k + 1]),
+        ]
+        segments.append(seg)
+
+        frac = k / max(n_seg - 1, 1)
+        alpha = alpha_start * (1 - frac) + alpha_end * frac
+        lw = lw_start * (1 - frac) + lw_end * frac
+
+        rgba = rgba_base.copy()
+        rgba[3] = alpha
+        colors.append(tuple(rgba))
+        lws.append(lw)
+
+    lc = Line3DCollection(segments, colors=colors, linewidths=lws)
+    ax.add_collection3d(lc)
 
 def draw_trajectory_segments_pairwise(
     ax,
@@ -79,12 +125,17 @@ def draw_trajectory_segments_pairwise(
     color="crimson",
     alpha=0.35,
     linewidth=0.8,
+    alpha_start=0.2,
+    alpha_end=0.2,
+    lw_start=1,
+    lw_end=0.15,
 ):
     """
     trajectories[k] is [N_seed, 2] for slice k, NaN if lost.
     Draw pairwise line segments with ax.plot(), which usually renders
     more reliably than one big Line3DCollection in mplot3d.
     """
+    step = 1/(len(sample_ids)-1)
     for i in range(len(sample_ids) - 1):
         sid0 = sample_ids[i]
         sid1 = sample_ids[i + 1]
@@ -96,32 +147,72 @@ def draw_trajectory_segments_pairwise(
 
         valid = np.all(np.isfinite(p0), axis=1) & np.all(np.isfinite(p1), axis=1)
         idx = np.where(valid)[0]
+        if i==0:
+            for j in idx:
+                ax.plot(
+                    [x0, x1],
+                    [p0[j, 0], p1[j, 0]],
+                    [p0[j, 1], p1[j, 1]],
+                    color=color,
+                    alpha=alpha,
+                    linewidth=linewidth,
+                )
+        elif i !=len(sample_ids) - 2:
 
-        for j in idx:
-            ax.plot(
-                [x0, x1],
-                [p0[j, 0], p1[j, 0]],
-                [p0[j, 1], p1[j, 1]],
-                color=color,
-                alpha=alpha,
-                linewidth=linewidth,
-            )
+            for j in idx:
+                ax.plot(
+                    [x0, x1],
+                    [p0[j, 0], p1[j, 0]],
+                    [p0[j, 1], p1[j, 1]],
+                    color=color,
+                    alpha=alpha,
+                    linewidth=linewidth,
+                )
+        else:
+            for j in idx:
+                add_soft_trajectory_3d(
+                    ax=ax,
+                    x0=x0, x1=x1,
+                    y0=p0[j, 0], y1=p1[j, 0],
+                    z0=p0[j, 1], z1=p1[j, 1],
+                    color=color,
+                    n_seg=24,
+                    alpha_start=alpha_start,
+                    alpha_end=alpha_end,
+                    lw_start=lw_start,
+                    lw_end=lw_end,
+                )
 
 
-def make_rgba_with_value_alpha(
-    vals,
-    norm,
-    cmap_name="viridis",
-    alpha_min=0.03,
-    alpha_max=0.90,
-    gamma=1.6,
-):
-    frac = np.clip(norm(vals), 0.0, 1.0)
+
+def make_rgba_with_value_alpha_abs(vals, norm, cmap_name, alpha_min, alpha_max, gamma=1.0):
     cmap = get_cmap(cmap_name)
-    rgba = cmap(frac)
-    alpha = alpha_min + (frac ** gamma) * (alpha_max - alpha_min)
-    rgba[:, 3] = np.clip(alpha, 0.0, 1.0)
+    vals = np.asarray(vals, dtype=np.float32)
+
+    if hasattr(cmap, "colors"):
+        colors = np.asarray(cmap.colors, dtype=np.float32)
+        idx = np.clip(vals.astype(int), 0, len(colors) - 1)
+        base = colors[idx]
+
+        if base.shape[1] == 3:
+            rgba = np.concatenate(
+                [base, np.ones((base.shape[0], 1), dtype=np.float32)],
+                axis=1
+            )
+        else:
+            rgba = base.copy()
+
+        # for categorical labels, use constant alpha
+        rgba[:, 3] = alpha_max
+    else:
+        frac = np.clip(norm(vals), 0.0, 1.0)
+        rgba = np.asarray(cmap(frac), dtype=np.float32)
+        frac_alpha = np.clip(np.abs(norm(vals)), 0.0, 1.0) ** gamma
+        alpha = alpha_min + (alpha_max - alpha_min) * frac_alpha
+        rgba[:, 3] = alpha
     return rgba
+
+
 
 def ensure_flow_hw2(flow):
     """

@@ -57,9 +57,10 @@ COMPETING_METHODS = [
 
 ALL_METHODS = ["unaligned"]+COMPETING_METHODS + ["axis"]
 # ALL_METHODS = ["axis"]
+# ALL_METHODS=["unaligned"]
 
 # Unaligned baseline
-H5AD_DIR = ROOT / "h5adfile"
+
 H5AD_COORD_KEY = "spatial"
 H5AD_LABEL_KEY = "layer_guess_reordered"
 
@@ -70,6 +71,7 @@ COMPETING_ROOT = ROOT / "competing_methods"
 AXIS_ROOT = ROOT / "huifang"
 AXIS_PAIRWISE_DIR = AXIS_ROOT / "pairwise_output"
 AXIS_NETWORK_INPUT_DIR = AXIS_ROOT / "network_input"
+H5AD_DIR = AXIS_ROOT / "h5ad"
 
 # Output
 OUT_CSV = ROOT / "evaluation" / "dlpfc_domain_metrics_all_methods.csv"

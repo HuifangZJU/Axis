@@ -1,8 +1,5 @@
 from istar_utils import *
-import matplotlib.pyplot as plt
-from matplotlib import cm, colors
 from axis.coordinate_utils import find_inverse_warp_coords
-from matplotlib.colors import Normalize
 from visualization_utils import *
 
 
@@ -280,14 +277,9 @@ def plot_true_slices_with_coherent_trajectories_3d(
     fig = plt.figure(figsize=(fig_width, fig_height))
     ax = fig.add_subplot(111, projection="3d")
     ax.set_position([0.03, 0.06, 0.80, 0.88])
-    ax.set_box_aspect((2.6, 1.3, 1.3))
+    ax.set_box_aspect((2, 1.3, 1.3))
 
-    try:
-        ax.set_proj_type("persp", focal_length=0.9)
-    except TypeError:
-        ax.set_proj_type("persp")
-    except Exception:
-        pass
+    ax.set_proj_type("ortho")
 
     # global slice plane extent
     y_min, y_max = float(np.nanmin(all_y)), float(np.nanmax(all_y))
@@ -326,7 +318,7 @@ def plot_true_slices_with_coherent_trajectories_3d(
         x_plane = slice_cache[sid]["plane"]
 
         if gene is not None:
-            rgba_slice = make_rgba_with_value_alpha(
+            rgba_slice = make_rgba_with_value_alpha_abs(
                 vals=vals,
                 norm=norm,
                 cmap_name=gene_cmap,
@@ -451,7 +443,7 @@ plot_true_slices_with_coherent_trajectories_3d(
         trajectory_alpha=1.0,
         trajectory_linewidth=0.01,
         trajectory_color="crimson",
-        elev=5,
+        elev=15,
         azim=-145,
         fig_width=10,
         fig_height=10,

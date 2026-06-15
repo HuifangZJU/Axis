@@ -2,22 +2,14 @@ from spatial_arithmetic_utils import *
 # ============================================================
 # CONFIG EXAMPLE (DLPFC z-axis analysis-mode structure)
 # ============================================================
-BIOLOGICAL_AXIS_NAME = "Tg_time"
-GRID_SIZE = 256
-
-ROOT = "/media/huifang/data/registration/xenium/mouse_brain/"
-ANALYSIS_DIR = os.path.join(
-    ROOT,
-    "virtual_tissue",
-    f"{BIOLOGICAL_AXIS_NAME}_grid{GRID_SIZE}",
-    "analysis",
-)
+BIOLOGICAL_AXIS_NAME = "AD_time"
+ANALYSIS_DIR = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis"
 
 
 adjacent_virtual_differences(
     input_dir=ANALYSIS_DIR,
     biological_axis_name=BIOLOGICAL_AXIS_NAME,
-    mode='inverse',
+    mode='forward',
     output_subdir="differential",
 
 )

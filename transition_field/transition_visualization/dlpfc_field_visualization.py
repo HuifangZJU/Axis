@@ -1,16 +1,9 @@
-import os
 import numpy as np
-import scanpy as sc
-import scipy.sparse as sp
-import matplotlib.pyplot as plt
-
-from matplotlib.colors import Normalize
-from matplotlib.cm import ScalarMappable, get_cmap
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-import pandas as pd
 from axis.coordinate_utils import find_inverse_warp_coords
 from visualization_utils import *
-
+from matplotlib.lines import Line2D
+from matplotlib.transforms import Bbox
 # ============================================================
 # Basic path helpers
 # ============================================================
@@ -488,8 +481,6 @@ def make_seed_mask(
 
     return seed_mask, info
 
-
-
 def plot_true_slices_with_coherent_trajectories_3d(
     root,
     group_id,
@@ -515,7 +506,7 @@ def plot_true_slices_with_coherent_trajectories_3d(
     trajectory_color="crimson",
     elev=16,
     azim=-82,
-    fig_width=18,
+    fig_width=15,
     fig_height=10,
     xlim=None,
     ylim=None,
@@ -621,17 +612,6 @@ def plot_true_slices_with_coherent_trajectories_3d(
         domain_key=domain_key,
         n_keep=first_coord.shape[0],
     )
-    # seed_mask, seed_info = make_seed_mask(
-    #     adata=first_adata,
-    #     include_domains=trajectory_domains,  # keep None if not using domains
-    #     domain_key=domain_key,
-    #     gene=gene,  # e.g. "Arc", or None
-    #     gene_percentile=90,  # e.g. 90
-    #     gene_use_log1p=True,
-    #     percentile_on_nonzero=True,
-    #     combine_mode='and',  # "and" or "or"
-    #     n_keep=first_coord.shape[0],
-    # )
 
     seed_coord = first_coord[seed_mask]
     if seed_coord.shape[0] == 0:
@@ -692,15 +672,9 @@ def plot_true_slices_with_coherent_trajectories_3d(
     fig = plt.figure(figsize=(fig_width, fig_height))
     ax = fig.add_subplot(111, projection="3d")
     ax.set_position([0.03, 0.06, 0.80, 0.88])
-    ax.set_box_aspect((5.6, 1.3, 1.3))
+    ax.set_box_aspect((2, 1.3, 1.3))
 
-    try:
-        ax.set_proj_type("persp", focal_length=0.9)
-    except TypeError:
-        ax.set_proj_type("persp")
-    except Exception:
-        pass
-
+    ax.set_proj_type("ortho")
     # global slice plane extent
     y_min, y_max = float(np.nanmin(all_y)), float(np.nanmax(all_y))
     z_min_, z_max_ = float(np.nanmin(all_z)), float(np.nanmax(all_z))
@@ -738,7 +712,7 @@ def plot_true_slices_with_coherent_trajectories_3d(
         x_plane = slice_cache[sid]["plane"]
 
         if gene is not None:
-            rgba_slice = make_rgba_with_value_alpha(
+            rgba_slice = make_rgba_with_value_alpha_abs(
                 vals=vals,
                 norm=norm,
                 cmap_name=gene_cmap,
@@ -806,26 +780,67 @@ def plot_true_slices_with_coherent_trajectories_3d(
     )
 
     # slice labels
-    # for sid in sample_ids:
-        # ax.text(
-        #     plane_pos[sid],
-        #     y_min - y_pad * 0.7,
-        #     z_min_ - z_pad * 0.7,
-        #     # f"Group{group_id}_Sample{sid}",
-        #     f"Patient{group_id}_Sample{sid}",
-        #     fontsize=16,
-        #     color="black",
-        # )
+    for sid in sample_ids:
+        ax.text(
+            plane_pos[sid],
+            y_min + y_pad * 3,
+            z_min_ - z_pad * 2,
+            f"Sample{sid}",
+            fontsize=14,
+            color="black",
+        )
 
     if gene is not None and show_colorbar:
-        sm = ScalarMappable(norm=norm, cmap=gene_cmap)
-        sm.set_array([])
-        cax = fig.add_axes([0.86, 0.20, 0.016, 0.26])
-        cbar = fig.colorbar(sm, cax=cax)
-        cbar.set_label(cbar_label)
+        layer_label=["Layer3","Layer4","Layer5","Layer6","WM"]
+        cluster_labels = sorted(np.unique(vals).astype(int).tolist())
+        cmap_obj = plt.get_cmap(gene_cmap)
+        handles = [
+            Line2D(
+                [0], [0],
+                marker="o",
+                linestyle="",
+                markerfacecolor=cmap_obj(lab),
+                markeredgecolor="none",
+                markersize=8,
+                label=layer_label[lab],
+            )
+            for lab in cluster_labels
+        ]
+
+        fig.legend(
+            handles=handles,
+            title="Domains",
+            loc="center left",
+            bbox_to_anchor=(0.65, 0.6),
+            frameon=False,
+            ncol=1,
+            handlelength=0.8,
+            handletextpad=0.4,
+            labelspacing=0.38,
+            borderaxespad=0.0,
+            fontsize=13,
+            title_fontsize=15,
+        )
+
+        # sm = ScalarMappable(norm=norm, cmap=gene_cmap)
+        # sm.set_array([])
+        # cax = fig.add_axes([0.86, 0.20, 0.016, 0.26])
+        # cbar = fig.colorbar(sm, cax=cax)
+        # cbar.set_label(cbar_label)
 
     if save_path is not None:
-        plt.savefig(save_path, dpi=250, bbox_inches="tight")
+        # plt.savefig(save_path, dpi=400, bbox_inches="tight")
+        # print(f"[OK] Saved: {save_path}")
+        fig = plt.gcf()
+        w, h = fig.get_size_inches()
+
+        # crop middle region: x0, y0, width, height as fractions
+        x0, y0, ww, hh = 0.2, 0.22, 0.45, 0.58
+
+        from matplotlib.transforms import Bbox
+        bbox = Bbox.from_bounds(x0 * w, y0 * h, ww * w, hh * h)
+
+        fig.savefig(save_path, dpi=400, bbox_inches=bbox)
         print(f"[OK] Saved: {save_path}")
 
     if show:
@@ -837,87 +852,42 @@ def plot_true_slices_with_coherent_trajectories_3d(
 # ============================================================
 # Example
 # ============================================================
-def show_dlfpc():
+
+if __name__ == "__main__":
     root = "/media/huifang/data/registration/DLPFC/huifang"
     group_id = 1
-    sample_ids = [0, 1,2,3]
+    sample_ids = [0,1,2,3]
 
     plot_true_slices_with_coherent_trajectories_3d(
         root=root,
         group_id=group_id,
         sample_ids=sample_ids,
         gene="layer_guess_reordered",
-        pairwise_subdir="pairwise_output",     # or adjust if your flow files are directly under root/group_[id]
-        axis_positions=None,                   # or e.g. [2.5, 5.7, 17.9]
+        pairwise_subdir="pairwise_output",  # or adjust if your flow files are directly under root/group_[id]
+        axis_positions=None,
         depth_gap=160.0,
         physical_spacing=False,
         use_log1p=True,
-        slice_point_size=10.0,
-        gene_cmap="tab20",
-        alpha_min=0.2,
-        alpha_max=0.92,
+        slice_point_size=2,
+        gene_cmap="tab10",
+        alpha_min=0.5,
+        alpha_max=0.5,
         alpha_gamma=1.6,
-        trajectory_domains=["Layer4"],   # only for seed trajectories
+        trajectory_domains=["Layer4"],  # only for seed trajectories
+        # trajectory_domains=None,
         domain_key="layer_guess_reordered",
         max_seed_points=1200,
-        trajectory_alpha=0.9,
-        trajectory_linewidth=0.1,
+        trajectory_alpha=0.2,
+        trajectory_linewidth=1,
         trajectory_color="crimson",
-        elev=5,
+        elev=10,
         azim=-135,
         fig_width=18,
         fig_height=10,
-        save_path=None,   # e.g. os.path.join(root, "coherent_transition_3d.png")
+        # save_path="/media/huifang/data/registration/DLPFC/evaluation/transition_3d.png",  # e.g. os.path.join(root, "coherent_transition_3d.png")
+        save_path=None,
         show=True,
         random_seed=0,
         xlim=[0, 512],
         ylim=[0, 512],
-    )
-
-if __name__ == "__main__":
-
-    show_dlfpc()
-
-
-
-    root = "/media/huifang/data/registration/SCC/huifang"
-    group_id = 2
-    sample_ids = [0,1,2]
-
-    plot_true_slices_with_coherent_trajectories_3d(
-        root=root,
-        group_id=group_id,
-        sample_ids=sample_ids,
-        # gene="original_clusters",
-        # gene="A2ML1",
-        gene="COL17A1",
-        coord_key='spatial_image_coor',
-        pairwise_subdir="pairwise_output",     # or adjust if your flow files are directly under root/group_[id]
-        axis_positions=None,                   # or e.g. [2.5, 5.7, 17.9]
-        depth_gap=250.0,
-        physical_spacing=False,
-        use_log1p=True,
-        slice_point_size=30.0,
-        # gene_cmap="tab10",
-        gene_cmap="coolwarm",
-        alpha_min=0.5,
-        alpha_max=0.92,
-        alpha_gamma=1.6,
-        # trajectory_domains=["4"],   # only for seed trajectories
-        trajectory_domains=None,  # only for seed trajectories
-        domain_key="original_clusters",
-        max_seed_points=1200,
-        trajectory_alpha=0.6,
-        trajectory_linewidth=1,
-        trajectory_color="crimson",
-        elev=5,
-        azim=-145,
-        fig_width=10,
-        fig_height=10,
-        save_path=None,   # e.g. os.path.join(root, "coherent_transition_3d.png")
-        show=True,
-        random_seed=0,
-        xlim=[0, 512],
-        ylim=[0, 512],
-
     )

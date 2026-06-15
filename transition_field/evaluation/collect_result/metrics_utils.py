@@ -641,12 +641,12 @@ def visualize_dice_regions(region_A, region_B, metrics_df, average_dice_score, s
         # Scatter plot of original points
         plt.scatter(
             ra.coords[:, 0], ra.coords[:, 1],
-            color=color, alpha=0.5, s=1,
+            color=color, alpha=0.5, s=10,
             label=f"Region {label} (A)"
         )
         plt.scatter(
             rb.coords[:, 0], rb.coords[:, 1],
-            color=color, alpha=0.5, s=1, marker="x",
+            color=color, alpha=0.5, s=10, marker="x",
             label=f"Region {label} (B)"
         )
 

@@ -117,32 +117,32 @@ def plot_virtual_3d(
     SHOW_SLICE_LABEL=True,
     VIRTUAL_UNIT_LABEL="m",   # change if your virtual axis is not in microns
 ):
-    # --------------------
-    # Load Real
-    # --------------------
-    real_panels = []
-    real_vals_for_scale = []
-    for sid in ORIG_SAMPLES:
-        z = ORIG_T_MONTH[sid]
-        ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
-        coords = load_coords_npz(NET_IN, GROUP_ID, sid)
-
-        try:
-            vals = extract_gene_vals(ad, GENE)
-        except ValueError:
-            vals, _ = extract_obs_vals(ad, GENE)
-
-        n = min(coords.shape[0], vals.shape[0])
-        coords = coords[:n]
-        vals = vals[:n]
-
-        real_panels.append({
-            "title": f"Real ({z} m)",
-            "coords": coords,
-            "vals": vals,
-            "z": float(z),
-        })
-        real_vals_for_scale.append(vals)
+    # # --------------------
+    # # Load Real
+    # # --------------------
+    # real_panels = []
+    # real_vals_for_scale = []
+    # for sid in ORIG_SAMPLES:
+    #     z = ORIG_T_MONTH[sid]
+    #     ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
+    #     coords = load_coords_npz(NET_IN, GROUP_ID, sid)
+    #
+    #     try:
+    #         vals = extract_gene_vals(ad, GENE)
+    #     except ValueError:
+    #         vals, _ = extract_obs_vals(ad, GENE)
+    #
+    #     n = min(coords.shape[0], vals.shape[0])
+    #     coords = coords[:n]
+    #     vals = vals[:n]
+    #
+    #     real_panels.append({
+    #         "title": f"Real ({z} m)",
+    #         "coords": coords,
+    #         "vals": vals,
+    #         "z": float(z),
+    #     })
+    #     real_vals_for_scale.append(vals)
 
     # --------------------
     # Load Virtual
@@ -153,7 +153,7 @@ def plot_virtual_3d(
     virtual_vals_for_scale = []
 
 
-    for f in gen_files:
+    for sid,f in enumerate(gen_files):
         z = parse_z_from_filename(f)
 
         ad = sc.read_h5ad(f)
@@ -176,49 +176,50 @@ def plot_virtual_3d(
             "title": f"Virtual ({z}{VIRTUAL_UNIT_LABEL})",
             "coords": coords,
             "vals": vals,
-            "z": float(z),
+            # "z": float(z),
+            "z":int(sid)
         })
         virtual_vals_for_scale.append(vals)
 
     # --------------------
     # Norms
     # --------------------
-    vmin_real, vmax_real = robust_vrange(
-        real_vals_for_scale,
-        1 - VMAX_PCT_REAL,
-        VMAX_PCT_REAL,
-    )
+    # vmin_real, vmax_real = robust_vrange(
+    #     real_vals_for_scale,
+    #     1 - VMAX_PCT_REAL,
+    #     VMAX_PCT_REAL,
+    # )
     vmin_virtual, vmax_virtual = robust_vrange(
         virtual_vals_for_scale,
         1 - VMAX_PCT_VIRTUAL,
         VMAX_PCT_VIRTUAL,
     )
 
-    norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
+    # norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
     norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
 
-    print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
+    # print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
     print(f"[SCALE] Virtual: vmin={vmin_virtual:.4f}, vmax={vmax_virtual:.4f}")
 
     # --------------------
     # 3D Figure
     # --------------------
-    fig = plt.figure(figsize=(20,12))
+    fig = plt.figure(figsize=(8,8))
     ax = fig.add_subplot(111, projection="3d")
-    all_depths = [p["z"] * DEPTH_SCALE for p in real_panels + virtual_panels]
+    all_depths = [p["z"] * DEPTH_SCALE for p in virtual_panels]
     x_min = min(all_depths)
     x_max = max(all_depths)
     x_pad = 0.02 * max(x_max - x_min, 1.0)
     # visual aspect, not data aspect
-    # ax.set_box_aspect((10, 1.3, 1.3))
+    ax.set_box_aspect((1.6, 1.3, 1.3))
     x_range = (x_max + x_pad) - (x_min - x_pad)
     y_range = abs(X_LIM[1] - X_LIM[0])
     z_range = abs(Y_LIM[1] - Y_LIM[0])
 
     # optional exaggeration of depth for visual clarity
-    depth_exaggeration = 35
-    ax.set_box_aspect((x_range * depth_exaggeration, y_range, z_range))
-    ax.set_position([0.03, 0.08, 0.80, 0.84])
+    # depth_exaggeration = 5
+    # ax.set_box_aspect((5*x_range * depth_exaggeration, y_range, z_range))
+    # ax.set_position([0.03, 0.08, 0.80, 0.84])
 
     ax.set_proj_type("ortho")
 
@@ -233,21 +234,21 @@ def plot_virtual_3d(
     # Draw slice frames first
     # --------------------
     if SHOW_SLICE_FRAME:
-        for p in real_panels:
-            draw_slice_plane_frame(
-                ax=ax,
-                z_um=p["z"],
-                x_lim_2d=X_LIM,
-                y_lim_2d=Y_LIM,
-                depth_scale=DEPTH_SCALE,
-                linestyle=REAL_FRAME_STYLE,
-                color=REAL_FRAME_COLOR,
-                linewidth=REAL_FRAME_WIDTH,
-                alpha=0.75,
-                label=p["title"] if SHOW_SLICE_LABEL else None,
-                label_color=REAL_FRAME_COLOR,
-                label_fontsize=14,
-            )
+        # for p in real_panels:
+        #     draw_slice_plane_frame(
+        #         ax=ax,
+        #         z_um=p["z"],
+        #         x_lim_2d=X_LIM,
+        #         y_lim_2d=Y_LIM,
+        #         depth_scale=DEPTH_SCALE,
+        #         linestyle=REAL_FRAME_STYLE,
+        #         color=REAL_FRAME_COLOR,
+        #         linewidth=REAL_FRAME_WIDTH,
+        #         alpha=0.75,
+        #         label=p["title"] if SHOW_SLICE_LABEL else None,
+        #         label_color=REAL_FRAME_COLOR,
+        #         label_fontsize=14,
+        #     )
 
         for p in virtual_panels:
             draw_slice_plane_frame(
@@ -268,25 +269,27 @@ def plot_virtual_3d(
     # --------------------
     # Scatter real slices
     # --------------------
-    for p in real_panels:
-        scatter_slice_horizontal_depth(
-            ax=ax,
-            coords=p["coords"],
-            vals=p["vals"],
-            z_um=p["z"],
-            norm=norm_real,
-            cmap_name=CMAP,
-            s=S_REAL,
-            alpha_max=ALPHA_MAX_REAL,
-            label_prefix="Real",
-            DEPTH_SCALE=DEPTH_SCALE,
-            ALPHA_MIN=ALPHA_MIN_REAL,
-            ALPHA_GAMMA=ALPHA_GAMMA,
-        )
+    # for p in real_panels:
+    #     scatter_slice_horizontal_depth(
+    #         ax=ax,
+    #         coords=p["coords"],
+    #         vals=p["vals"],
+    #         z_um=p["z"],
+    #         norm=norm_real,
+    #         cmap_name=CMAP,
+    #         s=S_REAL,
+    #         alpha_max=ALPHA_MAX_REAL,
+    #         label_prefix="Real",
+    #         DEPTH_SCALE=DEPTH_SCALE,
+    #         ALPHA_MIN=ALPHA_MIN_REAL,
+    #         ALPHA_GAMMA=ALPHA_GAMMA,
+    #     )
 
     # --------------------
     # Scatter virtual slices
     # --------------------
+    # CMAPS=['Reds','Blues','Purples']
+    # for p,c in zip(virtual_panels,CMAPS):
     for p in virtual_panels:
         scatter_slice_horizontal_depth(
             ax=ax,
@@ -359,20 +362,20 @@ def plot_virtual_3d(
     # --------------------
     # Colorbars
     # --------------------
-    sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
-    sm_real.set_array([])
+    # sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
+    # sm_real.set_array([])
 
     sm_virtual = ScalarMappable(norm=norm_virtual, cmap=CMAP)
     sm_virtual.set_array([])
 
     fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
 
-    cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
-    cbar_real = fig.colorbar(sm_real, cax=cax_real)
-    cbar_real.set_label(
-        f"{GENE} log1p(counts) " if USE_LOG1P else f"{GENE} ",
-        rotation=90,
-    )
+    # cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
+    # cbar_real = fig.colorbar(sm_real, cax=cax_real)
+    # cbar_real.set_label(
+    #     f"{GENE} log1p(counts) " if USE_LOG1P else f"{GENE} ",
+    #     rotation=90,
+    # )
 
     cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
     cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
@@ -443,7 +446,7 @@ def plot_real_3d(
     z_range = abs(Y_LIM[1] - Y_LIM[0])
 
     # optional exaggeration of depth for visual clarity
-    ax.set_box_aspect((1.4*y_range, y_range, z_range))
+    ax.set_box_aspect((1*y_range, y_range, z_range))
     ax.set_position([0.03, 0.08, 0.80, 0.84])
 
     ax.set_proj_type("ortho")
@@ -476,7 +479,8 @@ def plot_real_3d(
     # --------------------
     # Scatter real slices
     # --------------------
-
+    # CMAPS = ['Reds', 'Blues', 'Purples']
+    # for p, c in zip(real_panels, CMAPS):
     for p in real_panels:
         scatter_slice_horizontal_depth(
             ax=ax,
@@ -509,7 +513,8 @@ def plot_real_3d(
     # --------------------
     # Labels and title
     # --------------------
-    ax.grid(False)
+    # ax.grid(False)
+    # ax.axis('off')
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_zticks([])
@@ -529,6 +534,7 @@ def plot_real_3d(
     # --------------------
     sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
     sm_real.set_array([])
+
 
 
     fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
@@ -766,8 +772,8 @@ def get_4a_paras():
     ORIG_SAMPLES = [0, 1, 2]
     dir = os.path.join("/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue",
                        "Tg_time_grid256/analysis")
-    ALPHA_MIN_REAL = 0.5  # almost invisible near zero
-    ALPHA_MIN_VIRTUAL=0.5
+    ALPHA_MIN_REAL = 0.4  # almost invisible near zero
+    ALPHA_MIN_VIRTUAL=0.4
     ALPHA_MAX_REAL = 1
     ALPHA_MAX_VIRTUAL = 1
     ALPHA_GAMMA = 1.6  # >1 makes low values fade more aggressively
@@ -779,15 +785,14 @@ def get_4a_paras():
 
 def get_4b_paras():
     ORIG_SAMPLES = [0, 1, 2]
-    dir = os.path.join("/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue",
-                           "Tg_time_grid256/query")
-    ALPHA_MIN_REAL = 0.2  # almost invisible near zero
-    ALPHA_MIN_VIRTUAL=0.2
-    ALPHA_MAX_REAL = 0.6
-    ALPHA_MAX_VIRTUAL = 0.6
+    dir = os.path.join("/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial1.0/analysis/")
+    ALPHA_MIN_REAL = 0.4  # almost invisible near zero
+    ALPHA_MIN_VIRTUAL=0.4
+    ALPHA_MAX_REAL = 1
+    ALPHA_MAX_VIRTUAL = 1
     ALPHA_GAMMA = 1.6  # >1 makes low values fade more aggressively
     ELEV = 15
-    AZIM = -135
+    AZIM = -145
     S_REAL = 3
     S_VIRTUAL = 3
     return ORIG_SAMPLES,dir,ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL
@@ -808,9 +813,9 @@ def get_4c_paras():
     return ORIG_SAMPLES,dir,ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL
 
 
-# ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_4a_paras()
+ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_4a_paras()
 # plot_real_3d(GENE = "axis_joint_domain", CMAP='tab20')
-# plot_real_3d(GENE = "Arc", CMAP='Reds')
+plot_real_3d(GENE = "Arc", CMAP='Reds')
 
 ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_4b_paras()
 # plot_virtual_3d(GENE = "axis_joint_domain", CMAP='tab20',SHOW_SLICE_FRAME=True)
