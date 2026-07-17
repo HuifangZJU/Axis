@@ -39,8 +39,10 @@ RUN_MODE = "plot"   # "eval", "plot", or "both"
 # Real slices
 # ------------------------------------------------------------
 REAL_SLICE_PATHS = {
+    0: os.path.join(root, "h5ad", "1_0.h5ad"),
     10: os.path.join(root, "h5ad", "1_1.h5ad"),
     310: os.path.join(root, "h5ad", "1_2.h5ad"),
+    320: os.path.join(root, "h5ad", "1_3.h5ad"),
 }
 
 # ------------------------------------------------------------
@@ -48,7 +50,7 @@ REAL_SLICE_PATHS = {
 # ------------------------------------------------------------
 # virtual_depth = np.arange(40, 310, 30)
 virtual_depth = np.arange(20, 310, 10)
-Z_ORDER = [10] + virtual_depth.tolist() + [310]
+Z_ORDER = [0,10] + virtual_depth.tolist() + [310,320]
 
 # ------------------------------------------------------------
 # SpatialZ virtual slices

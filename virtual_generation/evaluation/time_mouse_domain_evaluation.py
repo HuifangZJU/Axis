@@ -840,11 +840,11 @@ def plot_all():
         comp_df,
         save_path=os.path.join(figdir, "domain_component_agreement.png"),
     )
-
-    plot_adjacent_domain_gene_profile_by_interval(
-        adj_df,
-        save_path=os.path.join(figdir, "adjacent_domain_gene_profile_by_interval.png"),
-    )
+    #
+    # plot_adjacent_domain_gene_profile_by_interval(
+    #     adj_df,
+    #     save_path=os.path.join(figdir, "adjacent_domain_gene_profile_by_interval.png"),
+    # )
 
     print(f"[DONE] figures saved to: {figdir}")
 

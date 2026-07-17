@@ -19,13 +19,13 @@ from matplotlib import pyplot as plt
 # CONFIG
 # ============================================================
 
-BIOLOGICAL_AXIS_NAME = "scc_z"
-GROUP_ID = 10
-GRID_SIZE = 32
-SPATIAL_BANDWIDTH = 5
+BIOLOGICAL_AXIS_NAME = "dlpfc_z"
+GROUP_ID = 1
+GRID_SIZE = 80
+SPATIAL_BANDWIDTH = 1
 
-ROOT = "/media/huifang/data/registration/SCC/huifang"
-H5AD_DIR = "/media/huifang/data/registration/SCC/huifang/h5ad"
+ROOT = "/media/huifang/data/registration/DLPFC/huifang"
+H5AD_DIR = "/media/huifang/data/registration/DLPFC/huifang/h5ad"
 
 ANALYSIS_DIR = os.path.join(
     ROOT,
@@ -37,10 +37,10 @@ ANALYSIS_DIR = os.path.join(
 OUTDIR = os.path.join(ANALYSIS_DIR, "aggregation_evaluation")
 os.makedirs(OUTDIR, exist_ok=True)
 
-LAYER_KEY = "original_clusters"
+LAYER_KEY = "layer_guess_reordered"
 REFERENCE_AXIS_VALUE = 0.0
-SAMPLE_IDS = [0, 1, 2]
-MARKER_GENES = ['KRT1','MMP10','PTHLH']
+SAMPLE_IDS = [0, 1, 2, 3]
+MARKER_GENES = ["MFGE8", "MOBP","CUX2","RAI14","RORB", "ENC1","PCP4", "KCNIP2","SYT6", "FOXP2","MBP"]
 
 USE_LOG1P_FOR_PLOT = True
 RUN_NMF = True
@@ -112,7 +112,6 @@ def load_original_single_slices(
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
         out[sid] = sc.read_h5ad(path)
-
 
     return out
 
@@ -588,7 +587,6 @@ def collect_aggregation_marker_metrics(
     )
     agg_ad_virtual_max = sc.read_h5ad(agg_path)
 
-
     # subset AXIS aggregate to the same common genes for fair comparison
     agg_ad_virtual_max = agg_ad_virtual_max[:, common_genes].copy()
 
@@ -745,12 +743,12 @@ def collect_aggregation_marker_metrics(
 
 
 
-# aggregate_virtual_slices_max(
-#     input_dir=ANALYSIS_DIR,
-#     biological_axis_name=BIOLOGICAL_AXIS_NAME,
-#     reference_axis_value=0,   # choose whichever z you want to keep attrs from
-#     output_subdir="aggregation",
-# )
+aggregate_virtual_slices_max(
+    input_dir=ANALYSIS_DIR,
+    biological_axis_name=BIOLOGICAL_AXIS_NAME,
+    reference_axis_value=0,   # choose whichever z you want to keep attrs from
+    output_subdir="aggregation",
+)
 #
 
 collect_aggregation_marker_metrics(

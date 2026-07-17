@@ -295,7 +295,7 @@ def dotplot_marker_gene_matrix(
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root_folder", required=True)
+    ap.add_argument("--root_folder", default="/media/huifang/data/registration/phenocycler/haotian/")
     ap.add_argument("--in_rds", default="xenium_DE.rds")
     ap.add_argument("--topk", type=int, default=5, help="Top-k genes per protein marker")
     ap.add_argument("--out_dir", default="de_dotplot_matrix")

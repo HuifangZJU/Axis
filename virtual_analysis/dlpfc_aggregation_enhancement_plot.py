@@ -11,8 +11,7 @@ from scipy.stats import mannwhitneyu
 # CONFIG
 # ============================================================
 
-OUTDIR = "/media/huifang/data/registration/DLPFC/huifang/virtual_tissue/dlpfc_z_group1_grid70_spatial0.7/analysis/aggregation_evaluation"
-# OUTDIR = "/media/huifang/data/registration/SCC/huifang/virtual_tissue/scc_z_group10_grid32_spatial5/analysis/aggregation_evaluation"
+OUTDIR = "/media/huifang/data/registration/DLPFC/huifang/virtual_tissue/dlpfc_z_group1_grid80_spatial1/analysis/aggregation_evaluation"
 LONG_CSV = os.path.join(OUTDIR, "marker_expression_long.csv")
 SUMMARY_CSV = os.path.join(OUTDIR, "marker_slice_summary.csv")
 ADJ_CSV = os.path.join(OUTDIR, "marker_adjacent_stats.csv")
@@ -22,7 +21,7 @@ ADJ_CSV = os.path.join(OUTDIR, "marker_adjacent_stats.csv")
 # CONFIG
 # ============================================================
 
-GENES_TO_PLOT = ["MOBP","CUX2","RAI14","RORB", "ENC1","PCP4", "KCNIP2","SYT6", "FOXP2","MBP","MFGE8"]
+GENES_TO_PLOT = ["MOBP","CUX2","RORB", "ENC1","PCP4", "KCNIP2","FOXP2","MBP","MFGE8"]
 # GENES_TO_PLOT =  ['KRT1','MMP10','PTHLH']
 # expected left-to-right panel order in the final figure
 PANEL_ORDER = [
@@ -307,7 +306,7 @@ def plot_gene_summary_metrics_from_csv(
 
         ax.set_xticks(np.arange(len(sub)))
         ax.set_xticklabels(sub["panel_label"], rotation=35, ha="right", fontsize=14)
-        ax.set_title("Dominant layer margin for MFGE8", fontsize=14, fontweight="bold")
+        ax.set_title(f"Dominant layer margin for {gene}", fontsize=14, fontweight="bold")
         ax.set_ylabel("Mean log1p expression", fontsize=14)
         ax.grid(axis="y", alpha=0.22)
 

@@ -1714,11 +1714,12 @@ plot_transition_field_3d(
     depth_gap=270.0,
     slice_point_size=5.0,
     slice_alpha=0.55,
-    mesh_step=20.0,
+    mesh_step=1.0,
     mesh_support_radius=20.0,
     invert_x=True,
     invert_y=True,
     save_path="/media/huifang/data/registration/DLPFC/evaluation/mesh_transition.png",
+    # save_path=None,
     show=True,
 )
 #

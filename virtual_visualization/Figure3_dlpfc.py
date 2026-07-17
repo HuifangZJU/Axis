@@ -42,247 +42,247 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from matplotlib.cm import ScalarMappable, get_cmap
-# from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-#
-#
-# # ============================================================
-# # Basic helpers
-# # ============================================================
-# def _rgba_from_vals(vals, norm, cmap_name, alpha):
-#     vals = np.asarray(vals, dtype=np.float32)
-#     rgba = np.asarray(get_cmap(cmap_name)(norm(vals)), dtype=np.float32)
-#     if rgba.ndim == 1:
-#         rgba = rgba[None, :]
-#     if rgba.shape[1] == 3:
-#         alpha_col = np.full((rgba.shape[0], 1), float(alpha), dtype=np.float32)
-#         rgba = np.concatenate([rgba, alpha_col], axis=1)
-#     else:
-#         rgba[:, 3] = float(alpha)
-#     return rgba
-#
-#
-# def _collect_xyz_limits(real_panels, virtual_panels, depth_scale, pad_ratio=0.04):
-#     """
-#     3D convention used here:
-#       X axis = depth = z_um * depth_scale
-#       Y axis = coords[:, 0]
-#       Z axis = coords[:, 1]
-#     """
-#     all_panels = list(real_panels) + list(virtual_panels)
-#
-#     xs = []
-#     ys = []
-#     zs = []
-#     for p in all_panels:
-#         coords = np.asarray(p["coords"], dtype=np.float32)
-#         xs.append(np.full(coords.shape[0], float(p["z"]) * float(depth_scale), dtype=np.float32))
-#         ys.append(coords[:, 0])
-#         zs.append(coords[:, 1])
-#
-#     x = np.concatenate(xs)
-#     y = np.concatenate(ys)
-#     z = np.concatenate(zs)
-#
-#     def _pad(a):
-#         amin = float(np.min(a))
-#         amax = float(np.max(a))
-#         span = max(amax - amin, 1e-6)
-#         pad = span * pad_ratio
-#         return amin - pad, amax + pad
-#
-#     return _pad(x), _pad(y), _pad(z)
-#
-#
-# # ============================================================
-# # New cut mode: vertical plane spinning around a vertical line
-# # ============================================================
-# def split_points_by_vertical_axis_spin(
-#     coords,
-#     z_um,
-#     depth_scale,
-#     cut_anchor_depth,
-#     cut_anchor_coord0,
-#     cut_angle_deg,
-#     slab_half_width=8.0,
-#     keep_positive_side=True,
-# ):
-#     """
-#     Vertical revolving-door cut.
-#
-#     3D convention:
-#       x = depth = z_um * depth_scale
-#       y = coords[:, 0]
-#       z = coords[:, 1]  (vertical)
-#
-#     The plane contains the vertical z direction and rotates in the
-#     ground plane spanned by (depth, coords[:,0]).
-#     """
-#     coords = np.asarray(coords, dtype=np.float32)
-#
-#     x = np.full(coords.shape[0], float(z_um) * float(depth_scale), dtype=np.float32)
-#     y = coords[:, 0]
-#
-#     dx = x - float(cut_anchor_depth)
-#     dy = y - float(cut_anchor_coord0)
-#
-#     phi = np.deg2rad(cut_angle_deg)
-#
-#     # Horizontal in-plane direction
-#     u = np.array([np.cos(phi), np.sin(phi)], dtype=np.float32)
-#
-#     # Horizontal normal to the cut plane
-#     n = np.array([-u[1], u[0]], dtype=np.float32)
-#
-#     signed = dx * n[0] + dy * n[1]
-#
-#     mask_plane = np.abs(signed) <= slab_half_width
-#
-#     if keep_positive_side:
-#         mask_keep = signed > slab_half_width
-#         mask_remove = signed < -slab_half_width
-#     else:
-#         mask_keep = signed < -slab_half_width
-#         mask_remove = signed > slab_half_width
-#
-#     return mask_keep, mask_plane, mask_remove
-#
-#
-# def scatter_resection_slice_vertical_spin(
-#     ax,
-#     coords,
-#     vals,
-#     z_um,
-#     norm,
-#     cmap_name,
-#     depth_scale,
-#     cut_anchor_depth,
-#     cut_anchor_coord0,
-#     cut_angle_deg,
-#     slab_half_width=8.0,
-#     keep_positive_side=True,
-#     s_volume=5,
-#     s_plane=11,
-#     alpha_volume=0.12,
-#     alpha_plane=0.95,
-#     show_removed_side=False,
-#     alpha_removed=0.03,
-# ):
-#     """
-#     Render a slice with revolving-door style vertical resection plane.
-#     """
-#     coords = np.asarray(coords, dtype=np.float32)
-#     vals = np.asarray(vals, dtype=np.float32)
-#
-#     mask_keep, mask_plane, mask_remove = split_points_by_vertical_axis_spin(
-#         coords=coords,
-#         z_um=z_um,
-#         depth_scale=depth_scale,
-#         cut_anchor_depth=cut_anchor_depth,
-#         cut_anchor_coord0=cut_anchor_coord0,
-#         cut_angle_deg=cut_angle_deg,
-#         slab_half_width=slab_half_width,
-#         keep_positive_side=keep_positive_side,
-#     )
-#
-#     x = np.full(coords.shape[0], float(z_um) * float(depth_scale), dtype=np.float32)
-#     y = coords[:, 0]
-#     z = coords[:, 1]
-#
-#     if show_removed_side and np.any(mask_remove):
-#         rgba = _rgba_from_vals(vals[mask_remove], norm, cmap_name, alpha_removed)
-#         ax.scatter(
-#             x[mask_remove], y[mask_remove], z[mask_remove],
-#             s=s_volume, c=rgba, linewidths=0, depthshade=False, rasterized=True
-#         )
-#
-#     if np.any(mask_keep):
-#         rgba = _rgba_from_vals(vals[mask_keep], norm, cmap_name, alpha_volume)
-#         ax.scatter(
-#             x[mask_keep], y[mask_keep], z[mask_keep],
-#             s=s_volume, c=rgba, linewidths=0, depthshade=False, rasterized=True
-#         )
-#
-#     if np.any(mask_plane):
-#         rgba = _rgba_from_vals(vals[mask_plane], norm, cmap_name, alpha_plane)
-#         ax.scatter(
-#             x[mask_plane], y[mask_plane], z[mask_plane],
-#             s=s_plane, c=rgba, linewidths=0, depthshade=False, rasterized=True
-#         )
-#
-#
-# def draw_cut_plane_frame_vertical_spin(
-#     ax,
-#     cut_anchor_depth,
-#     cut_anchor_coord0,
-#     cut_angle_deg,
-#     depth_lim,
-#     coord0_lim,
-#     coord1_lim,
-#     frame_color="crimson",
-#     frame_width=2.2,
-#     frame_alpha=0.95,
-#     face_alpha=0.05,
-#     draw_face=True,
-#     draw_label=True,
-#     label="Cut plane",
-#     label_fontsize=12,
-# ):
-#     """
-#     Draw the vertical spinning cut plane as a rectangular frame.
-#     """
-#     x_min, x_max = depth_lim
-#     y_min, y_max = coord0_lim
-#     z_min, z_max = coord1_lim
-#
-#     phi = np.deg2rad(cut_angle_deg)
-#
-#     # In-plane horizontal direction in (depth, coord0)
-#     u = np.array([np.cos(phi), np.sin(phi), 0.0], dtype=np.float32)
-#     # Vertical direction
-#     v = np.array([0.0, 0.0, 1.0], dtype=np.float32)
-#
-#     center = np.array([
-#         float(cut_anchor_depth),
-#         float(cut_anchor_coord0),
-#         0.5 * (float(z_min) + float(z_max)),
-#     ], dtype=np.float32)
-#
-#     half_h = 0.50 * np.hypot(float(x_max) - float(x_min), float(y_max) - float(y_min))
-#     half_v = 0.55 * (float(z_max) - float(z_min))
-#
-#     A = center - half_h * u - half_v * v
-#     B = center + half_h * u - half_v * v
-#     C = center + half_h * u + half_v * v
-#     D = center - half_h * u + half_v * v
-#
-#     corners = np.vstack([A, B, C, D, A])
-#
-#     ax.plot(
-#         corners[:, 0], corners[:, 1], corners[:, 2],
-#         color=frame_color, linewidth=frame_width, alpha=frame_alpha, zorder=10
-#     )
-#
-#     if draw_face:
-#         poly = Poly3DCollection([[A, B, C, D]])
-#         poly.set_facecolor(frame_color)
-#         poly.set_alpha(face_alpha)
-#         poly.set_edgecolor("none")
-#         ax.add_collection3d(poly)
-#
-#     if draw_label:
-#         ax.text(
-#             center[0], center[1], z_max,
-#             label,
-#             color=frame_color,
-#             fontsize=label_fontsize,
-#             ha="center",
-#             va="bottom",
-#             zorder=11,
-#         )
-#
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable, get_cmap
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+
+# ============================================================
+# Basic helpers
+# ============================================================
+def _rgba_from_vals(vals, norm, cmap_name, alpha):
+    vals = np.asarray(vals, dtype=np.float32)
+    rgba = np.asarray(get_cmap(cmap_name)(norm(vals)), dtype=np.float32)
+    if rgba.ndim == 1:
+        rgba = rgba[None, :]
+    if rgba.shape[1] == 3:
+        alpha_col = np.full((rgba.shape[0], 1), float(alpha), dtype=np.float32)
+        rgba = np.concatenate([rgba, alpha_col], axis=1)
+    else:
+        rgba[:, 3] = float(alpha)
+    return rgba
+
+
+def _collect_xyz_limits(real_panels, virtual_panels, depth_scale, pad_ratio=0.04):
+    """
+    3D convention used here:
+      X axis = depth = z_um * depth_scale
+      Y axis = coords[:, 0]
+      Z axis = coords[:, 1]
+    """
+    all_panels = list(real_panels) + list(virtual_panels)
+
+    xs = []
+    ys = []
+    zs = []
+    for p in all_panels:
+        coords = np.asarray(p["coords"], dtype=np.float32)
+        xs.append(np.full(coords.shape[0], float(p["z"]) * float(depth_scale), dtype=np.float32))
+        ys.append(coords[:, 0])
+        zs.append(coords[:, 1])
+
+    x = np.concatenate(xs)
+    y = np.concatenate(ys)
+    z = np.concatenate(zs)
+
+    def _pad(a):
+        amin = float(np.min(a))
+        amax = float(np.max(a))
+        span = max(amax - amin, 1e-6)
+        pad = span * pad_ratio
+        return amin - pad, amax + pad
+
+    return _pad(x), _pad(y), _pad(z)
+
+
+# ============================================================
+# New cut mode: vertical plane spinning around a vertical line
+# ============================================================
+def split_points_by_vertical_axis_spin(
+    coords,
+    z_um,
+    depth_scale,
+    cut_anchor_depth,
+    cut_anchor_coord0,
+    cut_angle_deg,
+    slab_half_width=8.0,
+    keep_positive_side=True,
+):
+    """
+    Vertical revolving-door cut.
+
+    3D convention:
+      x = depth = z_um * depth_scale
+      y = coords[:, 0]
+      z = coords[:, 1]  (vertical)
+
+    The plane contains the vertical z direction and rotates in the
+    ground plane spanned by (depth, coords[:,0]).
+    """
+    coords = np.asarray(coords, dtype=np.float32)
+
+    x = np.full(coords.shape[0], float(z_um) * float(depth_scale), dtype=np.float32)
+    y = coords[:, 0]
+
+    dx = x - float(cut_anchor_depth)
+    dy = y - float(cut_anchor_coord0)
+
+    phi = np.deg2rad(cut_angle_deg)
+
+    # Horizontal in-plane direction
+    u = np.array([np.cos(phi), np.sin(phi)], dtype=np.float32)
+
+    # Horizontal normal to the cut plane
+    n = np.array([-u[1], u[0]], dtype=np.float32)
+
+    signed = dx * n[0] + dy * n[1]
+
+    mask_plane = np.abs(signed) <= slab_half_width
+
+    if keep_positive_side:
+        mask_keep = signed > slab_half_width
+        mask_remove = signed < -slab_half_width
+    else:
+        mask_keep = signed < -slab_half_width
+        mask_remove = signed > slab_half_width
+
+    return mask_keep, mask_plane, mask_remove
+
+
+def scatter_resection_slice_vertical_spin(
+    ax,
+    coords,
+    vals,
+    z_um,
+    norm,
+    cmap_name,
+    depth_scale,
+    cut_anchor_depth,
+    cut_anchor_coord0,
+    cut_angle_deg,
+    slab_half_width=8.0,
+    keep_positive_side=True,
+    s_volume=5,
+    s_plane=11,
+    alpha_volume=0.12,
+    alpha_plane=0.95,
+    show_removed_side=False,
+    alpha_removed=0.03,
+):
+    """
+    Render a slice with revolving-door style vertical resection plane.
+    """
+    coords = np.asarray(coords, dtype=np.float32)
+    vals = np.asarray(vals, dtype=np.float32)
+
+    mask_keep, mask_plane, mask_remove = split_points_by_vertical_axis_spin(
+        coords=coords,
+        z_um=z_um,
+        depth_scale=depth_scale,
+        cut_anchor_depth=cut_anchor_depth,
+        cut_anchor_coord0=cut_anchor_coord0,
+        cut_angle_deg=cut_angle_deg,
+        slab_half_width=slab_half_width,
+        keep_positive_side=keep_positive_side,
+    )
+
+    x = np.full(coords.shape[0], float(z_um) * float(depth_scale), dtype=np.float32)
+    y = coords[:, 0]
+    z = coords[:, 1]
+
+    if show_removed_side and np.any(mask_remove):
+        rgba = _rgba_from_vals(vals[mask_remove], norm, cmap_name, alpha_removed)
+        ax.scatter(
+            x[mask_remove], y[mask_remove], z[mask_remove],
+            s=s_volume, c=rgba, linewidths=0, depthshade=False, rasterized=True
+        )
+
+    if np.any(mask_keep):
+        rgba = _rgba_from_vals(vals[mask_keep], norm, cmap_name, alpha_volume)
+        ax.scatter(
+            x[mask_keep], y[mask_keep], z[mask_keep],
+            s=s_volume, c=rgba, linewidths=0, depthshade=False, rasterized=True
+        )
+
+    if np.any(mask_plane):
+        rgba = _rgba_from_vals(vals[mask_plane], norm, cmap_name, alpha_plane)
+        ax.scatter(
+            x[mask_plane], y[mask_plane], z[mask_plane],
+            s=s_plane, c=rgba, linewidths=0, depthshade=False, rasterized=True
+        )
+
+
+def draw_cut_plane_frame_vertical_spin(
+    ax,
+    cut_anchor_depth,
+    cut_anchor_coord0,
+    cut_angle_deg,
+    depth_lim,
+    coord0_lim,
+    coord1_lim,
+    frame_color="crimson",
+    frame_width=2.2,
+    frame_alpha=0.95,
+    face_alpha=0.05,
+    draw_face=True,
+    draw_label=True,
+    label="Cut plane",
+    label_fontsize=12,
+):
+    """
+    Draw the vertical spinning cut plane as a rectangular frame.
+    """
+    x_min, x_max = depth_lim
+    y_min, y_max = coord0_lim
+    z_min, z_max = coord1_lim
+
+    phi = np.deg2rad(cut_angle_deg)
+
+    # In-plane horizontal direction in (depth, coord0)
+    u = np.array([np.cos(phi), np.sin(phi), 0.0], dtype=np.float32)
+    # Vertical direction
+    v = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+
+    center = np.array([
+        float(cut_anchor_depth),
+        float(cut_anchor_coord0),
+        0.5 * (float(z_min) + float(z_max)),
+    ], dtype=np.float32)
+
+    half_h = 0.50 * np.hypot(float(x_max) - float(x_min), float(y_max) - float(y_min))
+    half_v = 0.55 * (float(z_max) - float(z_min))
+
+    A = center - half_h * u - half_v * v
+    B = center + half_h * u - half_v * v
+    C = center + half_h * u + half_v * v
+    D = center - half_h * u + half_v * v
+
+    corners = np.vstack([A, B, C, D, A])
+
+    ax.plot(
+        corners[:, 0], corners[:, 1], corners[:, 2],
+        color=frame_color, linewidth=frame_width, alpha=frame_alpha, zorder=10
+    )
+
+    if draw_face:
+        poly = Poly3DCollection([[A, B, C, D]])
+        poly.set_facecolor(frame_color)
+        poly.set_alpha(face_alpha)
+        poly.set_edgecolor("none")
+        ax.add_collection3d(poly)
+
+    if draw_label:
+        ax.text(
+            center[0], center[1], z_max,
+            label,
+            color=frame_color,
+            fontsize=label_fontsize,
+            ha="center",
+            va="bottom",
+            zorder=11,
+        )
+
 #
 # # ============================================================
 # # Old mode support
@@ -294,366 +294,366 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 # # If you no longer need the old mode, you can remove this branch.
 #
 #
-# # ============================================================
-# # Main rewritten plotting function
-# # ============================================================
-# def plot_insilico_resectioning_fancy(
-#     GENE,
-#     CMAP="tab10",
-#     DEPTH_SCALE=1.0,
-#     CUT_STYLE="vertical_spin",   # "vertical_spin" or "depth_extruded"
-#     CUT_ANCHOR_2D=(0.0, 0.0),    # used by old mode if needed
-#     CUT_ANCHOR_DEPTH=None,       # used by vertical_spin
-#     CUT_ANCHOR_COORD0=None,      # used by vertical_spin
-#     CUT_ANGLE_DEG=35.0,
-#     CUT_SLAB_HALF_WIDTH=10.0,
-#     CUT_KEEP_POSITIVE_SIDE=True,
-#     SHOW_REMOVED_SIDE=False,
-#     REAL_S_VOLUME=5,
-#     REAL_S_PLANE=10,
-#     REAL_ALPHA_VOLUME=0.10,
-#     REAL_ALPHA_PLANE=0.95,
-#     REAL_ALPHA_REMOVED=0.02,
-#     VIRTUAL_S_VOLUME=4,
-#     VIRTUAL_S_PLANE=9,
-#     VIRTUAL_ALPHA_VOLUME=0.08,
-#     VIRTUAL_ALPHA_PLANE=0.90,
-#     VIRTUAL_ALPHA_REMOVED=0.02,
-#     DRAW_CUT_FRAME=True,
-#     FRAME_COLOR="crimson",
-#     FRAME_LABEL=None,
-#     SHOW_COLORBAR=False,
-#     COLORBAR_LABEL=None,
-#     TITLE=None,
-#     FIGSIZE=(8, 8),
-#     ELEV=18,
-#     AZIM=-58,
-#     DEPTH_LIM=None,
-#     BOX_ASPECT=None,
-#     HIDE_AXES=False,
-#     save_path=None,
-# ):
-#     """
-#     Full rewritten resection plot.
-#
-#     Expected panel format for each entry in real_panels / virtual_panels:
-#       {
-#         "coords": ndarray of shape (N, 2),
-#         "vals":   ndarray of shape (N,),
-#         "z":      scalar depth in um,
-#       }
-#
-#     3D plotting convention:
-#       ax.scatter(depth, coords[:,0], coords[:,1])
-#       => x-axis: depth
-#          y-axis: in-slice x
-#          z-axis: in-slice y (vertical in your figure)
-#     """
-#
-#     # --------------------
-#     # Load real slices
-#     # --------------------
-#     real_panels = []
-#     real_vals_for_scale = []
-#
-#     for sid in ORIG_SAMPLES:
-#         z = ORIG_Z_UM[sid]
-#         ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
-#         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
-#
-#         try:
-#             vals = extract_gene_vals(ad, GENE)
-#         except ValueError:
-#             vals, _ = extract_obs_vals(ad, GENE)
-#
-#         real_panels.append({
-#             "title": f"Real ({z}um)",
-#             "coords": coords,
-#             "vals": vals,
-#             "z": float(z),
-#         })
-#         real_vals_for_scale.append(vals)
-#
-#     # --------------------
-#     # Load virtual slices
-#     # --------------------
-#     gen_pattern = os.path.join(GEN_DIR, "*.h5ad")
-#     gen_files = sorted(glob.glob(gen_pattern), key=parse_z_from_filename)
-#
-#     virtual_panels = []
-#     virtual_vals_for_scale = []
-#
-#     for f in gen_files:
-#         z = int(parse_z_from_filename(f))
-#
-#         ad = sc.read_h5ad(f)
-#         if "valid" in ad.obs.columns:
-#             ad = ad[ad.obs["valid"]].copy()
-#
-#         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
-#
-#         if GENE is None:
-#             vals = np.full(coords.shape[0], 1.0, dtype=np.float32)
-#         else:
-#             try:
-#                 vals = extract_gene_vals(ad, GENE)
-#             except ValueError:
-#                 vals, _ = extract_obs_vals(ad, GENE)
-#
-#         virtual_panels.append({
-#             "title": f"Virtual ({z}um)",
-#             "coords": coords,
-#             "vals": vals,
-#             "z": float(z),
-#         })
-#         virtual_vals_for_scale.append(vals)
-#
-#     # --------------------
-#     # Color scales
-#     # --------------------
-#     vmin_real, vmax_real = robust_vrange(
-#         real_vals_for_scale,
-#         1 - VMAX_PCT_REAL,
-#         VMAX_PCT_REAL,
-#     )
-#     vmin_virtual, vmax_virtual = robust_vrange(
-#         virtual_vals_for_scale,
-#         1 - VMAX_PCT_VIRTUAL,
-#         VMAX_PCT_VIRTUAL,
-#     )
-#
-#     norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
-#     norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
-#
-#     print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
-#     print(f"[SCALE] Virtual: vmin={vmin_virtual:.4f}, vmax={vmax_virtual:.4f}")
-#
-#     if norm_virtual is None:
-#         norm_virtual = norm_real
-#
-#     fig = plt.figure(figsize=FIGSIZE)
-#     ax = fig.add_subplot(111, projection="3d")
-#
-#     # --------------------------------------------------------
-#     # Global limits
-#     # --------------------------------------------------------
-#     depth_lim_auto, coord0_lim_auto, coord1_lim_auto = _collect_xyz_limits(
-#         real_panels=real_panels,
-#         virtual_panels=virtual_panels,
-#         depth_scale=DEPTH_SCALE,
-#         pad_ratio=0.04,
-#     )
-#
-#     depth_lim = DEPTH_LIM if DEPTH_LIM is not None else depth_lim_auto
-#     coord0_lim = X_LIM if X_LIM is not None else coord0_lim_auto
-#     coord1_lim = Y_LIM if Y_LIM is not None else coord1_lim_auto
-#
-#     if CUT_ANCHOR_DEPTH is None:
-#         CUT_ANCHOR_DEPTH = 0.5 * (depth_lim[0] + depth_lim[1])
-#     if CUT_ANCHOR_COORD0 is None:
-#         CUT_ANCHOR_COORD0 = 0.5 * (coord0_lim[0] + coord0_lim[1])
-#
-#     # --------------------------------------------------------
-#     # Render real panels
-#     # --------------------------------------------------------
-#     if CUT_STYLE == "vertical_spin":
-#         for p in real_panels:
-#             scatter_resection_slice_vertical_spin(
-#                 ax=ax,
-#                 coords=p["coords"],
-#                 vals=p["vals"],
-#                 z_um=p["z"],
-#                 norm=norm_real,
-#                 cmap_name=CMAP,
-#                 depth_scale=DEPTH_SCALE,
-#                 cut_anchor_depth=CUT_ANCHOR_DEPTH,
-#                 cut_anchor_coord0=CUT_ANCHOR_COORD0,
-#                 cut_angle_deg=CUT_ANGLE_DEG,
-#                 slab_half_width=CUT_SLAB_HALF_WIDTH,
-#                 keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-#                 s_volume=REAL_S_VOLUME,
-#                 s_plane=REAL_S_PLANE,
-#                 alpha_volume=REAL_ALPHA_VOLUME,
-#                 alpha_plane=REAL_ALPHA_PLANE,
-#                 show_removed_side=SHOW_REMOVED_SIDE,
-#                 alpha_removed=REAL_ALPHA_REMOVED,
-#             )
-#
-#         for p in virtual_panels:
-#             scatter_resection_slice_vertical_spin(
-#                 ax=ax,
-#                 coords=p["coords"],
-#                 vals=p["vals"],
-#                 z_um=p["z"],
-#                 norm=norm_virtual,
-#                 cmap_name=CMAP,
-#                 depth_scale=DEPTH_SCALE,
-#                 cut_anchor_depth=CUT_ANCHOR_DEPTH,
-#                 cut_anchor_coord0=CUT_ANCHOR_COORD0,
-#                 cut_angle_deg=CUT_ANGLE_DEG,
-#                 slab_half_width=CUT_SLAB_HALF_WIDTH,
-#                 keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-#                 s_volume=VIRTUAL_S_VOLUME,
-#                 s_plane=VIRTUAL_S_PLANE,
-#                 alpha_volume=VIRTUAL_ALPHA_VOLUME,
-#                 alpha_plane=VIRTUAL_ALPHA_PLANE,
-#                 show_removed_side=SHOW_REMOVED_SIDE,
-#                 alpha_removed=VIRTUAL_ALPHA_REMOVED,
-#             )
-#
-#     elif CUT_STYLE == "depth_extruded":
-#         # This branch uses your existing old helper
-#         if "scatter_resection_slice_horizontal_depth" not in globals():
-#             raise RuntimeError(
-#                 "CUT_STYLE='depth_extruded' requires your existing "
-#                 "scatter_resection_slice_horizontal_depth(...) function."
-#             )
-#
-#         for p in real_panels:
-#             scatter_resection_slice_horizontal_depth(
-#                 ax=ax,
-#                 coords=p["coords"],
-#                 vals=p["vals"],
-#                 z_um=p["z"],
-#                 norm=norm_real,
-#                 cmap_name=CMAP,
-#                 depth_scale=DEPTH_SCALE,
-#                 cut_anchor_2d=CUT_ANCHOR_2D,
-#                 cut_angle_deg=CUT_ANGLE_DEG,
-#                 slab_half_width=CUT_SLAB_HALF_WIDTH,
-#                 keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-#                 s_volume=REAL_S_VOLUME,
-#                 s_plane=REAL_S_PLANE,
-#                 alpha_volume=REAL_ALPHA_VOLUME,
-#                 alpha_plane=REAL_ALPHA_PLANE,
-#                 show_removed_side=SHOW_REMOVED_SIDE,
-#                 alpha_removed=REAL_ALPHA_REMOVED,
-#             )
-#
-#         for p in virtual_panels:
-#             scatter_resection_slice_horizontal_depth(
-#                 ax=ax,
-#                 coords=p["coords"],
-#                 vals=p["vals"],
-#                 z_um=p["z"],
-#                 norm=norm_virtual,
-#                 cmap_name=CMAP,
-#                 depth_scale=DEPTH_SCALE,
-#                 cut_anchor_2d=CUT_ANCHOR_2D,
-#                 cut_angle_deg=CUT_ANGLE_DEG,
-#                 slab_half_width=CUT_SLAB_HALF_WIDTH,
-#                 keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-#                 s_volume=VIRTUAL_S_VOLUME,
-#                 s_plane=VIRTUAL_S_PLANE,
-#                 alpha_volume=VIRTUAL_ALPHA_VOLUME,
-#                 alpha_plane=VIRTUAL_ALPHA_PLANE,
-#                 show_removed_side=SHOW_REMOVED_SIDE,
-#                 alpha_removed=VIRTUAL_ALPHA_REMOVED,
-#             )
-#     else:
-#         raise ValueError(f"Unknown CUT_STYLE: {CUT_STYLE}")
-#
-#     # --------------------------------------------------------
-#     # Draw cut frame
-#     # --------------------------------------------------------
-#     if DRAW_CUT_FRAME:
-#         if FRAME_LABEL is None:
-#             if CUT_STYLE == "vertical_spin":
-#                 FRAME_LABEL = f"Cut plane ({CUT_ANGLE_DEG:.0f}°)"
-#             else:
-#                 FRAME_LABEL = "Cut plane"
-#
-#         if CUT_STYLE == "vertical_spin":
-#             draw_cut_plane_frame_vertical_spin(
-#                 ax=ax,
-#                 cut_anchor_depth=CUT_ANCHOR_DEPTH,
-#                 cut_anchor_coord0=CUT_ANCHOR_COORD0,
-#                 cut_angle_deg=CUT_ANGLE_DEG,
-#                 depth_lim=depth_lim,
-#                 coord0_lim=coord0_lim,
-#                 coord1_lim=coord1_lim,
-#                 frame_color=FRAME_COLOR,
-#                 frame_width=2.2,
-#                 frame_alpha=0.95,
-#                 face_alpha=0.05,
-#                 draw_face=True,
-#                 draw_label=True,
-#                 label=FRAME_LABEL,
-#                 label_fontsize=12,
-#             )
-#
-#     # --------------------------------------------------------
-#     # Axes / view
-#     # --------------------------------------------------------
-#     ax.set_xlim(depth_lim)
-#     ax.set_ylim(coord0_lim)
-#     ax.set_zlim(coord1_lim)
-#
-#     # --------------------
-#     # Axes direction
-#     # --------------------
-#     if INVERT_Y:
-#         ax.set_zlim(Y_LIM[::-1])
-#     else:
-#         ax.set_zlim(Y_LIM)
-#
-#     if INVERT_X:
-#         ax.set_ylim(X_LIM[::-1])
-#     else:
-#         ax.set_ylim(X_LIM)
-#
-#     if BOX_ASPECT is None:
-#         depth_span = max(depth_lim[1] - depth_lim[0], 1e-6)
-#         coord0_span = max(coord0_lim[1] - coord0_lim[0], 1e-6)
-#         coord1_span = max(coord1_lim[1] - coord1_lim[0], 1e-6)
-#         ax.set_box_aspect((depth_span, coord0_span, coord1_span))
-#     else:
-#         ax.set_box_aspect(BOX_ASPECT)
-#
-#     ax.view_init(elev=ELEV, azim=AZIM)
-#
-#     if HIDE_AXES:
-#         ax.set_xticks([])
-#         ax.set_yticks([])
-#         ax.set_zticks([])
-#         ax.set_xlabel("")
-#         ax.set_ylabel("")
-#         ax.set_zlabel("")
-#     else:
-#         ax.set_xlabel("Depth", fontsize=11)
-#         ax.set_ylabel("In-slice x", fontsize=11)
-#         ax.set_zlabel("In-slice y", fontsize=11)
-#
-#     # lighter panes/grid
-#     try:
-#         ax.xaxis.pane.set_alpha(0.06)
-#         ax.yaxis.pane.set_alpha(0.06)
-#         ax.zaxis.pane.set_alpha(0.06)
-#     except Exception:
-#         pass
-#
-#     if TITLE is not None:
-#         ax.set_title(TITLE, fontsize=14, pad=16)
-#
-#     # --------------------------------------------------------
-#     # Optional colorbar
-#     # --------------------------------------------------------
-#     if SHOW_COLORBAR:
-#         sm = ScalarMappable(norm=norm_real, cmap=get_cmap(CMAP))
-#         sm.set_array([])
-#         cbar = fig.colorbar(sm, ax=ax, shrink=0.68, pad=0.04)
-#         if COLORBAR_LABEL is not None:
-#             cbar.set_label(COLORBAR_LABEL, fontsize=11)
-#
-#     fig.tight_layout()
-#
-#     if save_path is not None:
-#         fig.savefig(save_path, dpi=300, bbox_inches="tight")
-#         print(f"[OK] saved: {save_path}")
-#     else:
-#         plt.show()
-#
-#     return fig, ax
+# ============================================================
+# Main rewritten plotting function
+# ============================================================
+def plot_insilico_resectioning_fancy(
+    GENE,
+    CMAP="tab10",
+    DEPTH_SCALE=1.0,
+    CUT_STYLE="vertical_spin",   # "vertical_spin" or "depth_extruded"
+    CUT_ANCHOR_2D=(0.0, 0.0),    # used by old mode if needed
+    CUT_ANCHOR_DEPTH=None,       # used by vertical_spin
+    CUT_ANCHOR_COORD0=None,      # used by vertical_spin
+    CUT_ANGLE_DEG=35.0,
+    CUT_SLAB_HALF_WIDTH=10.0,
+    CUT_KEEP_POSITIVE_SIDE=True,
+    SHOW_REMOVED_SIDE=False,
+    REAL_S_VOLUME=5,
+    REAL_S_PLANE=10,
+    REAL_ALPHA_VOLUME=0.10,
+    REAL_ALPHA_PLANE=0.95,
+    REAL_ALPHA_REMOVED=0.02,
+    VIRTUAL_S_VOLUME=4,
+    VIRTUAL_S_PLANE=9,
+    VIRTUAL_ALPHA_VOLUME=0.08,
+    VIRTUAL_ALPHA_PLANE=0.90,
+    VIRTUAL_ALPHA_REMOVED=0.02,
+    DRAW_CUT_FRAME=True,
+    FRAME_COLOR="crimson",
+    FRAME_LABEL=None,
+    SHOW_COLORBAR=False,
+    COLORBAR_LABEL=None,
+    TITLE=None,
+    FIGSIZE=(8, 8),
+    ELEV=18,
+    AZIM=-58,
+    DEPTH_LIM=None,
+    BOX_ASPECT=None,
+    HIDE_AXES=False,
+    save_path=None,
+):
+    """
+    Full rewritten resection plot.
+
+    Expected panel format for each entry in real_panels / virtual_panels:
+      {
+        "coords": ndarray of shape (N, 2),
+        "vals":   ndarray of shape (N,),
+        "z":      scalar depth in um,
+      }
+
+    3D plotting convention:
+      ax.scatter(depth, coords[:,0], coords[:,1])
+      => x-axis: depth
+         y-axis: in-slice x
+         z-axis: in-slice y (vertical in your figure)
+    """
+
+    # --------------------
+    # Load real slices
+    # --------------------
+    real_panels = []
+    real_vals_for_scale = []
+
+    for sid in ORIG_SAMPLES:
+        z = ORIG_Z_UM[sid]
+        ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
+        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+
+        try:
+            vals = extract_gene_vals(ad, GENE)
+        except ValueError:
+            vals, _ = extract_obs_vals(ad, GENE)
+
+        real_panels.append({
+            "title": f"Real ({z}um)",
+            "coords": coords,
+            "vals": vals,
+            "z": float(z),
+        })
+        real_vals_for_scale.append(vals)
+
+    # --------------------
+    # Load virtual slices
+    # --------------------
+    gen_pattern = os.path.join(GEN_DIR, "*.h5ad")
+    gen_files = sorted(glob.glob(gen_pattern), key=parse_z_from_filename)
+
+    virtual_panels = []
+    virtual_vals_for_scale = []
+
+    for f in gen_files:
+        z = int(parse_z_from_filename(f))
+
+        ad = sc.read_h5ad(f)
+        if "valid" in ad.obs.columns:
+            ad = ad[ad.obs["valid"]].copy()
+
+        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+
+        if GENE is None:
+            vals = np.full(coords.shape[0], 1.0, dtype=np.float32)
+        else:
+            try:
+                vals = extract_gene_vals(ad, GENE)
+            except ValueError:
+                vals, _ = extract_obs_vals(ad, GENE)
+
+        virtual_panels.append({
+            "title": f"Virtual ({z}um)",
+            "coords": coords,
+            "vals": vals,
+            "z": float(z),
+        })
+        virtual_vals_for_scale.append(vals)
+
+    # --------------------
+    # Color scales
+    # --------------------
+    vmin_real, vmax_real = robust_vrange(
+        real_vals_for_scale,
+        1 - VMAX_PCT_REAL,
+        VMAX_PCT_REAL,
+    )
+    vmin_virtual, vmax_virtual = robust_vrange(
+        virtual_vals_for_scale,
+        1 - VMAX_PCT_VIRTUAL,
+        VMAX_PCT_VIRTUAL,
+    )
+
+    norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
+    norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
+
+    print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
+    print(f"[SCALE] Virtual: vmin={vmin_virtual:.4f}, vmax={vmax_virtual:.4f}")
+
+    if norm_virtual is None:
+        norm_virtual = norm_real
+
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # --------------------------------------------------------
+    # Global limits
+    # --------------------------------------------------------
+    depth_lim_auto, coord0_lim_auto, coord1_lim_auto = _collect_xyz_limits(
+        real_panels=real_panels,
+        virtual_panels=virtual_panels,
+        depth_scale=DEPTH_SCALE,
+        pad_ratio=0.04,
+    )
+
+    depth_lim = DEPTH_LIM if DEPTH_LIM is not None else depth_lim_auto
+    coord0_lim = X_LIM if X_LIM is not None else coord0_lim_auto
+    coord1_lim = Y_LIM if Y_LIM is not None else coord1_lim_auto
+
+    if CUT_ANCHOR_DEPTH is None:
+        CUT_ANCHOR_DEPTH = 0.5 * (depth_lim[0] + depth_lim[1])
+    if CUT_ANCHOR_COORD0 is None:
+        CUT_ANCHOR_COORD0 = 0.5 * (coord0_lim[0] + coord0_lim[1])
+
+    # --------------------------------------------------------
+    # Render real panels
+    # --------------------------------------------------------
+    if CUT_STYLE == "vertical_spin":
+        for p in real_panels:
+            scatter_resection_slice_vertical_spin(
+                ax=ax,
+                coords=p["coords"],
+                vals=p["vals"],
+                z_um=p["z"],
+                norm=norm_real,
+                cmap_name=CMAP,
+                depth_scale=DEPTH_SCALE,
+                cut_anchor_depth=CUT_ANCHOR_DEPTH,
+                cut_anchor_coord0=CUT_ANCHOR_COORD0,
+                cut_angle_deg=CUT_ANGLE_DEG,
+                slab_half_width=CUT_SLAB_HALF_WIDTH,
+                keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+                s_volume=REAL_S_VOLUME,
+                s_plane=REAL_S_PLANE,
+                alpha_volume=REAL_ALPHA_VOLUME,
+                alpha_plane=REAL_ALPHA_PLANE,
+                show_removed_side=SHOW_REMOVED_SIDE,
+                alpha_removed=REAL_ALPHA_REMOVED,
+            )
+
+        for p in virtual_panels:
+            scatter_resection_slice_vertical_spin(
+                ax=ax,
+                coords=p["coords"],
+                vals=p["vals"],
+                z_um=p["z"],
+                norm=norm_virtual,
+                cmap_name=CMAP,
+                depth_scale=DEPTH_SCALE,
+                cut_anchor_depth=CUT_ANCHOR_DEPTH,
+                cut_anchor_coord0=CUT_ANCHOR_COORD0,
+                cut_angle_deg=CUT_ANGLE_DEG,
+                slab_half_width=CUT_SLAB_HALF_WIDTH,
+                keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+                s_volume=VIRTUAL_S_VOLUME,
+                s_plane=VIRTUAL_S_PLANE,
+                alpha_volume=VIRTUAL_ALPHA_VOLUME,
+                alpha_plane=VIRTUAL_ALPHA_PLANE,
+                show_removed_side=SHOW_REMOVED_SIDE,
+                alpha_removed=VIRTUAL_ALPHA_REMOVED,
+            )
+
+    elif CUT_STYLE == "depth_extruded":
+        # This branch uses your existing old helper
+        if "scatter_resection_slice_horizontal_depth" not in globals():
+            raise RuntimeError(
+                "CUT_STYLE='depth_extruded' requires your existing "
+                "scatter_resection_slice_horizontal_depth(...) function."
+            )
+
+        for p in real_panels:
+            scatter_resection_slice_horizontal_depth(
+                ax=ax,
+                coords=p["coords"],
+                vals=p["vals"],
+                z_um=p["z"],
+                norm=norm_real,
+                cmap_name=CMAP,
+                depth_scale=DEPTH_SCALE,
+                cut_anchor_2d=CUT_ANCHOR_2D,
+                cut_angle_deg=CUT_ANGLE_DEG,
+                slab_half_width=CUT_SLAB_HALF_WIDTH,
+                keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+                s_volume=REAL_S_VOLUME,
+                s_plane=REAL_S_PLANE,
+                alpha_volume=REAL_ALPHA_VOLUME,
+                alpha_plane=REAL_ALPHA_PLANE,
+                show_removed_side=SHOW_REMOVED_SIDE,
+                alpha_removed=REAL_ALPHA_REMOVED,
+            )
+
+        for p in virtual_panels:
+            scatter_resection_slice_horizontal_depth(
+                ax=ax,
+                coords=p["coords"],
+                vals=p["vals"],
+                z_um=p["z"],
+                norm=norm_virtual,
+                cmap_name=CMAP,
+                depth_scale=DEPTH_SCALE,
+                cut_anchor_2d=CUT_ANCHOR_2D,
+                cut_angle_deg=CUT_ANGLE_DEG,
+                slab_half_width=CUT_SLAB_HALF_WIDTH,
+                keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+                s_volume=VIRTUAL_S_VOLUME,
+                s_plane=VIRTUAL_S_PLANE,
+                alpha_volume=VIRTUAL_ALPHA_VOLUME,
+                alpha_plane=VIRTUAL_ALPHA_PLANE,
+                show_removed_side=SHOW_REMOVED_SIDE,
+                alpha_removed=VIRTUAL_ALPHA_REMOVED,
+            )
+    else:
+        raise ValueError(f"Unknown CUT_STYLE: {CUT_STYLE}")
+
+    # --------------------------------------------------------
+    # Draw cut frame
+    # --------------------------------------------------------
+    if DRAW_CUT_FRAME:
+        if FRAME_LABEL is None:
+            if CUT_STYLE == "vertical_spin":
+                FRAME_LABEL = f"Cut plane ({CUT_ANGLE_DEG:.0f}°)"
+            else:
+                FRAME_LABEL = "Cut plane"
+
+        if CUT_STYLE == "vertical_spin":
+            draw_cut_plane_frame_vertical_spin(
+                ax=ax,
+                cut_anchor_depth=CUT_ANCHOR_DEPTH,
+                cut_anchor_coord0=CUT_ANCHOR_COORD0,
+                cut_angle_deg=CUT_ANGLE_DEG,
+                depth_lim=depth_lim,
+                coord0_lim=coord0_lim,
+                coord1_lim=coord1_lim,
+                frame_color=FRAME_COLOR,
+                frame_width=2.2,
+                frame_alpha=0.95,
+                face_alpha=0.05,
+                draw_face=True,
+                draw_label=True,
+                label=FRAME_LABEL,
+                label_fontsize=12,
+            )
+
+    # --------------------------------------------------------
+    # Axes / view
+    # --------------------------------------------------------
+    ax.set_xlim(depth_lim)
+    ax.set_ylim(coord0_lim)
+    ax.set_zlim(coord1_lim)
+
+    # --------------------
+    # Axes direction
+    # --------------------
+    if INVERT_Y:
+        ax.set_zlim(Y_LIM[::-1])
+    else:
+        ax.set_zlim(Y_LIM)
+
+    if INVERT_X:
+        ax.set_ylim(X_LIM[::-1])
+    else:
+        ax.set_ylim(X_LIM)
+
+    if BOX_ASPECT is None:
+        depth_span = max(depth_lim[1] - depth_lim[0], 1e-6)
+        coord0_span = max(coord0_lim[1] - coord0_lim[0], 1e-6)
+        coord1_span = max(coord1_lim[1] - coord1_lim[0], 1e-6)
+        ax.set_box_aspect((depth_span, coord0_span, coord1_span))
+    else:
+        ax.set_box_aspect(BOX_ASPECT)
+
+    ax.view_init(elev=ELEV, azim=AZIM)
+
+    if HIDE_AXES:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.set_zlabel("")
+    else:
+        ax.set_xlabel("Depth", fontsize=11)
+        ax.set_ylabel("In-slice x", fontsize=11)
+        ax.set_zlabel("In-slice y", fontsize=11)
+
+    # lighter panes/grid
+    try:
+        ax.xaxis.pane.set_alpha(0.06)
+        ax.yaxis.pane.set_alpha(0.06)
+        ax.zaxis.pane.set_alpha(0.06)
+    except Exception:
+        pass
+
+    if TITLE is not None:
+        ax.set_title(TITLE, fontsize=14, pad=16)
+
+    # --------------------------------------------------------
+    # Optional colorbar
+    # --------------------------------------------------------
+    if SHOW_COLORBAR:
+        sm = ScalarMappable(norm=norm_real, cmap=get_cmap(CMAP))
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax, shrink=0.68, pad=0.04)
+        if COLORBAR_LABEL is not None:
+            cbar.set_label(COLORBAR_LABEL, fontsize=11)
+
+    fig.tight_layout()
+
+    if save_path is not None:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"[OK] saved: {save_path}")
+    else:
+        plt.show()
+
+    return fig, ax
 
 
 
@@ -976,360 +976,360 @@ def choose_default_cut_anchor(real_panels, xlim_2d=None, ylim_2d=None):
 # ============================================================
 # Main upgraded plotting function
 # ============================================================
-
-def plot_insilico_resectioning_fancy(
-    GENE,
-    CMAP="viridis",
-    REAL_FRAME_COLOR="black",
-    VIRTUAL_FRAME_COLOR="0.35",
-    REAL_FRAME_STYLE="-",
-    VIRTUAL_FRAME_STYLE="--",
-    REAL_FRAME_WIDTH=1.4,
-    VIRTUAL_FRAME_WIDTH=1.4,
-    SHOW_SLICE_FRAME=True,
-    SHOW_SLICE_LABEL=True,
-    VIRTUAL_UNIT_LABEL="um",
-
-    # new resection parameters
-    CUT_ANGLE_DEG=25.0,
-    CUT_ANCHOR_2D=None,         # in slice coordinates (coords[:,0], coords[:,1]); None -> auto center
-    CUT_KEEP_POSITIVE_SIDE=True,
-    CUT_SLAB_HALF_WIDTH=10.0,
-
-    # rendering controls
-    SHOW_REMOVED_SIDE=False,
-    REAL_ALPHA_VOLUME=0.10,
-    REAL_ALPHA_PLANE=0.95,
-    REAL_ALPHA_REMOVED=0.03,
-    VIRTUAL_ALPHA_VOLUME=0.6,
-    VIRTUAL_ALPHA_PLANE=0.70,
-    VIRTUAL_ALPHA_REMOVED=0.02,
-    REAL_S_VOLUME=None,
-    REAL_S_PLANE=None,
-    VIRTUAL_S_VOLUME=None,
-    VIRTUAL_S_PLANE=None,
-
-    # cut plane/frame styling
-    CUT_FRAME_COLOR="crimson",
-    CUT_FRAME_WIDTH=2.2,
-    CUT_FRAME_ALPHA=0.95,
-    CUT_FACE_ALPHA=0.05,
-    CUT_LABEL="In silico resection plane",
-    SHOW_CUT_LABEL=True,
-):
-    # --------------------
-    # Load real slices
-    # --------------------
-    real_panels = []
-    real_vals_for_scale = []
-
-    for sid in ORIG_SAMPLES:
-        z = ORIG_Z_UM[sid]
-        ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
-        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
-
-        try:
-            vals = extract_gene_vals(ad, GENE)
-        except ValueError:
-            vals, _ = extract_obs_vals(ad, GENE)
-
-        real_panels.append({
-            "title": f"Real ({z}um)",
-            "coords": coords,
-            "vals": vals,
-            "z": float(z),
-        })
-        real_vals_for_scale.append(vals)
-
-    # --------------------
-    # Load virtual slices
-    # --------------------
-    gen_pattern = os.path.join(GEN_DIR, "*.h5ad")
-    gen_files = sorted(glob.glob(gen_pattern), key=parse_z_from_filename)
-
-    virtual_panels = []
-    virtual_vals_for_scale = []
-
-    for f in gen_files:
-        z = int(parse_z_from_filename(f))
-
-        ad = sc.read_h5ad(f)
-        if "valid" in ad.obs.columns:
-            ad = ad[ad.obs["valid"]].copy()
-
-        coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
-
-        if GENE is None:
-            vals = np.full(coords.shape[0], 1.0, dtype=np.float32)
-        else:
-            try:
-                vals = extract_gene_vals(ad, GENE)
-            except ValueError:
-                vals, _ = extract_obs_vals(ad, GENE)
-
-        virtual_panels.append({
-            "title": f"Virtual ({z}{VIRTUAL_UNIT_LABEL})",
-            "coords": coords,
-            "vals": vals,
-            "z": float(z),
-        })
-        virtual_vals_for_scale.append(vals)
-
-    # --------------------
-    # Color scales
-    # --------------------
-    vmin_real, vmax_real = robust_vrange(
-        real_vals_for_scale,
-        1 - VMAX_PCT_REAL,
-        VMAX_PCT_REAL,
-    )
-    vmin_virtual, vmax_virtual = robust_vrange(
-        virtual_vals_for_scale,
-        1 - VMAX_PCT_VIRTUAL,
-        VMAX_PCT_VIRTUAL,
-    )
-
-    norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
-    norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
-
-    print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
-    print(f"[SCALE] Virtual: vmin={vmin_virtual:.4f}, vmax={vmax_virtual:.4f}")
-
-    # --------------------
-    # Figure / axes
-    # --------------------
-    fig = plt.figure(figsize=(7, 7))
-    ax = fig.add_subplot(111, projection="3d")
-
-    all_depths = [p["z"] * DEPTH_SCALE for p in real_panels + virtual_panels]
-    depth_min = min(all_depths)
-    depth_max = max(all_depths)
-    x_pad = 0.02 * max(depth_max - depth_min, 1.0)
-
-    x_range = (depth_max + x_pad) - (depth_min - x_pad)
-    y_range = abs(X_LIM[1] - X_LIM[0])
-    z_range = abs(Y_LIM[1] - Y_LIM[0])
-
-    depth_exaggeration = 1.5
-    ax.set_box_aspect((x_range * depth_exaggeration, y_range, z_range))
-    ax.set_position([0.03, 0.08, 0.80, 0.84])
-    ax.set_proj_type("ortho")
-
-    ax.set_xlim(depth_min - x_pad, depth_max + x_pad)
-    ax.set_ylim(X_LIM)
-    ax.set_zlim(Y_LIM)
-
-    # --------------------
-    # Choose cut anchor automatically if needed
-    # --------------------
-    if CUT_ANCHOR_2D is None:
-        CUT_ANCHOR_2D = choose_default_cut_anchor(real_panels, xlim_2d=X_LIM, ylim_2d=Y_LIM)
-    CUT_ANCHOR_2D = np.asarray(CUT_ANCHOR_2D, dtype=np.float32)
-
-
-    # default sizes fall back to your existing globals
-    if REAL_S_VOLUME is None:
-        REAL_S_VOLUME = max(1, int(round(S_REAL * 0.75)))
-    if REAL_S_PLANE is None:
-        REAL_S_PLANE = max(REAL_S_VOLUME + 1, int(round(S_REAL * 1.35)))
-
-    if VIRTUAL_S_VOLUME is None:
-        VIRTUAL_S_VOLUME = max(1, int(round(S_VIRTUAL * 0.75)))
-    if VIRTUAL_S_PLANE is None:
-        VIRTUAL_S_PLANE = max(VIRTUAL_S_VOLUME + 1, int(round(S_VIRTUAL * 1.35)))
-
-    # --------------------
-    # Scatter real slices with resection rendering
-    # --------------------
-    for p in real_panels:
-        scatter_resection_slice_horizontal_depth(
-            ax=ax,
-            coords=p["coords"],
-            vals=p["vals"],
-            z_um=p["z"],
-            norm=norm_real,
-            cmap_name=CMAP,
-            depth_scale=DEPTH_SCALE,
-            cut_anchor_2d=CUT_ANCHOR_2D,
-            cut_angle_deg=CUT_ANGLE_DEG,
-            slab_half_width=CUT_SLAB_HALF_WIDTH,
-            keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-            s_volume=REAL_S_VOLUME,
-            s_plane=REAL_S_PLANE,
-            alpha_volume=REAL_ALPHA_VOLUME,
-            alpha_plane=REAL_ALPHA_PLANE,
-            show_removed_side=SHOW_REMOVED_SIDE,
-            alpha_removed=REAL_ALPHA_REMOVED,
-        )
-
-    # --------------------
-    # Scatter virtual slices with resection rendering
-    # --------------------
-    for p in virtual_panels:
-        scatter_resection_slice_horizontal_depth(
-            ax=ax,
-            coords=p["coords"],
-            vals=p["vals"],
-            z_um=p["z"],
-            norm=norm_virtual,
-            cmap_name=CMAP,
-            depth_scale=DEPTH_SCALE,
-            cut_anchor_2d=CUT_ANCHOR_2D,
-            cut_angle_deg=CUT_ANGLE_DEG,
-            slab_half_width=CUT_SLAB_HALF_WIDTH,
-            keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
-            s_volume=VIRTUAL_S_VOLUME,
-            s_plane=VIRTUAL_S_PLANE,
-            alpha_volume=VIRTUAL_ALPHA_VOLUME,
-            alpha_plane=VIRTUAL_ALPHA_PLANE,
-            show_removed_side=SHOW_REMOVED_SIDE,
-            alpha_removed=VIRTUAL_ALPHA_REMOVED,
-        )
-
-    # --------------------
-    # Draw slice frames
-    # --------------------
-    if SHOW_SLICE_FRAME:
-        for p in real_panels:
-            draw_slice_plane_frame(
-                ax=ax,
-                z_um=p["z"],
-                x_lim_2d=X_LIM,
-                y_lim_2d=Y_LIM,
-                depth_scale=DEPTH_SCALE,
-                linestyle=REAL_FRAME_STYLE,
-                color=REAL_FRAME_COLOR,
-                linewidth=REAL_FRAME_WIDTH,
-                alpha=1.0,
-                label=p["title"] if SHOW_SLICE_LABEL else None,
-                label_color=REAL_FRAME_COLOR,
-                label_fontsize=14,
-            )
-
-        for p in virtual_panels:
-            draw_slice_plane_frame(
-                ax=ax,
-                z_um=p["z"],
-                x_lim_2d=X_LIM,
-                y_lim_2d=Y_LIM,
-                depth_scale=DEPTH_SCALE,
-                linestyle=VIRTUAL_FRAME_STYLE,
-                color=VIRTUAL_FRAME_COLOR,
-                linewidth=VIRTUAL_FRAME_WIDTH,
-                alpha=0.55,
-                label=None,
-                label_color=VIRTUAL_FRAME_COLOR,
-                label_fontsize=12,
-            )
-
-    # --------------------
-    # Draw cut plane frame across volume
-    # --------------------
-    draw_cut_plane_frame(
-        ax=ax,
-        anchor_2d=CUT_ANCHOR_2D,
-        cut_angle_deg=CUT_ANGLE_DEG,
-        depth_min=depth_min,
-        depth_max=depth_max,
-        xlim_2d=X_LIM,
-        ylim_2d=Y_LIM,
-        frame_color=CUT_FRAME_COLOR,
-        frame_width=CUT_FRAME_WIDTH,
-        frame_alpha=CUT_FRAME_ALPHA,
-        face_alpha=CUT_FACE_ALPHA,
-        draw_face=True,
-        draw_label=SHOW_CUT_LABEL,
-        label=f"{CUT_LABEL}\n{CUT_ANGLE_DEG:.1f}°",
-        label_fontsize=12,
-    )
-
-    # --------------------
-    # Axes direction
-    # --------------------
-    if INVERT_Y:
-        ax.set_zlim(Y_LIM[::-1])
-    else:
-        ax.set_zlim(Y_LIM)
-
-    if INVERT_X:
-        ax.set_ylim(X_LIM[::-1])
-    else:
-        ax.set_ylim(X_LIM)
-
-    # --------------------
-    # Cosmetics
-    # --------------------
-    ax.grid(False)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
-    ax.view_init(elev=ELEV, azim=AZIM)
-
-    fig.suptitle(
-        f"{GENE}: angled in silico resection through dense real + virtual stack",
-        y=0.97,
-        fontsize=14,
-    )
-
-    # --------------------
-    # Legend
-    # --------------------
-    legend_handles = [
-        Line2D(
-            [0], [0],
-            color=REAL_FRAME_COLOR,
-            linestyle=REAL_FRAME_STYLE,
-            linewidth=REAL_FRAME_WIDTH,
-            label="Real slices (solid frame)",
-        ),
-        Line2D(
-            [0], [0],
-            color=VIRTUAL_FRAME_COLOR,
-            linestyle=VIRTUAL_FRAME_STYLE,
-            linewidth=VIRTUAL_FRAME_WIDTH,
-            label="Virtual slices (dashed frame)",
-        ),
-        Line2D(
-            [0], [0],
-            color=CUT_FRAME_COLOR,
-            linestyle="-",
-            linewidth=CUT_FRAME_WIDTH,
-            label="Resection plane",
-        ),
-    ]
-    # ax.legend(
-    #     handles=legend_handles,
-    #     loc="upper left",
-    #     bbox_to_anchor=(0.02, 0.98),
-    #     frameon=True,
-    # )
-
-    # --------------------
-    # Colorbars
-    # --------------------
-    sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
-    sm_real.set_array([])
-
-    sm_virtual = ScalarMappable(norm=norm_virtual, cmap=CMAP)
-    sm_virtual.set_array([])
-
-    fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
-
-    cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
-    cbar_real = fig.colorbar(sm_real, cax=cax_real)
-    cbar_real.set_label(
-        f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
-        rotation=90,
-    )
-
-    cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
-    cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
-    cbar_virtual.set_label(
-        f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
-        rotation=90,
-    )
-
-    plt.show()
+#
+# def plot_insilico_resectioning_fancy(
+#     GENE,
+#     CMAP="viridis",
+#     REAL_FRAME_COLOR="black",
+#     VIRTUAL_FRAME_COLOR="0.35",
+#     REAL_FRAME_STYLE="-",
+#     VIRTUAL_FRAME_STYLE="--",
+#     REAL_FRAME_WIDTH=1.4,
+#     VIRTUAL_FRAME_WIDTH=1.4,
+#     SHOW_SLICE_FRAME=True,
+#     SHOW_SLICE_LABEL=True,
+#     VIRTUAL_UNIT_LABEL="um",
+#
+#     # new resection parameters
+#     CUT_ANGLE_DEG=25.0,
+#     CUT_ANCHOR_2D=None,         # in slice coordinates (coords[:,0], coords[:,1]); None -> auto center
+#     CUT_KEEP_POSITIVE_SIDE=True,
+#     CUT_SLAB_HALF_WIDTH=10.0,
+#
+#     # rendering controls
+#     SHOW_REMOVED_SIDE=False,
+#     REAL_ALPHA_VOLUME=0.10,
+#     REAL_ALPHA_PLANE=0.95,
+#     REAL_ALPHA_REMOVED=0.03,
+#     VIRTUAL_ALPHA_VOLUME=0.6,
+#     VIRTUAL_ALPHA_PLANE=0.70,
+#     VIRTUAL_ALPHA_REMOVED=0.02,
+#     REAL_S_VOLUME=None,
+#     REAL_S_PLANE=None,
+#     VIRTUAL_S_VOLUME=None,
+#     VIRTUAL_S_PLANE=None,
+#
+#     # cut plane/frame styling
+#     CUT_FRAME_COLOR="crimson",
+#     CUT_FRAME_WIDTH=2.2,
+#     CUT_FRAME_ALPHA=0.95,
+#     CUT_FACE_ALPHA=0.05,
+#     CUT_LABEL="In silico resection plane",
+#     SHOW_CUT_LABEL=True,
+# ):
+#     # --------------------
+#     # Load real slices
+#     # --------------------
+#     real_panels = []
+#     real_vals_for_scale = []
+#
+#     for sid in ORIG_SAMPLES:
+#         z = ORIG_Z_UM[sid]
+#         ad = sc.read_h5ad(os.path.join(H5AD_DIR, f"{GROUP_ID}_{sid}.h5ad"))
+#         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+#
+#         try:
+#             vals = extract_gene_vals(ad, GENE)
+#         except ValueError:
+#             vals, _ = extract_obs_vals(ad, GENE)
+#
+#         real_panels.append({
+#             "title": f"Real ({z}um)",
+#             "coords": coords,
+#             "vals": vals,
+#             "z": float(z),
+#         })
+#         real_vals_for_scale.append(vals)
+#
+#     # --------------------
+#     # Load virtual slices
+#     # --------------------
+#     gen_pattern = os.path.join(GEN_DIR, "*.h5ad")
+#     gen_files = sorted(glob.glob(gen_pattern), key=parse_z_from_filename)
+#
+#     virtual_panels = []
+#     virtual_vals_for_scale = []
+#
+#     for f in gen_files:
+#         z = int(parse_z_from_filename(f))
+#
+#         ad = sc.read_h5ad(f)
+#         if "valid" in ad.obs.columns:
+#             ad = ad[ad.obs["valid"]].copy()
+#
+#         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
+#
+#         if GENE is None:
+#             vals = np.full(coords.shape[0], 1.0, dtype=np.float32)
+#         else:
+#             try:
+#                 vals = extract_gene_vals(ad, GENE)
+#             except ValueError:
+#                 vals, _ = extract_obs_vals(ad, GENE)
+#
+#         virtual_panels.append({
+#             "title": f"Virtual ({z}{VIRTUAL_UNIT_LABEL})",
+#             "coords": coords,
+#             "vals": vals,
+#             "z": float(z),
+#         })
+#         virtual_vals_for_scale.append(vals)
+#
+#     # --------------------
+#     # Color scales
+#     # --------------------
+#     vmin_real, vmax_real = robust_vrange(
+#         real_vals_for_scale,
+#         1 - VMAX_PCT_REAL,
+#         VMAX_PCT_REAL,
+#     )
+#     vmin_virtual, vmax_virtual = robust_vrange(
+#         virtual_vals_for_scale,
+#         1 - VMAX_PCT_VIRTUAL,
+#         VMAX_PCT_VIRTUAL,
+#     )
+#
+#     norm_real = Normalize(vmin=float(vmin_real), vmax=float(vmax_real))
+#     norm_virtual = Normalize(vmin=float(vmin_virtual), vmax=float(vmax_virtual))
+#
+#     print(f"[SCALE] Real:    vmin={vmin_real:.4f}, vmax={vmax_real:.4f}")
+#     print(f"[SCALE] Virtual: vmin={vmin_virtual:.4f}, vmax={vmax_virtual:.4f}")
+#
+#     # --------------------
+#     # Figure / axes
+#     # --------------------
+#     fig = plt.figure(figsize=(7, 7))
+#     ax = fig.add_subplot(111, projection="3d")
+#
+#     all_depths = [p["z"] * DEPTH_SCALE for p in real_panels + virtual_panels]
+#     depth_min = min(all_depths)
+#     depth_max = max(all_depths)
+#     x_pad = 0.02 * max(depth_max - depth_min, 1.0)
+#
+#     x_range = (depth_max + x_pad) - (depth_min - x_pad)
+#     y_range = abs(X_LIM[1] - X_LIM[0])
+#     z_range = abs(Y_LIM[1] - Y_LIM[0])
+#
+#     depth_exaggeration = 1.5
+#     ax.set_box_aspect((x_range * depth_exaggeration, y_range, z_range))
+#     ax.set_position([0.03, 0.08, 0.80, 0.84])
+#     ax.set_proj_type("ortho")
+#
+#     ax.set_xlim(depth_min - x_pad, depth_max + x_pad)
+#     ax.set_ylim(X_LIM)
+#     ax.set_zlim(Y_LIM)
+#
+#     # --------------------
+#     # Choose cut anchor automatically if needed
+#     # --------------------
+#     if CUT_ANCHOR_2D is None:
+#         CUT_ANCHOR_2D = choose_default_cut_anchor(real_panels, xlim_2d=X_LIM, ylim_2d=Y_LIM)
+#     CUT_ANCHOR_2D = np.asarray(CUT_ANCHOR_2D, dtype=np.float32)
+#
+#
+#     # default sizes fall back to your existing globals
+#     if REAL_S_VOLUME is None:
+#         REAL_S_VOLUME = max(1, int(round(S_REAL * 0.75)))
+#     if REAL_S_PLANE is None:
+#         REAL_S_PLANE = max(REAL_S_VOLUME + 1, int(round(S_REAL * 1.35)))
+#
+#     if VIRTUAL_S_VOLUME is None:
+#         VIRTUAL_S_VOLUME = max(1, int(round(S_VIRTUAL * 0.75)))
+#     if VIRTUAL_S_PLANE is None:
+#         VIRTUAL_S_PLANE = max(VIRTUAL_S_VOLUME + 1, int(round(S_VIRTUAL * 1.35)))
+#
+#     # --------------------
+#     # Scatter real slices with resection rendering
+#     # --------------------
+#     for p in real_panels:
+#         scatter_resection_slice_horizontal_depth(
+#             ax=ax,
+#             coords=p["coords"],
+#             vals=p["vals"],
+#             z_um=p["z"],
+#             norm=norm_real,
+#             cmap_name=CMAP,
+#             depth_scale=DEPTH_SCALE,
+#             cut_anchor_2d=CUT_ANCHOR_2D,
+#             cut_angle_deg=CUT_ANGLE_DEG,
+#             slab_half_width=CUT_SLAB_HALF_WIDTH,
+#             keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+#             s_volume=REAL_S_VOLUME,
+#             s_plane=REAL_S_PLANE,
+#             alpha_volume=REAL_ALPHA_VOLUME,
+#             alpha_plane=REAL_ALPHA_PLANE,
+#             show_removed_side=SHOW_REMOVED_SIDE,
+#             alpha_removed=REAL_ALPHA_REMOVED,
+#         )
+#
+#     # --------------------
+#     # Scatter virtual slices with resection rendering
+#     # --------------------
+#     for p in virtual_panels:
+#         scatter_resection_slice_horizontal_depth(
+#             ax=ax,
+#             coords=p["coords"],
+#             vals=p["vals"],
+#             z_um=p["z"],
+#             norm=norm_virtual,
+#             cmap_name=CMAP,
+#             depth_scale=DEPTH_SCALE,
+#             cut_anchor_2d=CUT_ANCHOR_2D,
+#             cut_angle_deg=CUT_ANGLE_DEG,
+#             slab_half_width=CUT_SLAB_HALF_WIDTH,
+#             keep_positive_side=CUT_KEEP_POSITIVE_SIDE,
+#             s_volume=VIRTUAL_S_VOLUME,
+#             s_plane=VIRTUAL_S_PLANE,
+#             alpha_volume=VIRTUAL_ALPHA_VOLUME,
+#             alpha_plane=VIRTUAL_ALPHA_PLANE,
+#             show_removed_side=SHOW_REMOVED_SIDE,
+#             alpha_removed=VIRTUAL_ALPHA_REMOVED,
+#         )
+#
+#     # --------------------
+#     # Draw slice frames
+#     # --------------------
+#     if SHOW_SLICE_FRAME:
+#         for p in real_panels:
+#             draw_slice_plane_frame(
+#                 ax=ax,
+#                 z_um=p["z"],
+#                 x_lim_2d=X_LIM,
+#                 y_lim_2d=Y_LIM,
+#                 depth_scale=DEPTH_SCALE,
+#                 linestyle=REAL_FRAME_STYLE,
+#                 color=REAL_FRAME_COLOR,
+#                 linewidth=REAL_FRAME_WIDTH,
+#                 alpha=1.0,
+#                 label=p["title"] if SHOW_SLICE_LABEL else None,
+#                 label_color=REAL_FRAME_COLOR,
+#                 label_fontsize=14,
+#             )
+#
+#         for p in virtual_panels:
+#             draw_slice_plane_frame(
+#                 ax=ax,
+#                 z_um=p["z"],
+#                 x_lim_2d=X_LIM,
+#                 y_lim_2d=Y_LIM,
+#                 depth_scale=DEPTH_SCALE,
+#                 linestyle=VIRTUAL_FRAME_STYLE,
+#                 color=VIRTUAL_FRAME_COLOR,
+#                 linewidth=VIRTUAL_FRAME_WIDTH,
+#                 alpha=0.55,
+#                 label=None,
+#                 label_color=VIRTUAL_FRAME_COLOR,
+#                 label_fontsize=12,
+#             )
+#
+#     # --------------------
+#     # Draw cut plane frame across volume
+#     # --------------------
+#     draw_cut_plane_frame(
+#         ax=ax,
+#         anchor_2d=CUT_ANCHOR_2D,
+#         cut_angle_deg=CUT_ANGLE_DEG,
+#         depth_min=depth_min,
+#         depth_max=depth_max,
+#         xlim_2d=X_LIM,
+#         ylim_2d=Y_LIM,
+#         frame_color=CUT_FRAME_COLOR,
+#         frame_width=CUT_FRAME_WIDTH,
+#         frame_alpha=CUT_FRAME_ALPHA,
+#         face_alpha=CUT_FACE_ALPHA,
+#         draw_face=True,
+#         draw_label=SHOW_CUT_LABEL,
+#         label=f"{CUT_LABEL}\n{CUT_ANGLE_DEG:.1f}°",
+#         label_fontsize=12,
+#     )
+#
+#     # --------------------
+#     # Axes direction
+#     # --------------------
+#     if INVERT_Y:
+#         ax.set_zlim(Y_LIM[::-1])
+#     else:
+#         ax.set_zlim(Y_LIM)
+#
+#     if INVERT_X:
+#         ax.set_ylim(X_LIM[::-1])
+#     else:
+#         ax.set_ylim(X_LIM)
+#
+#     # --------------------
+#     # Cosmetics
+#     # --------------------
+#     ax.grid(False)
+#     ax.set_xticks([])
+#     ax.set_yticks([])
+#     ax.set_zticks([])
+#     ax.view_init(elev=ELEV, azim=AZIM)
+#
+#     fig.suptitle(
+#         f"{GENE}: angled in silico resection through dense real + virtual stack",
+#         y=0.97,
+#         fontsize=14,
+#     )
+#
+#     # --------------------
+#     # Legend
+#     # --------------------
+#     legend_handles = [
+#         Line2D(
+#             [0], [0],
+#             color=REAL_FRAME_COLOR,
+#             linestyle=REAL_FRAME_STYLE,
+#             linewidth=REAL_FRAME_WIDTH,
+#             label="Real slices (solid frame)",
+#         ),
+#         Line2D(
+#             [0], [0],
+#             color=VIRTUAL_FRAME_COLOR,
+#             linestyle=VIRTUAL_FRAME_STYLE,
+#             linewidth=VIRTUAL_FRAME_WIDTH,
+#             label="Virtual slices (dashed frame)",
+#         ),
+#         Line2D(
+#             [0], [0],
+#             color=CUT_FRAME_COLOR,
+#             linestyle="-",
+#             linewidth=CUT_FRAME_WIDTH,
+#             label="Resection plane",
+#         ),
+#     ]
+#     # ax.legend(
+#     #     handles=legend_handles,
+#     #     loc="upper left",
+#     #     bbox_to_anchor=(0.02, 0.98),
+#     #     frameon=True,
+#     # )
+#
+#     # --------------------
+#     # Colorbars
+#     # --------------------
+#     sm_real = ScalarMappable(norm=norm_real, cmap=CMAP)
+#     sm_real.set_array([])
+#
+#     sm_virtual = ScalarMappable(norm=norm_virtual, cmap=CMAP)
+#     sm_virtual.set_array([])
+#
+#     fig.subplots_adjust(left=0.02, right=0.84, top=0.94, bottom=0.04)
+#
+#     cax_real = fig.add_axes([0.87, 0.58, 0.02, 0.21])
+#     cbar_real = fig.colorbar(sm_real, cax=cax_real)
+#     cbar_real.set_label(
+#         f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
+#         rotation=90,
+#     )
+#
+#     cax_virtual = fig.add_axes([0.87, 0.18, 0.02, 0.25])
+#     cbar_virtual = fig.colorbar(sm_virtual, cax=cax_virtual)
+#     cbar_virtual.set_label(
+#         f"{GENE} log1p(counts)" if USE_LOG1P else f"{GENE}",
+#         rotation=90,
+#     )
+#
+#     plt.show()
 
 
 
@@ -1753,7 +1753,7 @@ def plot_insilico_resectioning(
         except ValueError:
             vals, _ = extract_obs_vals(ad, GENE)
 
-        coords,vals = add_domain_offset(coords,vals)
+        # coords,vals = add_domain_offset(coords,vals)
 
         real_panels.append({
             "title": f"Real ({z}um)",
@@ -1773,13 +1773,13 @@ def plot_insilico_resectioning(
 
     virtual_panels = []
     virtual_vals_for_scale = []
-    virtual_depth = np.arange(40, 310, 30)
+    # virtual_depth = np.arange(40, 310, 30)
 
     for f in gen_files:
         z = parse_z_from_filename(f)
         z = int(z)
-        if z not in virtual_depth:
-            continue
+        # if z not in virtual_depth:
+        #     continue
 
         ad = sc.read_h5ad(f)
         if "valid" in ad.obs.columns:
@@ -1796,7 +1796,7 @@ def plot_insilico_resectioning(
                 vals, _ = extract_obs_vals(ad, GENE)
         del ad
 
-        coords,vals = add_domain_offset(coords,vals)
+        # coords,vals = add_domain_offset(coords,vals)
 
         virtual_panels.append({
             "title": f"Virtual ({z}{VIRTUAL_UNIT_LABEL})",
@@ -2604,7 +2604,7 @@ def get_3a2_paras():
     # dir = os.path.join(ROOT, "virtual_tissue", f"dlpfc_z_group{GROUP_ID}_grid80_spatial1/query")
     dir = "/media/huifang/data/registration/DLPFC/huifang/virtual_tissue/spatialz/dense_reconstruction/group1/"
     ALPHA_MIN_REAL = 0.0  # almost invisible near zero
-    ALPHA_MIN_VIRTUAL=0.0
+    ALPHA_MIN_VIRTUAL=0.5
     ALPHA_MAX_REAL =1
     ALPHA_MAX_VIRTUAL = 1
     ALPHA_GAMMA = 1.6  # >1 makes low values fade more aggressively
@@ -2613,7 +2613,7 @@ def get_3a2_paras():
     ELEV = 15
     AZIM = 155
     S_REAL = 5
-    S_VIRTUAL = 5
+    S_VIRTUAL = 10
     return ORIG_SAMPLES,dir,ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL
 
 def get_3a3_paras():
@@ -2663,64 +2663,68 @@ def get_3d_paras():
     S_VIRTUAL = 12
     return ORIG_SAMPLES,dir,ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL
 
-ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_3a_paras()
-plot_real_3d(GENE = "layer_guess_reordered", CMAP='tab10')
+# ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL= get_3a_paras()
+# plot_real_3d(GENE = "layer_guess_reordered", CMAP='tab10')
 # plot_real_3d(GENE = "PCP4", CMAP="Reds")
 #
 ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL = get_3a2_paras()
-plot_insilico_resectioning(GENE = "layer_guess_reordered", CMAP='tab10',SHOW_SLICE_FRAME=False)
-# # plot_insilico_resectioning(GENE = "PCP4", CMAP="Reds",cutting_threshold=0,SHOW_SLICE_FRAME=False)
-plot_insilico_resectioning_fancy(
-    GENE="layer_guess_reordered",
-    CUT_ANGLE_DEG=-90,
-    CUT_ANCHOR_2D=[120,120],
-    CMAP='tab10',
-    SHOW_SLICE_FRAME=False,
-    SHOW_CUT_LABEL=False
-)
+# plot_insilico_resectioning(GENE = "layer_guess_reordered", CMAP='tab10',SHOW_SLICE_FRAME=False)
+# plot_insilico_resectioning(GENE = "PCP4", CMAP="Reds",cutting_threshold=0,SHOW_SLICE_FRAME=False)
+# plot_insilico_resectioning_fancy(
+#     # GENE="layer_guess_reordered",
+#     GENE="PCP4",
+#     CUT_ANGLE_DEG=-90,
+#     CUT_ANCHOR_2D=[120,120],
+#     # CMAP='tab10',
+#     CMAP='Reds',
+#     SHOW_SLICE_FRAME=False,
+#     SHOW_CUT_LABEL=False
+# )
 # [200,360]
 
 
-# plot_insilico_resectioning_fancy(
-#     GENE="layer_guess_reordered",
-#     CMAP="tab10",
-#     DEPTH_SCALE=DEPTH_SCALE,
-#
-#     CUT_STYLE="vertical_spin",
-#
-#     # vertical hinge line location
-#     CUT_ANCHOR_DEPTH=160 * DEPTH_SCALE,
-#     CUT_ANCHOR_COORD0=260.0,
-#
-#     # rotate in the ground plane
-#     CUT_ANGLE_DEG=0.0,
-#     CUT_SLAB_HALF_WIDTH=10.0,
-#     CUT_KEEP_POSITIVE_SIDE=True,
-#
-#     SHOW_REMOVED_SIDE=False,
-#
-#     REAL_S_VOLUME=5,
-#     REAL_S_PLANE=10,
-#     REAL_ALPHA_VOLUME=0.10,
-#     REAL_ALPHA_PLANE=0.95,
-#
-#     VIRTUAL_S_VOLUME=15,
-#     VIRTUAL_S_PLANE=15,
-#     VIRTUAL_ALPHA_VOLUME=0.2,
-#     VIRTUAL_ALPHA_PLANE=0.90,
-#
-#     DRAW_CUT_FRAME=True,
-#     FRAME_COLOR="crimson",
-#     FRAME_LABEL="In silico resection",
-#
-#     SHOW_COLORBAR=False,
-#     TITLE=None,
-#     FIGSIZE=(7.5, 7.5),
-#     ELEV=15,
-#     AZIM=145,
-#     HIDE_AXES=False,
-#
-# )
+plot_insilico_resectioning_fancy(
+    # GENE="layer_guess_reordered",
+    # CMAP="tab10",
+    GENE="PCP4",
+    CMAP="Reds",
+    DEPTH_SCALE=DEPTH_SCALE,
+
+    CUT_STYLE="vertical_spin",
+
+    # vertical hinge line location
+    CUT_ANCHOR_DEPTH=160 * DEPTH_SCALE,
+    CUT_ANCHOR_COORD0=240.0,
+
+    # rotate in the ground plane
+    CUT_ANGLE_DEG=-90.0,
+    CUT_SLAB_HALF_WIDTH=10.0,
+    CUT_KEEP_POSITIVE_SIDE=True,
+
+    SHOW_REMOVED_SIDE=False,
+
+    REAL_S_VOLUME=5,
+    REAL_S_PLANE=10,
+    REAL_ALPHA_VOLUME=0.10,
+    REAL_ALPHA_PLANE=0.95,
+
+    VIRTUAL_S_VOLUME=10,
+    VIRTUAL_S_PLANE=10,
+    VIRTUAL_ALPHA_VOLUME=0.2,
+    VIRTUAL_ALPHA_PLANE=0.90,
+
+    DRAW_CUT_FRAME=True,
+    FRAME_COLOR="crimson",
+    FRAME_LABEL="In silico resection",
+
+    SHOW_COLORBAR=False,
+    TITLE=None,
+    FIGSIZE=(7.5, 7.5),
+    ELEV=15,
+    AZIM=145,
+    HIDE_AXES=False,
+
+)
 
 # ORIG_SAMPLES,GEN_DIR, ALPHA_MIN_REAL,ALPHA_MIN_VIRTUAL,ALPHA_MAX_REAL,ALPHA_MAX_VIRTUAL,ALPHA_GAMMA,ELEV,AZIM,S_REAL,S_VIRTUAL = get_3b_paras()
 # plot_virtual_3d(GENE = "layer_guess_reordered", CMAP='tab10',SHOW_SLICE_FRAME=False)

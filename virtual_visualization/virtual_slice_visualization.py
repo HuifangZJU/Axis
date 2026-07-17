@@ -3,6 +3,11 @@ from visualization_utils import *
 # --------------------
 # Config
 # --------------------
+
+
+
+
+
 def get_Tg_time_para(mode):
     GROUP_ID = 0
     ORIG_SAMPLES = [0, 1, 2]
@@ -28,6 +33,26 @@ def get_Tg_time_para(mode):
     OUT_PNG = os.path.join(GEN_DIR, f"{GENE}_real_virtual.png")
     S_REAL = 3
     S_VIRTUAL = 3
+    INVERT_Y = False
+    return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y
+
+def get_disease_time_para(mode):
+    GROUP_ID = 0
+    ORIG_SAMPLES = [0, 1, 2,3,5]
+    ORIG_Z_UM = {0: 2.5, 1: 5.7, 2: 17.9,3:102.5,5:113.4}
+    # GENE = "Gfap"
+    GENE = "Arc"
+    ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
+
+    NET_IN  = os.path.join(ROOT, "network_input")
+    H5AD_DIR = os.path.join(ROOT, "h5ads")
+    GEN_DIR = os.path.join(ROOT, "virtual_tissue", f"Disease_time_grid256_spatial1.0/{mode}/differences_pairs")
+
+
+    GEN_PATTERN = os.path.join(GEN_DIR, "*.h5ad")
+    OUT_PNG = os.path.join(GEN_DIR, f"{GENE}_real_virtual.png")
+    S_REAL = 1
+    S_VIRTUAL = 1
     INVERT_Y = False
     return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y
 
@@ -90,17 +115,29 @@ def get_scc_z_para(mode,GROUP_ID):
     INVERT_Y = True
     return NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,None
 
-# for MODE in ["query","analysis","virtual_cf"]:
-# for GROUP_ID in [1]:
-#     for MODE in ["query"]:
-#         NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID = get_dlpfc_z_para(MODE,GROUP_ID)
-#         visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID)
-NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y = get_Tg_time_para('query')
-# for GENE in ["Sema3a","Pvalb","Syt2","Mbp","Gad1","Slc17a7","Bhlhe22","Penk","Nrn1","Neurod6","Cplx3","Mobp","Rxfp1","Igfbp4","Rorb","Ntng1","Ppp1r1b","Calb1","Slc17a6","Arc"]:
-#     OUT_PNG = os.path.join("/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/differential", f"{GENE}_real_virtual.png")
-visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y)
+
+
 # for GROUP_ID in [2,5,9,10]:
 #     # for MODE in ["query","analysis","virtual_cf"]:
 #     for MODE in ["analysis"]:
 #         NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID = get_scc_z_para(MODE,GROUP_ID)
 #         visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID)
+
+# for MODE in ["query","analysis","virtual_cf"]:
+# for GROUP_ID in [1]:
+#     for MODE in ["query"]:
+#         NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID = get_dlpfc_z_para(MODE,GROUP_ID)
+#         visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y,H5ID)
+
+
+
+# NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y = get_Tg_time_para('query')
+# # for GENE in ["Sema3a","Pvalb","Syt2","Mbp","Gad1","Slc17a7","Bhlhe22","Penk","Nrn1","Neurod6","Cplx3","Mobp","Rxfp1","Igfbp4","Rorb","Ntng1","Ppp1r1b","Calb1","Slc17a6","Arc"]:
+# #     OUT_PNG = os.path.join("/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/differential", f"{GENE}_real_virtual.png")
+# visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y)
+
+
+# NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y = get_disease_time_para('virtual_cf')
+# visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PATTERN,OUT_PNG,S_REAL,S_VIRTUAL,INVERT_Y)
+
+

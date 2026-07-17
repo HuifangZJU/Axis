@@ -120,8 +120,9 @@ def plot_ratio_alpha_3color(
     ax.set_aspect("equal", adjustable="box")
     if invert_y:
         ax.invert_yaxis()
+        ax.invert_xaxis()
     ax.axis("off")
-    plt.title(f"Protein–Gene balance (color) + strength (alpha)\nGene={gene_name}, Protein={prot_name}")
+    plt.title(f"Gene={gene_name}, Protein={prot_name}")
 
     # legend
     from matplotlib.lines import Line2D
@@ -133,7 +134,7 @@ def plot_ratio_alpha_3color(
         Line2D([0], [0], marker='o', color='w', label=f"Gene-dominant (p≈1): {gene_name}",
                markerfacecolor=gene_rgb, markersize=8),
     ]
-    plt.legend(handles=handles, loc="lower right", frameon=True)
+    plt.legend(handles=handles, loc="upper left", frameon=True)
 
     plt.tight_layout()
     plt.savefig(out_png)
@@ -440,12 +441,12 @@ def main():
     ap.add_argument("--protein_rds", default="xenium_protein_predict.rds")
     ap.add_argument("--xenium_loc_csv", default="LUAD_2_A_xenium_axis.csv")
 
-    ap.add_argument("--topk", type=int, default=5, help="Top-K genes per protein marker (by FDR)")
+    ap.add_argument("--topk", type=int, default=10, help="Top-K genes per protein marker (by FDR)")
     ap.add_argument("--target_sum", type=float, default=1e4, help="normalize_total target sum for genes")
     ap.add_argument("--max_pairs", type=int, default=0, help="Optional cap on total pairs (0 = no cap)")
     ap.add_argument("--plot_points", type=int, default=200000, help="Downsample cells for plotting only")
     ap.add_argument("--point_size", type=float, default=1.0)
-    ap.add_argument("--invert_y", action="store_true")
+    ap.add_argument("--invert_y", default=True)
     args = ap.parse_args()
 
     root = args.root_folder
@@ -470,8 +471,8 @@ def main():
     loc_df = read_xenium_location_weird_csv(loc_path)
     coords = loc_df[["x", "y"]].copy()
     nC = coords.shape[0]
-    x_all = coords["x"].to_numpy(dtype=np.float32)
-    y_all = coords["y"].to_numpy(dtype=np.float32)
+    x_all = coords["y"].to_numpy(dtype=np.float32)
+    y_all = coords["x"].to_numpy(dtype=np.float32)
 
     # ---- Choose plotting sample indices ONCE
     rng = np.random.default_rng(0)
@@ -638,6 +639,7 @@ def main():
         #     max_points=args.plot_points,
         #     seed=0
         # )
+
         plot_ratio_alpha_3color(
             x=x_plot, y=y_plot,
             gene_vals=gene_vals,

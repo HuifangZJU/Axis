@@ -8,7 +8,6 @@ import scipy.sparse as sp
 # =========================
 BIOLOGICAL_AXIS_NAME = "protein"
 
-
 AXIS_POSITIONS = {
     0: 'xenium',
     1: 'protein'
@@ -146,16 +145,6 @@ def load_anchor_bank():
     return bank
 
 
-def build_fixed_analysis_grid(anchor_bank, reference_anchor_id):
-    """
-    In multi-modality analysis mode, use single cell locations as the reference_anchor_ids
-    """
-    coords_ref = np.asarray(anchor_bank[reference_anchor_id]["coords"], dtype=np.float32)
-    grid_support = np.full(coords_ref.shape[0], True, dtype=bool)
-    return coords_ref, grid_support
-
-
-
 
 def build_analysis_grid_and_evidence(
     coords,
@@ -177,11 +166,6 @@ support_kwargs = resolve_support_kwargs()
 
 fixed_grid_pts = None
 fixed_grid_support = None
-
-fixed_grid_pts, fixed_grid_support = build_fixed_analysis_grid(
-    anchor_bank=anchor_bank,
-    reference_anchor_id=ANALYSIS_REFERENCE_ANCHOR_ID,
-)
 
 
 # =========================

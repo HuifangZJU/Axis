@@ -15,8 +15,8 @@ from matplotlib.colors import TwoSlopeNorm
 # ============================================================
 # CONFIG
 # ============================================================
-ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
-OUTDIR = os.path.join(ROOT, "virtual_tissue", "evaluation_spatial_trends")
+ROOT = "/media/huifang/data/registration/xenium/mouse_brain/"
+OUTDIR = os.path.join(ROOT, "virtual_tissue/AD_time_grid256_spatial2.0/analysis/differential/evaluation")
 os.makedirs(OUTDIR, exist_ok=True)
 
 COORD_KEY = "spatial"
@@ -32,7 +32,7 @@ DOMAIN_KEY = "axis_joint_domain"
 CONTRASTS = {
     "early_5p7_minus_2p5": {
         "diff_path": os.path.join(
-            ROOT, "virtual_tissue", "Tg_time_grid256", "analysis", "differential",
+            ROOT, "virtual_tissue", "AD_time_grid256_spatial2.0", "analysis", "differential",
             "diff_forward_5.700_minus_2.500.h5ad"
         ),
         "rank_csv": os.path.join(ROOT, "haotian", "Tg", "res12.csv"),
@@ -40,7 +40,7 @@ CONTRASTS = {
     },
     "late_17p9_minus_5p7": {
         "diff_path": os.path.join(
-            ROOT, "virtual_tissue", "Tg_time_grid256", "analysis", "differential",
+            ROOT, "virtual_tissue", "AD_time_grid256_spatial2.0", "analysis", "differential",
             "diff_forward_17.900_minus_5.700.h5ad"
         ),
         "rank_csv": os.path.join(ROOT, "haotian", "Tg", "res23.csv"),

@@ -16,8 +16,9 @@ from matplotlib.cm import ScalarMappable
 # CONFIG
 # ============================================================
 ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
-OUTDIR = os.path.join(ROOT, "virtual_tissue", "evaluation_spatial_differential")
+OUTDIR = os.path.join(ROOT, "virtual_tissue/AD_time_grid256_spatial2.0/analysis/differential/analysis")
 os.makedirs(OUTDIR, exist_ok=True)
+
 
 COORD_KEY = "spatial"
 DOMAIN_KEY = "axis_joint_domain"
@@ -32,7 +33,7 @@ DOMAIN_KEY = "axis_joint_domain"
 CONTRASTS = {
     "17p9_minus_5p7": {
         "diff_path": os.path.join(
-            ROOT, "virtual_tissue", "Tg_time_grid256", "analysis", "differential",
+            ROOT, "virtual_tissue", "AD_time_grid256_spatial2.0", "analysis", "differential",
             "diff_forward_17.900_minus_5.700.h5ad"
         ),
         "rank_csv": os.path.join(ROOT, "haotian", "Tg", "res23.csv"),
@@ -41,7 +42,7 @@ CONTRASTS = {
     },
     "5p7_minus_2p5": {
         "diff_path": os.path.join(
-            ROOT, "virtual_tissue", "Tg_time_grid256", "analysis", "differential",
+            ROOT, "virtual_tissue", "AD_time_grid256_spatial2.0", "analysis", "differential",
             "diff_forward_5.700_minus_2.500.h5ad"
         ),
         "rank_csv": os.path.join(ROOT, "haotian", "Tg", "res12.csv"),
@@ -52,7 +53,7 @@ CONTRASTS = {
 # ------------------------------------------------------------
 # Domain focus
 # ------------------------------------------------------------
-FOCUS_DOMAIN = "8"
+FOCUS_DOMAIN = "11"
 SECONDARY_DOMAINS = ["1", "4", "6", "8", "10"]
 ALL_SELECTED_DOMAINS = [FOCUS_DOMAIN] + SECONDARY_DOMAINS
 
@@ -85,7 +86,7 @@ DOMAIN_COLORS = {
 # Optional manual case-study genes
 # If None, automatically use top-ranked genes from domain 11
 # ------------------------------------------------------------
-CASE_STUDY_GENES: Optional[List[str]] = ["Arc"]
+CASE_STUDY_GENES: Optional[List[str]] = ["Gfap","Arc"]
 TOP_N_GENES_PER_PANEL = 6
 
 

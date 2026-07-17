@@ -14,7 +14,7 @@ NCOLS = 9
 
 ALPHA = 0.9
 GEN_USE_VALID_MASK = True
-USE_LOG1P = True
+USE_LOG1P = False
 # VMIN = 0.0
 VMAX_PCT_REAL = 0.995
 VMAX_PCT_VIRTUAL = 0.995
@@ -300,10 +300,10 @@ def plot_panel(ax, coords, vals, title, norm, s, invert_y, xlim=None, ylim=None,
 
     # ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA,cmap='tab20',
     #            norm=norm, linewidths=0, rasterized=True)
-    # ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA,cmap="coolwarm",
-    #            norm=norm, linewidths=0, rasterized=True)
-    ax.scatter(coords[:, 0], coords[:, 1], c=vals, s=s, alpha=ALPHA, cmap="Reds",
+    ax.scatter(coords[:, 1], coords[:, 0], c=vals, s=s, alpha=ALPHA,cmap="coolwarm",
                norm=norm, linewidths=0, rasterized=True)
+    # ax.scatter(coords[:, 1], coords[:, 0], c=vals, s=s, alpha=ALPHA, cmap="Reds",
+    #            norm=norm, linewidths=0, rasterized=True)
 
     ax.set_title(title, fontsize=14)
     ax.set_xticks([])
@@ -330,11 +330,13 @@ def plot_panel(ax, coords, vals, title, norm, s, invert_y, xlim=None, ylim=None,
         ax.set_ylim([min_limit - pad, max_limit + pad])
     if invert_y:
         ax.invert_yaxis()
+
     if danshedline:
         for spine in ax.spines.values():
             spine.set_linestyle((0, (6, 4)))   # 6 on, 6 off
             spine.set_linewidth(1.0)
-            spine.set_edgecolor("white")
+            spine.set_edgecolor("black")
+    ax.invert_xaxis()
 
 
 def standardize_cluster_categories(ad, cluster_key="original_clusters", labels=None):
@@ -375,10 +377,10 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
                 vals, meta = extract_obs_vals(ad, GENE)
             except ValueError:
                 break
-        domain_ids = ['8', '11']
-        mask = ad.obs["axis_joint_domain"].isin(domain_ids)
-        coords = coords[mask]
-        vals = vals[mask]
+        # domain_ids = ['8', '11']
+        # mask = ad.obs["axis_joint_domain"].isin(domain_ids)
+        # coords = coords[mask]
+        # vals = vals[mask]
 
 
 
@@ -400,17 +402,18 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
 
         ad = sc.read_h5ad(f)
 
+
         coords = np.asarray(ad.obsm["spatial"], dtype=np.float32)
         try:
             vals = extract_gene_vals(ad, GENE)
         except ValueError:
             vals, meta = extract_obs_vals(ad, GENE)
         mask_valid = get_valid_mask(ad)
-        domain_ids = ['8', '11']
+        # domain_ids = ['8', '11']
         # domain_ids=['1','4','6','10']
-        mask_domain = ad.obs["axis_joint_domain"].isin(domain_ids)
-        mask = mask_domain*mask_valid
-        # mask = mask_valid
+        # mask_domain = ad.obs["axis_joint_domain"].isin(domain_ids)
+        # mask = mask_domain*mask_valid
+        mask = mask_valid
         coords = coords[mask]
         vals = vals[mask]
         # print(np.min(coords,axis=0))
@@ -454,8 +457,8 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
     axes = np.array(axes).reshape(n_rows_total, NCOLS)
 
     # leave right margin for colorbars + a bit more top space for suptitle
-    fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=-0.8, hspace=0.0)
-    # fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=0.04, hspace=0.0)
+    # fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=-0.8, hspace=0.0)
+    fig.subplots_adjust(left=0.02, right=RIGHT_MARGIN, top=0.96, bottom=0.02, wspace=0.04, hspace=0.0)
 
     # Row 1: Real
     for c in range(NCOLS):
@@ -463,10 +466,10 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
         if c < len(real_panels):
             p = real_panels[c]
             # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y)
-            # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y, xlim=(0, 1024),
-            #            ylim=(0, 1024))
-            plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
-                       xlim=(520, 870), ylim=(0, 700), danshedline=True)
+            plot_panel(ax, p["coords"], p["vals"], p["title"], norm_real, s=S_REAL, invert_y=INVERT_Y, xlim=(0, 1024),
+                       ylim=(0, 1024))
+            # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
+            #            xlim=(520, 870), ylim=(0, 700), danshedline=True)
         else:
             ax.axis("off")
 
@@ -477,9 +480,9 @@ def visualize_slices(NET_IN,ORIG_SAMPLES,ORIG_Z_UM,H5AD_DIR,GROUP_ID,GENE,GEN_PA
             ax = axes[r, c]
             if idx < n_virtual:
                 p = virtual_panels[idx]
-                # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,danshedline=True)
-                plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
-                           xlim=(520, 870), ylim=(0, 700),danshedline=True)
+                plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,danshedline=True)
+                # plot_panel(ax, p["coords"], p["vals"], p["title"], norm_virtual, s=S_VIRTUAL, invert_y=INVERT_Y,
+                #            xlim=(520, 870), ylim=(0, 700),danshedline=True)
                 idx += 1
             else:
                 ax.axis("off")

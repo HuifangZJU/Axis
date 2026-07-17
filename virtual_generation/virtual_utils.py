@@ -397,6 +397,19 @@ def load_h5ad_X_and_genes(H5AD_DIR, group_id, sample_id, attr_columns=None):
 
     return ad.X, np.asarray(ad.var_names), attrs
 
+def load_h5ad_X_and_genes_and_coords(H5AD_DIR, group_id, sample_id, attr_columns=None):
+    path = os.path.join(H5AD_DIR, "{}_{}.h5ad".format(group_id, sample_id))
+    ad = sc.read_h5ad(path)
+    coords = np.asarray(ad.obsm['spatial_axis'])
+    attrs = None
+    if attr_columns is not None and len(attr_columns) > 0:
+        missing = [c for c in attr_columns if c not in ad.obs.columns]
+        if len(missing) > 0:
+            raise KeyError(f"Missing obs columns in {path}: {missing}")
+        attrs = ad.obs.loc[:, attr_columns].copy().reset_index(drop=True)
+
+    return ad.X, np.asarray(ad.var_names), attrs, coords
+
 def ensure_same_genes_keep_order(Xa, ga, Xb, gb):
     """
     Intersect genes, KEEP slice0 order, subset both matrices.
