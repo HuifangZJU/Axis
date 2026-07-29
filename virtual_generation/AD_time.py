@@ -82,6 +82,7 @@ def load_anchor_bank():
         )
         coords_i, expr_raw, attrs_i = align_coords_expr_attrs(coords_i, expr_raw, attrs_i)
 
+
         bank[aid] = {
             "axis_value": float(AXIS_POSITIONS[aid]),
             "coords": coords_i,

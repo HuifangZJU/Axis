@@ -23,58 +23,43 @@ from typing import Iterable, Tuple
 import numpy as np
 import pandas as pd
 
-from io_utils import normalize_pair_by_fixed_frame
-from io_utils import load_axis_pair,load_competing_method_pair
-from metrics_utils import aggregate_domain_metrics,visualize_dice_regions,visualize_centroid_shift,visualize_metric_scores,evaluate_domain_metrics,standardize_metrics_df
+from utils_io import normalize_pair_by_fixed_frame,load_axis_pair,load_competing_method_pair
+from utils_metrics import aggregate_domain_metrics,visualize_dice_regions,visualize_centroid_shift,visualize_metric_scores,evaluate_domain_metrics,standardize_metrics_df
 import inspect
 
 # =========================
 # Configuration
 # =========================
-ROOT = Path("/media/huifang/data/registration/xenium/mouse_brain")
+ROOT = Path("/media/huifang/data/registration/breast_cancer/")
 
 GROUP_IDS = [0]
-PAIR_LIST = [(0, 1), (0, 2),(1, 2)]
+PAIR_LIST = [(0, 1)]
 
 
-# Slice positions for DLPFC
 SLICE_POS_UM = {
-    0: 2.5,
-    1: 5.7,
-    2: 17.9,
-    # 3: 2.5,
-    # 4: 5.7,
-    # 5: 13.4,
+    0: 0,
+    1: 1,
 }
 
 COMPETING_METHODS = [
     "unaligned",
     "simpleitk",
     "voxelmorph",
-    # "nicetrans",
+    "nicetrans",
     "paste",
     "gpsa",
     "santo",
+    "axis",
 ]
 
-ALL_METHODS = COMPETING_METHODS + ["axis"]
-# ALL_METHODS = ["axis"]
+ALL_METHODS = COMPETING_METHODS
 
-# Unaligned baseline
-H5AD_DIR = ROOT / "h5ads/Tg"
-H5AD_COORD_KEY = "spatial"
-H5AD_LABEL_KEY = "domain_id_shared"
 
 # Competing methods
 COMPETING_ROOT = ROOT / "competing_methods"
-
-# AXIS
-AXIS_ROOT = ROOT
-AXIS_PAIRWISE_DIR = AXIS_ROOT / "pairwise_output"
-AXIS_NETWORK_INPUT_DIR = AXIS_ROOT / "network_input"
-
+AXIS_NETWORK_INPUT_DIR = ROOT / "huifang/network_input"
 # Output
-OUT_CSV = ROOT / "evaluation" / "mouse_time_domain_metrics_all_methods.csv"
+OUT_CSV = ROOT / "evaluation" / "breast_cancer_domain_metrics_all_methods.csv"
 OUT_FIG = ROOT / "evaluation" / "overlay_metric_plots"
 
 
@@ -86,27 +71,16 @@ def compute_distance_um(fixed_id: int, moving_id: int) -> float:
     return float(abs(SLICE_POS_UM[moving_id] - SLICE_POS_UM[fixed_id]))
 
 def load_pair_for_method(
-    H5AD_DIR,
-    COMPETING_METHODS,
     COMPETING_ROOT,
-    H5AD_COORD_KEY,
-    H5AD_LABEL_KEY,
-    AXIS_PAIRWISE_DIR,
-    AXIS_NETWORK_INPUT_DIR,
     method: str,
     group_id: int,
     fixed_id: int,
     moving_id: int
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-    if method in COMPETING_METHODS:
-        method_dir = COMPETING_ROOT / method / f"group_{group_id}"
-        return load_competing_method_pair(method_dir, fixed_id, moving_id)
+    method_dir = COMPETING_ROOT / method / f"group_{group_id}"
+    return load_competing_method_pair(method_dir, fixed_id, moving_id)
 
-    if method == "axis":
-        return load_axis_pair(group_id, fixed_id, moving_id,AXIS_NETWORK_INPUT_DIR,AXIS_PAIRWISE_DIR)
-
-    raise ValueError(f"Unknown method: {method}")
 
 
 def call_domain_evaluator(
@@ -117,6 +91,7 @@ def call_domain_evaluator(
     alpha: float,
     mask_shape: Tuple[int, int],
     common_labels=None,
+    remove_outlier=True,
     neighbor_radius=None
 ):
     """
@@ -135,6 +110,7 @@ def call_domain_evaluator(
         "corr_grid_size": CORR_GRID_SIZE,
         "corr_sigma": CORR_SIGMA,
         "common_labels": common_labels,
+        "remove_outlier":remove_outlier,
         "neighbor_radius":neighbor_radius
     }.items():
         if k in sig.parameters:
@@ -159,20 +135,26 @@ def evaluate_one_pair(
     moving_id: int,
 ) :
     pts1, pts2, label1, label2 = load_pair_for_method(
-        H5AD_DIR,
-        COMPETING_METHODS,
         COMPETING_ROOT,
-        H5AD_COORD_KEY,
-        H5AD_LABEL_KEY,
-        AXIS_PAIRWISE_DIR,
-        AXIS_NETWORK_INPUT_DIR,
         method=method,
         group_id=group_id,
         fixed_id=fixed_id,
         moving_id=moving_id
     )
+    if method == "gpsa":
+        label1 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_0_marker_label_gpsa.npz"))["label"]
+        label2 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_1_marker_label_gpsa.npz"))["label"]
+    elif method == "paste":
+        label1 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_0_marker_label_paste.npz"))["label"]
+        label2 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_1_marker_label_paste.npz"))["label"]
+    elif method == "santo":
+        label1 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_0_marker_label_santo.npz"))["label"]
+        label2 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_1_marker_label_santo.npz"))["label"]
+    else:
+        label1 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_0_marker_label_img.npz"))["label"]
+        label2 = np.load(str(AXIS_NETWORK_INPUT_DIR / "0_1_marker_label_img.npz"))["label"]
 
-    alpha_value = 0.1
+    alpha_value = 0.01
 
     pts1_norm, pts2_norm, mask_shape = normalize_pair_by_fixed_frame(pts1, pts2)
 
@@ -184,8 +166,8 @@ def evaluate_one_pair(
         labels_moving=label2,
         mask_shape=mask_shape,
         alpha=alpha_value,
-        common_labels=[0, 1, 2, 5, 6, 7, 9, 10, 11],
-        neighbor_radius=5
+        common_labels=list(range(1,21)),
+        remove_outlier=False
     )
 
     return result
@@ -311,7 +293,9 @@ def visualize_one_method_overlay(
             metrics_df=metrics_df,
             average_dice_score=summary["dice"],
             save_suffix=save_suffix,
-            outdir=str(outdir) + "/"
+            outdir=str(outdir) + "/",
+            # outdir=None,
+            fontsize=10
         )
 
     elif metric == "center_shift":
@@ -365,6 +349,7 @@ def visualize_all_methods_overlay(
                 moving_id=moving_id,
                 metric=metric,
                 outdir=outdir,
+
             )
         except Exception as e:
             msg = (
@@ -380,21 +365,21 @@ def visualize_all_methods_overlay(
 
 
 def main():
-    # collect_all_metrics()
-
-    visualize_all_methods_overlay(
-        group_id=0,
-        fixed_id=1,
-        moving_id=2,
-        metric="dice",
-    )
+    collect_all_metrics()
+    #
+    # visualize_all_methods_overlay(
+    #     group_id=0,
+    #     fixed_id=0,
+    #     moving_id=1,
+    #     metric="dice",
+    # )
 
     # Example 2: save only center-shift overlays
     # visualize_all_methods_overlay(
     #     group_id=0,
     #     fixed_id=0,
-    #     moving_id=2,
-    #     metric="center_shift",
+    #     moving_id=1,
+    #     metric="center_shift"
     # )
 
     # Example 3: save both Dice and center-shift overlays

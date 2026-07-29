@@ -83,6 +83,8 @@ def load_anchor_bank():
             H5AD_DIR, GROUP_ID, AXIS_POSITIONS[aid],
             attr_columns=ATTRIBUTE_COLUMNS if USE_ATTRIBUTES else None
         )
+        print(expr_raw.shape)
+        test = input()
 
         coords_i, expr_raw, attrs_i = align_coords_expr_attrs(coords_i, expr_raw, attrs_i)
 

@@ -603,9 +603,6 @@ def compute_dense_tissue_mask_on_any_grid(
 
 
 
-
-
-
 def make_common_grid_from_coords(grid_size, pad_ratio=0.00,type='pixel',max_x=512,max_y=512,min_x=0,min_y=0):
     """
     coords: (N,2)
@@ -709,66 +706,53 @@ def _extract_dense_rows(X, row_idx, dtype=np.float32):
     return np.asarray(X[row_idx], dtype=dtype)
 
 
-def fit_latent_gene_program_model(
-    X,
-    n_programs=32,
-    max_fit_cells=50000,
-    random_state=0,
-    max_iter=400,
+
+def compute_qc_covariates(X):
+    if sp.issparse(X):
+        total_counts = np.asarray(X.sum(axis=1)).ravel().astype(np.float32)
+        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float32)
+    else:
+        Xd = np.asarray(X, dtype=np.float32)
+        total_counts = Xd.sum(axis=1).astype(np.float32)
+        n_genes = (Xd > 0).sum(axis=1).astype(np.float32)
+    return total_counts, n_genes
+
+def compute_local_relative_quality_weights(
+    qc_total_local,
+    qc_ngenes_local=None,
+    gamma_counts=0.5,
+    gamma_genes=0.5,
+    rel_clip=(0.5, 2.0),
     eps=1e-8,
-    dtype=np.float32,
 ):
     """
-    Fit once, reuse for all virtual query slices.
+    qc_total_local: (Q, k)
+    qc_ngenes_local: (Q, k) or None
 
-    The model is fit on row-normalized compositions.
+    Returns
+    -------
+    q_rel : (Q, k)
+        Local relative quality factors for each neighborhood.
     """
-    n = X.shape[0]
-    if n > max_fit_cells:
-        rng = np.random.default_rng(random_state)
-        keep = np.sort(rng.choice(n, size=max_fit_cells, replace=False))
-        X_fit = X[keep]
-    else:
-        X_fit = X
+    qc_total_local = np.asarray(qc_total_local, dtype=np.float32)
+    q_total = np.log1p(qc_total_local)
 
-    X_fit = _extract_dense_rows(X_fit, np.arange(X_fit.shape[0]), dtype=dtype)
-    X_fit = np.maximum(X_fit, 0.0)
-    X_fit = _row_normalize_dense(X_fit, eps=eps)
+    med_total = np.median(q_total, axis=1, keepdims=True)
+    rel_total = q_total / np.maximum(med_total, eps)
+    rel_total = np.clip(rel_total, rel_clip[0], rel_clip[1]) ** gamma_counts
 
-    nmf = NMF(
-        n_components=n_programs,
-        init="nndsvda",
-        solver="mu",
-        beta_loss="kullback-leibler",
-        random_state=random_state,
-        max_iter=max_iter,
-        tol=1e-4,
-    )
-    W = nmf.fit_transform(X_fit).astype(dtype, copy=False)
-    H = nmf.components_.astype(dtype, copy=False)
+    if qc_ngenes_local is None:
+        return rel_total.astype(np.float32, copy=False)
 
-    # convert gene programs to simplex form
-    H_topic = H / np.maximum(H.sum(axis=1, keepdims=True), eps)
+    qc_ngenes_local = np.asarray(qc_ngenes_local, dtype=np.float32)
+    q_ngenes = np.log1p(qc_ngenes_local)
 
-    return {
-        "nmf_model": nmf,
-        "H_topic": H_topic.astype(dtype, copy=False),
-        "n_programs": int(n_programs),
-        "eps": float(eps),
-    }
+    med_ngenes = np.median(q_ngenes, axis=1, keepdims=True)
+    rel_ngenes = q_ngenes / np.maximum(med_ngenes, eps)
+    rel_ngenes = np.clip(rel_ngenes, rel_clip[0], rel_clip[1]) ** gamma_genes
 
-
-def _weighted_geometric_barycenter(P, W, eps=1e-8):
-    """
-    P: (B, k, D) simplex-like vectors
-    W: (B, k) normalized local weights
-    Returns: (B, D), normalized weighted geometric mean
-    """
-    logP = np.log(np.maximum(P, eps))
-    Z = np.exp(np.einsum("bk,bkd->bd", W, logP, optimize=True)).astype(np.float32, copy=False)
-    Z = Z / np.maximum(Z.sum(axis=1, keepdims=True), eps)
-    return Z
-
+    q_rel = rel_total * rel_ngenes
+    return q_rel.astype(np.float32, copy=False)
 
 def _prepare_local_query_support(
     coords,
@@ -978,56 +962,6 @@ def infer_attr_schema_from_df(df):
 
 
 
-
-
-def compute_qc_covariates(X):
-    if sp.issparse(X):
-        total_counts = np.asarray(X.sum(axis=1)).ravel().astype(np.float32)
-        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float32)
-    else:
-        Xd = np.asarray(X, dtype=np.float32)
-        total_counts = Xd.sum(axis=1).astype(np.float32)
-        n_genes = (Xd > 0).sum(axis=1).astype(np.float32)
-    return total_counts, n_genes
-
-def compute_local_relative_quality_weights(
-    qc_total_local,
-    qc_ngenes_local=None,
-    gamma_counts=0.5,
-    gamma_genes=0.5,
-    rel_clip=(0.5, 2.0),
-    eps=1e-8,
-):
-    """
-    qc_total_local: (Q, k)
-    qc_ngenes_local: (Q, k) or None
-
-    Returns
-    -------
-    q_rel : (Q, k)
-        Local relative quality factors for each neighborhood.
-    """
-    qc_total_local = np.asarray(qc_total_local, dtype=np.float32)
-    q_total = np.log1p(qc_total_local)
-
-    med_total = np.median(q_total, axis=1, keepdims=True)
-    rel_total = q_total / np.maximum(med_total, eps)
-    rel_total = np.clip(rel_total, rel_clip[0], rel_clip[1]) ** gamma_counts
-
-    if qc_ngenes_local is None:
-        return rel_total.astype(np.float32, copy=False)
-
-    qc_ngenes_local = np.asarray(qc_ngenes_local, dtype=np.float32)
-    q_ngenes = np.log1p(qc_ngenes_local)
-
-    med_ngenes = np.median(q_ngenes, axis=1, keepdims=True)
-    rel_ngenes = q_ngenes / np.maximum(med_ngenes, eps)
-    rel_ngenes = np.clip(rel_ngenes, rel_clip[0], rel_clip[1]) ** gamma_genes
-
-    q_rel = rel_total * rel_ngenes
-    return q_rel.astype(np.float32, copy=False)
-
-
 def generate_gene_sets(grid_pts,X,support,fill_value,chunk_size,dtype):
     n_grid = grid_pts.shape[0]
     n_genes = X.shape[1]
@@ -1134,6 +1068,7 @@ def generate_virtual_tissue_fixed_grid(
     point_weights=None,
     spatial_bandwidth=None,
     attr_spatial_bandwidth=None,
+    use_gene_weight=True,
     knn=48,
     min_neighbors=6,
     radius=None,
@@ -1145,8 +1080,10 @@ def generate_virtual_tissue_fixed_grid(
     if X.shape[0] != coords.shape[0]:
         raise ValueError("X rows must match coords rows.")
 
-
-    qc_total_counts,qc_n_genes = compute_qc_covariates(X)
+    if use_gene_weight:
+        qc_total_counts,qc_n_genes = compute_qc_covariates(X)
+    else:
+        qc_total_counts, qc_n_genes = None,None
     # -------------------------
     # 1) shared local query support
     # -------------------------
@@ -1211,323 +1148,3 @@ def generate_virtual_tissue_fixed_grid(
     if attr_spatial_bandwidth is not None:
         ad.uns["attr_spatial_bandwidth"] = attr_spatial_bandwidth
     return ad
-
-# ===========================================================================
-# GENERATE delta based virtual tissues
-# ===========================================================================
-def generate_anchor_state_on_grid(
-    coords,
-    X,
-    grid_pts,
-    var_names=None,
-    attrs=None,
-    attr_schema=None,
-    grid_support_mask=None,
-    spatial_bandwidth=None,
-    knn=48,
-    min_neighbors=6,
-    radius=None,
-    chunk_size=64,
-    fill_value=0.0,
-    dtype=np.float32,
-):
-    """
-    Generate one anchor-specific state on the grid.
-    No biological-axis fusion here. Only local spatial regression from one anchor.
-    """
-
-    n_grid = grid_pts.shape[0]
-    n_genes = X.shape[1]
-
-    # use existing support preparation, but with all point weights = 1
-    support = _prepare_local_query_support(
-        coords=coords,
-        grid_pts=grid_pts,
-        grid_support_mask=grid_support_mask,
-        point_weights=np.ones((coords.shape[0],), dtype=dtype),
-        spatial_bandwidth=spatial_bandwidth,
-        knn=knn,
-        min_neighbors=min_neighbors,
-        radius=radius,
-        dtype=dtype
-    )
-
-    query_idx_active = support["query_idx_active"]
-    nn_idx_active = support["nn_idx_active"]
-    local_w = support["local_w"]
-
-    Y = np.full((n_grid, n_genes), fill_value, dtype=dtype)
-
-    if query_idx_active.size > 0:
-        for start in range(0, query_idx_active.shape[0], int(chunk_size)):
-            end = min(start + int(chunk_size), query_idx_active.shape[0])
-
-            q_rows = query_idx_active[start:end]
-            idx_block = nn_idx_active[start:end]
-            w_block = local_w[start:end]
-            B, k = idx_block.shape
-
-            flat_idx = idx_block.reshape(-1)
-
-            if sp.issparse(X):
-                X_block = np.asarray(X[flat_idx].toarray(), dtype=dtype).reshape(B, k, n_genes)
-            else:
-                X_block = np.asarray(X[flat_idx], dtype=dtype).reshape(B, k, n_genes)
-
-            Y_block = np.einsum("bk,bkg->bg", w_block, X_block, optimize=True).astype(dtype, copy=False)
-            Y[q_rows] = Y_block
-
-    ad = AnnData(X=Y, dtype=Y.dtype)
-    if var_names is not None:
-        ad.var_names = np.asarray(var_names).astype(str)
-
-    ad.obsm["spatial"] = np.asarray(grid_pts, dtype=dtype)
-    ad.obs["valid"] = support["valid_mask"]
-    ad.obs["confidence"] = support["confidence"]
-    ad.obs["nearest_dist"] = support["nearest_dist"]
-
-    # attributes
-    if attrs is not None:
-        if not isinstance(attrs, pd.DataFrame):
-            attrs = pd.DataFrame(attrs)
-
-        if attr_schema is None:
-            attr_schema = infer_attr_schema_from_df(attrs)
-
-        for col, kind in attr_schema.items():
-            values = attrs[col].values
-
-            if kind == "continuous":
-                out = np.full((n_grid,), np.nan, dtype=dtype)
-                if query_idx_active.size > 0:
-                    v = np.asarray(values, dtype=dtype)
-                    pred = np.sum(local_w * v[nn_idx_active], axis=1).astype(dtype, copy=False)
-                    out[query_idx_active] = pred
-                ad.obs[col] = out
-
-            elif kind == "categorical":
-                codes, categories = pd.factorize(values, sort=True)
-                n_cat = len(categories)
-                probs = np.zeros((n_grid, n_cat), dtype=dtype)
-
-                if query_idx_active.size > 0:
-                    code_block = codes[nn_idx_active]
-                    rows = np.repeat(np.arange(query_idx_active.shape[0]), nn_idx_active.shape[1])
-                    cols = code_block.reshape(-1)
-                    vals_w = local_w.reshape(-1)
-
-                    probs_active = np.zeros((query_idx_active.shape[0], n_cat), dtype=dtype)
-                    np.add.at(probs_active, (rows, cols), vals_w)
-                    probs[query_idx_active] = probs_active
-
-                labels = np.full((n_grid,), "unknown", dtype=object)
-                if query_idx_active.size > 0:
-                    pred_idx = np.argmax(probs[query_idx_active], axis=1)
-                    labels_active = categories[pred_idx].astype(object)
-                    labels[query_idx_active] = labels_active
-
-                ad.obs[col] = pd.Series(labels, index=ad.obs_names, dtype="object")
-                ad.obsm[f"{col}_probs"] = probs
-                ad.uns[f"{col}_categories"] = [str(x) for x in list(categories)]
-
-            elif kind == "boolean":
-                v = np.asarray(values).astype(np.float32)
-                p_true = np.full((n_grid,), np.nan, dtype=dtype)
-
-                if query_idx_active.size > 0:
-                    pred = np.sum(local_w * v[nn_idx_active], axis=1).astype(dtype, copy=False)
-                    p_true[query_idx_active] = pred
-
-                ad.obs[f"{col}_prob_true"] = p_true
-                ad.obs[col] = np.nan_to_num(p_true, nan=0.0) >= 0.5
-                ad.obsm[f"{col}_probs"] = np.stack(
-                    [1.0 - np.nan_to_num(p_true, nan=0.0), np.nan_to_num(p_true, nan=0.0)],
-                    axis=1
-                )
-                ad.uns[f"{col}_categories"] = [False, True]
-
-    ad.uns["generator"] = "anchor_state_on_grid"
-    return ad
-
-
-def compose_virtual_state_from_pair(
-    ad_a,
-    ad_b,
-    alpha,
-    gene_space="log1p",   # "raw" or "log1p"
-    clip_min=0.0,
-):
-    """
-    Compose a query state from two anchor states using delta-based generation:
-        S_q = S_a + alpha * (S_b - S_a)
-    """
-
-    alpha = float(alpha)
-
-    # geometry and var_names must match
-    if ad_a.n_obs != ad_b.n_obs:
-        raise ValueError("Anchor states have different n_obs.")
-    if ad_a.n_vars != ad_b.n_vars:
-        raise ValueError("Anchor states have different n_vars.")
-    if not np.array_equal(np.asarray(ad_a.var_names), np.asarray(ad_b.var_names)):
-        raise ValueError("Anchor states have different var_names.")
-    if not np.allclose(ad_a.obsm["spatial"], ad_b.obsm["spatial"]):
-        raise ValueError("Anchor states have different spatial coordinates.")
-
-    Xa = ad_a.X.toarray() if sp.issparse(ad_a.X) else np.asarray(ad_a.X, dtype=np.float32)
-    Xb = ad_b.X.toarray() if sp.issparse(ad_b.X) else np.asarray(ad_b.X, dtype=np.float32)
-
-    Xa = Xa.astype(np.float32, copy=False)
-    Xb = Xb.astype(np.float32, copy=False)
-
-    if gene_space == "log1p":
-        Za = np.log1p(np.maximum(Xa, 0.0))
-        Zb = np.log1p(np.maximum(Xb, 0.0))
-        Zq = Za + alpha * (Zb - Za)
-        Xq = np.expm1(Zq).astype(np.float32, copy=False)
-        Xq = np.maximum(Xq, clip_min)
-    elif gene_space == "raw":
-        Xq = Xa + alpha * (Xb - Xa)
-        Xq = np.maximum(Xq.astype(np.float32, copy=False), clip_min)
-    else:
-        raise ValueError("gene_space must be one of {'raw','log1p'}")
-
-    ad_q = AnnData(X=Xq, dtype=np.float32)
-    ad_q.var_names = ad_a.var_names.copy()
-    ad_q.obsm["spatial"] = np.asarray(ad_a.obsm["spatial"], dtype=np.float32)
-
-    # keep support / diagnostics simple
-    if "valid" in ad_a.obs.columns and "valid" in ad_b.obs.columns:
-        ad_q.obs["valid"] = np.asarray(ad_a.obs["valid"], dtype=bool) & np.asarray(ad_b.obs["valid"], dtype=bool)
-
-    for key in ["confidence", "nearest_dist"]:
-        if key in ad_a.obs.columns and key in ad_b.obs.columns:
-            va = np.asarray(ad_a.obs[key], dtype=np.float32)
-            vb = np.asarray(ad_b.obs[key], dtype=np.float32)
-            ad_q.obs[key] = va + alpha * (vb - va)
-
-    # compose attributes
-    shared_obs_cols = sorted(set(ad_a.obs.columns).intersection(set(ad_b.obs.columns)))
-    skip_cols = {"valid", "confidence", "nearest_dist"}
-    for col in shared_obs_cols:
-        if col in skip_cols:
-            continue
-
-        sa = ad_a.obs[col]
-        sb = ad_b.obs[col]
-
-        # continuous
-        if pd.api.types.is_numeric_dtype(sa) and pd.api.types.is_numeric_dtype(sb):
-            va = pd.to_numeric(sa, errors="coerce").to_numpy(dtype=np.float32)
-            vb = pd.to_numeric(sb, errors="coerce").to_numpy(dtype=np.float32)
-            vq = va + alpha * (vb - va)
-            ad_q.obs[col] = vq.astype(np.float32)
-            continue
-
-        # boolean via stored probability if available
-        prob_key = f"{col}_probs"
-        if prob_key in ad_a.obsm and prob_key in ad_b.obsm:
-            pa = np.asarray(ad_a.obsm[prob_key], dtype=np.float32)
-            pb = np.asarray(ad_b.obsm[prob_key], dtype=np.float32)
-            pq = pa + alpha * (pb - pa)
-
-            # renormalize if multi-class
-            if pq.ndim == 2 and pq.shape[1] > 1:
-                pq = np.maximum(pq, 0.0)
-                row_sum = np.maximum(pq.sum(axis=1, keepdims=True), 1e-8)
-                pq = pq / row_sum
-
-            ad_q.obsm[prob_key] = pq
-
-            # categorical assignment
-            if f"{col}_categories" in ad_a.uns:
-                cats = [str(x) for x in ad_a.uns[f"{col}_categories"]]
-                idx = np.argmax(pq, axis=1)
-                labels = np.asarray([cats[i] for i in idx], dtype=object)
-                ad_q.obs[col] = pd.Series(labels, index=ad_q.obs_names, dtype="object")
-            elif col.endswith("_prob_true") or col.startswith("is_"):
-                if pq.ndim == 2 and pq.shape[1] == 2:
-                    ad_q.obs[col] = pq[:, 1] >= 0.5
-            continue
-
-        # fallback: keep anchor a label if alpha < 0.5 else anchor b label
-        labels_a = sa.astype(object).to_numpy()
-        labels_b = sb.astype(object).to_numpy()
-        labels_q = np.where(alpha < 0.5, labels_a, labels_b)
-        ad_q.obs[col] = pd.Series(labels_q, index=ad_q.obs_names, dtype="object")
-
-    ad_q.uns["generator"] = "delta_composed_virtual_tissue"
-    ad_q.uns["relative_position_alpha"] = float(alpha)
-    ad_q.uns["gene_space"] = gene_space
-    return ad_q
-
-def generate_virtual_tissue_delta_fixed_grid(
-    coords_a,
-    X_a,
-    coords_b,
-    X_b,
-    grid_pts,
-    var_names=None,
-    attrs_a=None,
-    attrs_b=None,
-    attr_schema=None,
-    grid_support_mask=None,
-    spatial_bandwidth=None,
-    knn=48,
-    min_neighbors=6,
-    radius=None,
-    chunk_size=64,
-    fill_value=0.0,
-    dtype=np.float32,
-    alpha=0.5,
-    gene_space="log1p",
-):
-    """
-    Delta-based generation:
-      1) estimate anchor A state on grid
-      2) estimate anchor B state on grid
-      3) compose query by delta
-    """
-    ad_a = generate_anchor_state_on_grid(
-        coords=coords_a,
-        X=X_a,
-        grid_pts=grid_pts,
-        var_names=var_names,
-        attrs=attrs_a,
-        attr_schema=attr_schema,
-        grid_support_mask=grid_support_mask,
-        spatial_bandwidth=spatial_bandwidth,
-        knn=knn,
-        min_neighbors=min_neighbors,
-        radius=radius,
-        chunk_size=chunk_size,
-        fill_value=fill_value,
-        dtype=dtype,
-    )
-
-    ad_b = generate_anchor_state_on_grid(
-        coords=coords_b,
-        X=X_b,
-        grid_pts=grid_pts,
-        var_names=var_names,
-        attrs=attrs_b,
-        attr_schema=attr_schema,
-        grid_support_mask=grid_support_mask,
-        spatial_bandwidth=spatial_bandwidth,
-        knn=knn,
-        min_neighbors=min_neighbors,
-        radius=radius,
-        chunk_size=chunk_size,
-        fill_value=fill_value,
-        dtype=dtype,
-    )
-
-    ad_q = compose_virtual_state_from_pair(
-        ad_a=ad_a,
-        ad_b=ad_b,
-        alpha=alpha,
-        gene_space=gene_space,
-    )
-
-    ad_q.uns["source_anchor_ids"] = None
-    return ad_q

@@ -983,6 +983,6 @@ plot_transition_field_layout(
 
     fig_width=18.5,
     fig_height=5.2,
-    save_path="/media/huifang/data/registration/DLPFC/evaluation/transition_field_layout_group1_s1_s2.png",
+    save_path=None,
     show=True,
 )

@@ -5,7 +5,7 @@ from typing import Iterable, Tuple
 import numpy as np
 import pandas as pd
 import scanpy as sc
-from metrics_utils import evaluate_domain_metrics
+from utils_metrics import evaluate_domain_metrics
 
 
 
@@ -15,6 +15,20 @@ from metrics_utils import evaluate_domain_metrics
 OFFSET = 5.0
 TARGET_RANGE = 1000.0
 
+def ensure_flow_hw2(flow):
+    """
+    Accept [H, W, 2] or [2, H, W], return [H, W, 2].
+    """
+    flow = np.asarray(flow, dtype=np.float32)
+    if flow.ndim != 3:
+        raise ValueError(f"flow must be 3D, got shape {flow.shape}")
+
+    if flow.shape[-1] == 2:
+        return flow
+    if flow.shape[0] == 2:
+        return np.moveaxis(flow, 0, -1)
+
+    raise ValueError(f"Cannot interpret flow shape {flow.shape}")
 
 # =========================
 # Utility helpers
