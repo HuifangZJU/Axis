@@ -178,23 +178,8 @@ def build_virtual_counterfactual_evidence(
 
     return grid_support, coords_cat, X_cat, point_weights
 
-def build_synchronization_evidence(
-    coords,
-    grid_pts,
-    expr
-):
-    grid_support = compute_dense_tissue_mask_on_any_grid(
-        grid_pts=grid_pts,
-        union_spots=coords,
-        max_dist_px=MAX_DIST_PX,
-        keep_largest=True,
-    )
-    point_weights = np.full(expr.shape[0], 1, dtype=float)
 
-    return grid_support, point_weights
-
-
-def run_query():
+def run_query(save_meta=False):
     grid_pts, _ = make_common_grid_from_coords(GRID_SIZE, type='visium')
     for query_axis_value in QUERY_AXIS_VALUES:
         query_axis_value = float(query_axis_value)
@@ -314,6 +299,55 @@ def run_query():
         ad_grid.write_h5ad(out_path)
         print("  saved:", out_path)
 
+        if save_meta:
+            meta_path = save_generation_meta(
+                virtual_tissue_path=out_path,
+
+                # User-defined spatial support
+                grid_pts=grid_pts,
+                grid_support_mask=grid_support,
+
+                # Collected spatial evidence
+                coords_cat=coords_cat,
+                X_cat=X_cat,
+                genes=genes,
+                attrs_cat=attrs_cat,
+                attr_schema=ATTRIBUTE_SCHEMA,
+                point_weights=point_weights,
+
+                # Preserve anchor identity for each evidence point.
+                # This assumes build_query_evidence concatenates anchor A
+                # followed by anchor B without deleting or duplicating rows.
+                source_anchor_ids=[
+                    anchor_a_id,
+                    anchor_b_id,
+                ],
+                source_point_counts=[
+                    len(coords_a),
+                    len(coords_b),
+                ],
+
+                # Generation context
+                source_axis_positions=source_axis_positions,
+                source_weights=source_weights,
+                biological_axis_name=BIOLOGICAL_AXIS_NAME,
+                query_axis_value=query_axis_value,
+                relative_position_alpha=float(alpha),
+                mode=MODE,
+                apply_log1p_before_generation=bool(
+                    APPLY_LOG1P_BEFORE_GENERATION
+                ),
+                axis_weight_bandwidth=float(
+                    used_axis_bandwidth
+                ),
+                spatial_bandwidth=SPATIAL_BANDWIDTH,
+                knn=KNN,
+                min_neighbors=MIN_NEIGHBORS,
+                radius=RADIUS,
+            )
+
+            print("  saved generation metadata:", meta_path)
+
     print("DONE. Output folder:", OUT_DIR)
 
 
@@ -416,6 +450,7 @@ def run_virtual_counterfactual():
             grid_support_mask=grid_support,
             point_weights=point_weights,
             spatial_bandwidth=SPATIAL_BANDWIDTH,
+            attr_spatial_bandwidth=ATTR_SPATIAL_BANDWIDTH,
             knn=KNN,
             min_neighbors=MIN_NEIGHBORS,
             radius=RADIUS,
@@ -491,6 +526,7 @@ def run_analysis():
             var_names=genes,
             attrs=attrs_cat,
             attr_schema=ATTRIBUTE_SCHEMA,
+            attr_spatial_bandwidth=ATTR_SPATIAL_BANDWIDTH,
             grid_support_mask=grid_support,
             point_weights=point_weights,
             spatial_bandwidth=SPATIAL_BANDWIDTH,
@@ -553,7 +589,7 @@ APPLY_LOG1P_BEFORE_GENERATION = False
 # for query, to sue neighboring information
 AXIS_WEIGHT_BANDWIDTH = None
 SPATIAL_BANDWIDTH = 3
-
+ATTR_SPATIAL_BANDWIDTH = 4
 
 KNN = 48
 MIN_NEIGHBORS = 1
@@ -568,16 +604,16 @@ N_PROGRAMS = 64
 USE_ATTRIBUTES = True
 ATTRIBUTE_COLUMNS = ["original_clusters"]
 ATTRIBUTE_SCHEMA = {"original_clusters": "categorical"}
-GENE_SUBSET = ['KRT1','MMP10','PTHLH']
-# GENE_SUBSET=None
+# GENE_SUBSET = ['KRT1','MMP10','PTHLH']
+GENE_SUBSET=None
 
 
-for GROUP_ID in [2,5,9,10]:
+for GROUP_ID in [2,10]:
     print(f"group id {GROUP_ID}")
     AXIS_OUT = os.path.join(ROOT, "pairwise_output", f"group_{GROUP_ID}")
     # gene subset
     # for MODE in ["query","analysis","virtual_cf"]:
-    for MODE in ["analysis"]:
+    for MODE in ["query"]:
         OUT_DIR = os.path.join(
             ROOT,
             "virtual_tissue",
@@ -593,7 +629,7 @@ for GROUP_ID in [2,5,9,10]:
             ANCHOR_IDS = [0, 2]
             QUERY_AXIS_VALUES = [10]
             anchor_bank = load_anchor_bank()
-            run_query()
+            run_query(save_meta=False)
 
         if MODE == "analysis":
             ANCHOR_IDS = [0, 1, 2]

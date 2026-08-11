@@ -113,6 +113,7 @@ def build_analysis_grid_and_evidence(
     return fixed_grid_pts, grid_support, coords_to_f, X_cat, point_weights
 
 
+
 def build_query_evidence(
     alpha,
     grid_pts,
@@ -196,7 +197,7 @@ def build_synchronization_evidence(
 
 
 
-def run_query():
+def run_query(save_meta=False):
     grid_pts, _ = make_common_grid_from_coords(GRID_SIZE, type='visium')
     for query_axis_value in QUERY_AXIS_VALUES:
         query_axis_value = float(query_axis_value)
@@ -318,6 +319,55 @@ def run_query():
         )
         ad_grid.write_h5ad(out_path)
         print("  saved:", out_path)
+        if save_meta:
+            meta_path = save_generation_meta(
+                virtual_tissue_path=out_path,
+
+                # User-defined spatial support
+                grid_pts=grid_pts,
+                grid_support_mask=grid_support,
+
+                # Collected spatial evidence
+                coords_cat=coords_cat,
+                X_cat=X_cat,
+                genes=genes,
+                attrs_cat=attrs_cat,
+                attr_schema=ATTRIBUTE_SCHEMA,
+                point_weights=point_weights,
+
+                # Preserve anchor identity for each evidence point.
+                # This assumes build_query_evidence concatenates anchor A
+                # followed by anchor B without deleting or duplicating rows.
+                source_anchor_ids=[
+                    anchor_a_id,
+                    anchor_b_id,
+                ],
+                source_point_counts=[
+                    len(coords_a),
+                    len(coords_b),
+                ],
+
+                # Generation context
+                source_axis_positions=source_axis_positions,
+                source_weights=source_weights,
+                biological_axis_name=BIOLOGICAL_AXIS_NAME,
+                query_axis_value=query_axis_value,
+                relative_position_alpha=float(alpha),
+                mode=MODE,
+                apply_log1p_before_generation=bool(
+                    APPLY_LOG1P_BEFORE_GENERATION
+                ),
+                axis_weight_bandwidth=float(
+                    used_axis_bandwidth
+                ),
+                spatial_bandwidth=SPATIAL_BANDWIDTH,
+                knn=KNN,
+                min_neighbors=MIN_NEIGHBORS,
+                radius=RADIUS,
+            )
+
+            print("  saved generation metadata:", meta_path)
+
 
     print("DONE. Output folder:", OUT_DIR)
 
@@ -452,6 +502,7 @@ def run_virtual_counterfactual():
         ad_grid.write_h5ad(out_path)
         print("  saved:", out_path)
 
+
     print("DONE. Output folder:", OUT_DIR)
 
 def run_analysis():
@@ -527,6 +578,13 @@ def run_analysis():
 
 
 
+def build_integration_grid_and_evidence():
+   pass
+
+
+def run_integration():
+    pass
+
 
 # =========================
 # CONFIG
@@ -565,7 +623,7 @@ SPATIAL_BANDWIDTH = 1
 # plot_axis_kernel_weight_debug([0,320],10,bandwidth=AXIS_WEIGHT_BANDWIDTH)
 
 KNN = 48
-MIN_NEIGHBORS = 1.0
+MIN_NEIGHBORS = 1
 RADIUS = None
 
 # gene generation
@@ -585,7 +643,7 @@ for GROUP_ID in [1]:
     AXIS_OUT = os.path.join(ROOT, "pairwise_output", f"group_{GROUP_ID}")
     # gene subset
     # for MODE in ["query","analysis","virtual_cf"]:
-    for MODE in ["query"]:
+    for MODE in ["integration"]:
         OUT_DIR = os.path.join(
             ROOT,
             "virtual_tissue",
@@ -596,24 +654,23 @@ for GROUP_ID in [1]:
         # =========================
         # LOAD ALL ANCHORS ONCE
         # =========================
+        if MODE == "integration":
+            ANCHOR_IDS = [0, 1, 2, 3]
+            GENE_SUBSET = ["PCP4"]
+            anchor_bank = load_anchor_bank()
+            run_integration()
+
 
         if MODE=="query":
             ANCHOR_IDS = [1, 2]
-            # QUERY_AXIS_VALUES = [80, 160, 240]
+            QUERY_AXIS_VALUES = [80, 160, 240]
 
-            QUERY_AXIS_VALUES = np.arange(20, 301, 10).tolist()
-            # GENE_SUBSET = ["PCP4"]
-            GENE_SUBSET=None
+            # QUERY_AXIS_VALUES = np.arange(20, 301, 10).tolist()
+            GENE_SUBSET = ["PCP4"]
+            # GENE_SUBSET=None
             anchor_bank = load_anchor_bank()
-            run_query()
+            run_query(save_meta=True)
 
-
-        # if MODE =='virtual_cf':
-        #     ANCHOR_IDS = [0, 3]
-        #     QUERY_AXIS_VALUES = [10,310]
-        #     GENE_SUBSET=None
-        #     anchor_bank = load_anchor_bank()
-        #     run_virtual_counterfactual()
 
         if MODE == "analysis":
             ANCHOR_IDS = [0, 1, 2, 3]
