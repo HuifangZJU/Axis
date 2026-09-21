@@ -70,13 +70,13 @@ import scipy.sparse as sp
 import seaborn as sns
 from scipy.stats import kruskal, wilcoxon
 from sklearn.metrics import roc_auc_score
-from spatial_arithmetic_utils import aggregate_virtual_slices
+
 
 # =============================================================================
 # USER CONFIGURATION
 # =============================================================================
 
-RUN_MODE = "both"  # one of: "eval", "plot", "both"
+RUN_MODE = "plot"  # one of: "eval", "plot", "both"
 
 
 @dataclass(frozen=True)
@@ -181,8 +181,7 @@ class Config:
         return (
             self.analysis_dir
             / (
-                f"aggregation_layer_separation_{self.axis_method}"
-                "_with_paste_independent_spatial_maps"
+                f"aggregation_layer_separation"
             )
         )
 
@@ -367,34 +366,9 @@ def read_marker_adata(
 
 
 def resolve_axis_aggregate_path(cfg: Config) -> Path:
-    """Resolve or build the single selected Axis aggregate."""
-    method = cfg.axis_method
-    output_name = (
-        f"aggregate_{method}_ref_{float(cfg.reference_axis_value):.3f}.h5ad"
-    )
 
-    if cfg.rebuild_axis_aggregate:
-        print(f"[Aggregate] Axis ({method})")
-        output_path = aggregate_virtual_slices(
-            input_dir=str(cfg.analysis_dir),
-            biological_axis_name=cfg.biological_axis_name,
-            reference_axis_value=cfg.reference_axis_value,
-            aggregation=method,
-            output_subdir=cfg.aggregation_subdir,
-            output_name=output_name,
-            gene_chunk_size=cfg.aggregation_gene_chunk_size,
-        )
-        path = Path(output_path)
-    elif cfg.axis_aggregated_h5ad is not None:
-        path = Path(cfg.axis_aggregated_h5ad)
-    else:
-        path = cfg.analysis_dir / cfg.aggregation_subdir / output_name
+    path = Path(cfg.axis_aggregated_h5ad)
 
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Selected Axis aggregate was not found: {path}\n"
-            f"Set axis_aggregated_h5ad, or set rebuild_axis_aggregate=True."
-        )
     return path
 
 
@@ -2094,11 +2068,11 @@ def plot_all_gene_summary(metrics: pd.DataFrame, cfg: Config) -> Optional[mpl.fi
         return None
     gain_stats = compute_gain_statistics(metrics, cfg, genes)
 
-    fig = plt.figure(figsize=(16.0, 4.4))
+    fig = plt.figure(figsize=(9.0, 4.4))
     grid = fig.add_gridspec(
         1,
-        3,
-        width_ratios=(1.65, 1.65, 0.95),
+        2,
+        width_ratios=(1,1),
         left=0.055,
         right=0.992,
         top=0.86,
@@ -2107,11 +2081,9 @@ def plot_all_gene_summary(metrics: pd.DataFrame, cfg: Config) -> Optional[mpl.fi
     )
     ax_eta = fig.add_subplot(grid[0, 0])
     ax_auc = fig.add_subplot(grid[0, 1])
-    ax_gain = fig.add_subplot(grid[0, 2])
     draw_marker_summary_panel(ax_eta, metrics, cfg, genes, panel_letter="a", show_legend=True)
     draw_adjacent_auc_summary_panel(ax_auc, metrics, cfg, genes, panel_letter="b", show_legend=False)
-    draw_gain_panel(ax_gain, metrics, gain_stats, cfg, genes)
-    ax_gain.set_title("c  Gain in global separation", loc="left", fontweight="bold")
+
     fig.suptitle(
         "Axis integration enhances global and local laminar marker structure",
         fontsize=12.4,
@@ -2179,13 +2151,13 @@ def plot_separate_figures(
     if cfg.plot_all_gene_summary:
         plot_all_gene_summary(metrics, cfg)
 
-    if cfg.plot_supplementary_violins:
-        available_genes = set(long_df["gene"].astype(str))
-        for gene in cfg.genes_to_plot:
-            if gene not in available_genes:
-                warnings.warn(f"{gene} is unavailable and will not be plotted.")
-                continue
-            plot_gene_violin(long_df, metrics, gene, cfg)
+    # if cfg.plot_supplementary_violins:
+    #     available_genes = set(long_df["gene"].astype(str))
+    #     for gene in cfg.genes_to_plot:
+    #         if gene not in available_genes:
+    #             warnings.warn(f"{gene} is unavailable and will not be plotted.")
+    #             continue
+    #         plot_gene_violin(long_df, metrics, gene, cfg)
 
 
 # =============================================================================
@@ -2212,9 +2184,9 @@ def main() -> None:
     if mode in {"plot", "both"}:
         set_publication_style()
 
-        print("[Plot 1/2] Main figure")
-        if CFG.plot_main_composite:
-            plot_main_figure(long_df, metrics, CFG)
+        # print("[Plot 1/2] Main figure")
+        # if CFG.plot_main_composite:
+        #     plot_main_figure(long_df, metrics, CFG)
 
         print("[Plot 2/2] Separate figures")
         plot_separate_figures(long_df, metrics, CFG)

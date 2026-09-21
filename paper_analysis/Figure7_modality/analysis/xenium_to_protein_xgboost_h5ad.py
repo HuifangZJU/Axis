@@ -11,7 +11,7 @@ What this script does
    - protein h5ad
 2. Aligns cells between modalities using shared coordinates (or matching obs_names if available).
 3. Splits cells into train / validation / test.
-4. Trains one XGBoost regressor per protein.
+4. Selects XGBoost hyperparameters on the validation set and trains one regressor per protein.
 5. Saves predictions for all cells and for held-out test cells.
 6. Produces:
    - train/val/test spatial layout
@@ -417,7 +417,7 @@ def plot_split_layout(coords: pd.DataFrame, split_labels: np.ndarray, out_png: s
     }
     for label in ["train", "val", "test"]:
         m = split_labels == label
-        plt.scatter(coords.loc[m, "x"], coords.loc[m, "y"], s=4, alpha=0.65, label=label, c=colors[label])
+        plt.scatter(coords.loc[m, "x"], coords.loc[m, "y"], s=0.1, alpha=0.65, label=label, c=colors[label])
     plt.gca().set_aspect("equal", adjustable="box")
     if invert_y:
         plt.gca().invert_yaxis()
@@ -473,7 +473,7 @@ def plot_case_spatial(
     vmax: Optional[float] = None,
 ):
     plt.figure(figsize=(6.4, 5.8))
-    sc = plt.scatter(coords["x"], coords["y"], c=values, s=5, cmap=cmap, vmin=vmin, vmax=vmax, linewidths=0)
+    sc = plt.scatter(coords["x"], coords["y"], c=values, s=0.5, cmap=cmap, vmin=vmin, vmax=vmax, linewidths=0)
     plt.gca().set_aspect("equal", adjustable="box")
     if invert_y:
         plt.gca().invert_yaxis()
@@ -497,7 +497,7 @@ def plot_case_scatter(
     pred = np.asarray(pred, dtype=float)
     vmin, vmax = robust_vlim(truth, pred, q=(0, 100))
     plt.figure(figsize=(5.8, 5.5))
-    plt.scatter(truth, pred, s=6, alpha=0.35)
+    plt.scatter(truth, pred, s=0.1, alpha=0.35)
     plt.plot([vmin, vmax], [vmin, vmax], linestyle="--")
     plt.xlabel("True")
     plt.ylabel("Predicted")
@@ -535,6 +535,289 @@ def plot_grid_image(
 
 
 # ============================================================
+# Optional paired-cell subsampling
+# ============================================================
+
+def subsample_aligned_cells(
+    gene_adata: ad.AnnData,
+    protein_adata: ad.AnnData,
+    coords: pd.DataFrame,
+    fraction: float = 1.0,
+    seed: int = 0,
+) -> Tuple[ad.AnnData, ad.AnnData, pd.DataFrame, np.ndarray]:
+    """Randomly subsample aligned gene/protein cells while preserving pairing.
+
+    Subsampling is applied *after* the two modalities have been aligned and
+    *before* the train/validation/test split.  The same cell indices are used
+    for the gene matrix, protein matrix, and spatial coordinates.  Sampling is
+    deterministic for a fixed seed.
+
+    Parameters
+    ----------
+    fraction
+        Fraction of aligned cells to retain. Must satisfy 0 < fraction <= 1.
+        ``fraction=1.0`` leaves the dataset unchanged.
+    seed
+        Random seed used only for selecting the retained paired cells.
+    """
+    fraction = float(fraction)
+    if not (0.0 < fraction <= 1.0):
+        raise ValueError(
+            f"cell_subsample_fraction must be in (0, 1], got {fraction}."
+        )
+
+    n_total = int(gene_adata.n_obs)
+    if int(protein_adata.n_obs) != n_total or len(coords) != n_total:
+        raise ValueError(
+            "Gene data, protein data, and coordinates must contain the same "
+            "number of aligned cells before subsampling."
+        )
+
+    if fraction >= 1.0:
+        keep_idx = np.arange(n_total, dtype=int)
+        return gene_adata, protein_adata, coords.reset_index(drop=True), keep_idx
+
+    n_keep = max(1, int(round(n_total * fraction)))
+    rng = np.random.default_rng(int(seed))
+    keep_idx = np.sort(rng.choice(n_total, size=n_keep, replace=False)).astype(int)
+
+    gene_sub = gene_adata[keep_idx].copy()
+    protein_sub = protein_adata[keep_idx].copy()
+    coords_sub = coords.iloc[keep_idx].reset_index(drop=True).copy()
+    return gene_sub, protein_sub, coords_sub, keep_idx
+
+
+# ============================================================
+# Refined two-stage validation-set hyperparameter search
+# ============================================================
+
+HYPERPARAM_SELECTION_METRIC = "rmse"
+
+
+def _unique_dicts(dicts: Sequence[dict]) -> List[dict]:
+    """De-duplicate dictionaries while preserving their original order."""
+    out = []
+    seen = set()
+    for d in dicts:
+        key = tuple(sorted(d.items()))
+        if key not in seen:
+            seen.add(key)
+            out.append(dict(d))
+    return out
+
+
+def build_stage1_structure_candidates(args) -> List[dict]:
+    """Build a focused, deterministic search over tree structure/regularization.
+
+    The first validation-search run showed that most proteins preferred a more
+    regularized region around depth~6, colsample~0.8, min_child_weight~3 and
+    reg_lambda~3.  Stage 1 therefore searches that region systematically while
+    retaining both higher-capacity and more strongly regularized alternatives.
+
+    ``n_estimators`` and ``learning_rate`` are intentionally held fixed in this
+    stage. ``subsample`` is also held fixed (default 1.0), because the pilot
+    search did not provide evidence that row subsampling was beneficial.
+    """
+    refined = [
+        # Empirical anchor from the pilot validation search.
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+
+        # One-factor depth variations around the anchor.
+        {"max_depth": 4, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 5, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 7, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 8, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+
+        # Feature-subsampling variations.
+        {"max_depth": 6, "colsample_bytree": 0.7, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 0.9, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 1.0, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+
+        # Leaf-complexity variations.
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 1.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 5.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 8.0, "reg_lambda": 3.0, "reg_alpha": 0.0},
+
+        # L2 regularization variations.
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 1.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 5.0, "reg_alpha": 0.0},
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 8.0, "reg_alpha": 0.0},
+
+        # Mild L1 regularization.
+        {"max_depth": 6, "colsample_bytree": 0.8, "min_child_weight": 3.0, "reg_lambda": 3.0, "reg_alpha": 0.1},
+
+        # Joint regimes to allow genuinely protein-specific solutions.
+        # Higher-capacity model: useful for broad/structured targets.
+        {"max_depth": 8, "colsample_bytree": 0.8, "min_child_weight": 1.0, "reg_lambda": 1.0, "reg_alpha": 0.1},
+        # Moderately flexible model.
+        {"max_depth": 7, "colsample_bytree": 0.9, "min_child_weight": 2.0, "reg_lambda": 2.0, "reg_alpha": 0.05},
+        # Conservative model.
+        {"max_depth": 5, "colsample_bytree": 0.7, "min_child_weight": 5.0, "reg_lambda": 5.0, "reg_alpha": 0.1},
+        # Strongly regularized model: useful for sparse/noisy targets.
+        {"max_depth": 4, "colsample_bytree": 0.7, "min_child_weight": 8.0, "reg_lambda": 8.0, "reg_alpha": 0.3},
+    ]
+
+    # Preserve the original command-line configuration as an explicit candidate
+    # so a user-specified setting can still win if it validates better.
+    user_baseline = {
+        "max_depth": int(args.max_depth),
+        "colsample_bytree": float(args.colsample_bytree),
+        "min_child_weight": float(args.min_child_weight),
+        "reg_lambda": float(args.reg_lambda),
+        "reg_alpha": float(args.reg_alpha),
+    }
+    return _unique_dicts([user_baseline] + refined)
+
+
+def build_stage2_boosting_schedules(args) -> List[dict]:
+    """Build a small schedule search around the original boosting rate/budget.
+
+    For the default settings this evaluates approximately:
+      1200 / 0.07, 1600 / 0.06, 2000 / 0.05,
+      2500 / 0.04, and 3000 / 0.03
+    for (n_estimators / learning_rate).
+    """
+    schedules = [
+        {
+            "n_estimators": max(200, int(round(args.n_estimators * 0.60))),
+            "learning_rate": min(0.30, max(0.005, float(args.learning_rate) * 1.40)),
+        },
+        {
+            "n_estimators": max(200, int(round(args.n_estimators * 0.80))),
+            "learning_rate": min(0.30, max(0.005, float(args.learning_rate) * 1.20)),
+        },
+        {
+            "n_estimators": int(args.n_estimators),
+            "learning_rate": float(args.learning_rate),
+        },
+        {
+            "n_estimators": max(200, int(round(args.n_estimators * 1.25))),
+            "learning_rate": min(0.30, max(0.005, float(args.learning_rate) * 0.80)),
+        },
+        {
+            "n_estimators": max(200, int(round(args.n_estimators * 1.50))),
+            "learning_rate": min(0.30, max(0.005, float(args.learning_rate) * 0.60)),
+        },
+    ]
+    return _unique_dicts(schedules)
+
+
+def _validation_rmse_for_params(
+    X_train,
+    y_train: np.ndarray,
+    X_val,
+    y_val: np.ndarray,
+    params: dict,
+) -> float:
+    """Fit one candidate on the training set and return validation RMSE."""
+    model = XGBRegressor(**params)
+    model.fit(X_train, y_train, verbose=False)
+    pred_val = model.predict(X_val)
+    score = float(np.sqrt(mean_squared_error(y_val, pred_val)))
+    del model
+    return score
+
+
+def select_xgb_params_two_stage(
+    X_train,
+    y_train: np.ndarray,
+    X_val,
+    y_val: np.ndarray,
+    base_params: dict,
+    args,
+    structure_candidates: Sequence[dict],
+    boosting_schedules: Sequence[dict],
+) -> Tuple[dict, float, float, List[dict], List[dict]]:
+    """Select protein-specific XGBoost parameters in two validation stages.
+
+    Stage 1 searches tree structure/regularization while fixing the boosting
+    schedule to the user-supplied n_estimators and learning_rate.
+    Stage 2 keeps the selected structure fixed and refines the boosting schedule.
+
+    The test set is never used here. No early stopping is used.
+    """
+    stage1_scores = []
+    best_structure = None
+    best_stage1_rmse = np.inf
+
+    fixed_stage1 = {
+        "n_estimators": int(args.n_estimators),
+        "learning_rate": float(args.learning_rate),
+        "subsample": float(args.subsample),
+    }
+
+    for candidate_id, structure in enumerate(structure_candidates):
+        params = dict(base_params)
+        params.update(fixed_stage1)
+        params.update(structure)
+        score = _validation_rmse_for_params(
+            X_train, y_train, X_val, y_val, params
+        )
+        stage1_scores.append({
+            "candidate_id": int(candidate_id),
+            **{k: (int(v) if k == "max_depth" else float(v)) for k, v in structure.items()},
+            "validation_rmse": float(score),
+        })
+        if np.isfinite(score) and score < best_stage1_rmse:
+            best_stage1_rmse = score
+            best_structure = dict(structure)
+
+    if best_structure is None:
+        raise RuntimeError("Stage-1 validation search failed to produce a finite RMSE.")
+
+    # Stage 2 starts with the already-evaluated default schedule, avoiding one
+    # redundant model fit. Other schedules are evaluated with the selected
+    # protein-specific structure fixed.
+    default_schedule = {
+        "n_estimators": int(args.n_estimators),
+        "learning_rate": float(args.learning_rate),
+    }
+    best_schedule = dict(default_schedule)
+    best_final_rmse = float(best_stage1_rmse)
+    stage2_scores = []
+
+    for schedule_id, schedule in enumerate(boosting_schedules):
+        is_default = (
+            int(schedule["n_estimators"]) == int(default_schedule["n_estimators"])
+            and np.isclose(float(schedule["learning_rate"]), float(default_schedule["learning_rate"]))
+        )
+        if is_default:
+            score = float(best_stage1_rmse)
+        else:
+            params = dict(base_params)
+            params.update({
+                "subsample": float(args.subsample),
+                **best_structure,
+                **schedule,
+            })
+            score = _validation_rmse_for_params(
+                X_train, y_train, X_val, y_val, params
+            )
+
+        stage2_scores.append({
+            "schedule_id": int(schedule_id),
+            "n_estimators": int(schedule["n_estimators"]),
+            "learning_rate": float(schedule["learning_rate"]),
+            "validation_rmse": float(score),
+        })
+        if np.isfinite(score) and score < best_final_rmse:
+            best_final_rmse = score
+            best_schedule = dict(schedule)
+
+    selected = {
+        "n_estimators": int(best_schedule["n_estimators"]),
+        "learning_rate": float(best_schedule["learning_rate"]),
+        "max_depth": int(best_structure["max_depth"]),
+        "subsample": float(args.subsample),
+        "colsample_bytree": float(best_structure["colsample_bytree"]),
+        "min_child_weight": float(best_structure["min_child_weight"]),
+        "reg_lambda": float(best_structure["reg_lambda"]),
+        "reg_alpha": float(best_structure["reg_alpha"]),
+    }
+    return selected, float(best_final_rmse), float(best_stage1_rmse), stage1_scores, stage2_scores
+
+
+# ============================================================
 # Main training / evaluation
 # ============================================================
 
@@ -542,9 +825,9 @@ def main():
     setup_matplotlib()
 
     parser = argparse.ArgumentParser(description="Predict protein reads from Xenium gene reads using XGBoost.")
-    parser.add_argument("--gene_h5ad", type=str, default="/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/LUAD_2_A_xenium_0.000.h5ad", help="Input Xenium h5ad (genes in X).")
-    parser.add_argument("--protein_h5ad", type=str, default="/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/modality_LUAD_2_A/analysis/virtual_protein_1.000.h5ad", help="Input protein h5ad (proteins in X).")
-    parser.add_argument("--outdir", type=str, default="/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/xgb_prediction/")
+    parser.add_argument("--gene_h5ad", type=str, default="./presta_pair/LUAD_2_A_xenium_0.000.h5ad", help="Input Xenium h5ad (genes in X).")
+    parser.add_argument("--protein_h5ad", type=str, default="./virtual_pair/virtual_protein_1.000.h5ad", help="Input protein h5ad (proteins in X).")
+    parser.add_argument("--outdir", type=str, default="./virtual_pair/xgb_prediction_presta_x_virtual_protein_test0.4/")
 
     parser.add_argument("--coord_obsm_key_gene", type=str, default="spatial")
     parser.add_argument("--coord_obsm_key_protein", type=str, default="spatial")
@@ -553,26 +836,36 @@ def main():
     parser.add_argument("--test_size", type=float, default=0.20)
     parser.add_argument("--val_size", type=float, default=0.10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--cell_subsample_fraction",
+        type=float,
+        default=1.0,
+        help=(
+            "Fraction of aligned paired cells retained before the train/val/test "
+            "split. Use a value such as 0.10 or 0.20 for fast search-strategy "
+            "experiments; 1.0 uses the full dataset."
+        ),
+    )
 
-    parser.add_argument("--log1p_gene", action="store_true", help="Apply log1p to gene matrix.")
-    parser.add_argument("--log1p_protein", action="store_true", help="Apply log1p to protein matrix.")
+    parser.add_argument("--log1p_gene",default=True, help="Apply log1p to gene matrix.")
+    parser.add_argument("--log1p_protein", default=True, help="Apply log1p to protein matrix.")
 
     parser.add_argument("--use_gpu", default=True)
     parser.add_argument("--n_estimators", type=int, default=2000)
     parser.add_argument("--learning_rate", type=float, default=0.05)
     parser.add_argument("--max_depth", type=int, default=6)
-    parser.add_argument("--subsample", type=float, default=0.8)
-    parser.add_argument("--colsample_bytree", type=float, default=0.8)
-    parser.add_argument("--min_child_weight", type=float, default=1.0)
-    parser.add_argument("--reg_lambda", type=float, default=1.0)
+    parser.add_argument("--subsample", type=float, default=1.0)
+    parser.add_argument("--colsample_bytree", type=float, default=1.0)
+    parser.add_argument("--min_child_weight", type=float, default=0.3)
+    parser.add_argument("--reg_lambda", type=float, default=0.3)
     parser.add_argument("--reg_alpha", type=float, default=0.0)
-    parser.add_argument("--early_stopping_rounds", type=int, default=50)
+    parser.add_argument("--early_stopping_rounds", type=int, default=150)
     parser.add_argument("--n_jobs", type=int, default=8)
 
     parser.add_argument("--case_study_proteins", nargs="*", default=None,
                         help="Protein names for detailed plots. If omitted, top proteins by Pearson are used.")
-    parser.add_argument("--n_case_study", type=int, default=5)
-    parser.add_argument("--grid_bins", type=int, default=60)
+    parser.add_argument("--n_case_study", type=int, default=20)
+    parser.add_argument("--grid_bins", type=int, default=200)
     parser.add_argument("--grid_min_count", type=int, default=4)
     parser.add_argument("--invert_y", action="store_true")
 
@@ -597,10 +890,35 @@ def main():
         coord_obsm_key_protein=args.coord_obsm_key_protein,
         coord_round_decimals=args.coord_round_decimals,
     )
-    tm.log(f"Aligned cells: {gene_adata.n_obs}; genes: {gene_adata.n_vars}; proteins: {protein_adata.n_vars}")
+    n_cells_aligned_full = int(gene_adata.n_obs)
+    tm.log(
+        f"Aligned cells: {n_cells_aligned_full}; genes: {gene_adata.n_vars}; "
+        f"proteins: {protein_adata.n_vars}"
+    )
+
+    # Optional fast-search mode: retain a deterministic random subset of paired
+    # cells before constructing the train/validation/test split.  This changes
+    # only the number of cells used in the current run; all downstream logic and
+    # output formats remain the same.
+    gene_adata, protein_adata, coords, subsample_idx = subsample_aligned_cells(
+        gene_adata=gene_adata,
+        protein_adata=protein_adata,
+        coords=coords,
+        fraction=args.cell_subsample_fraction,
+        seed=args.seed,
+    )
+    if args.cell_subsample_fraction < 1.0:
+        tm.log(
+            f"Cell subsampling: retained {gene_adata.n_obs}/{n_cells_aligned_full} "
+            f"paired cells ({gene_adata.n_obs / n_cells_aligned_full:.1%}); "
+            f"seed={args.seed}"
+        )
+    else:
+        tm.log("Cell subsampling disabled: using all aligned paired cells")
 
     gene_names = get_feature_names(gene_adata)
     protein_names = get_feature_names(protein_adata)
+    #protein_names = protein_names
 
     X = extract_gene_X(gene_adata, do_log1p=args.log1p_gene)
     Y = extract_protein_Y(protein_adata, do_log1p=args.log1p_protein)
@@ -645,20 +963,13 @@ def main():
     )
 
     # -------------------------
-    # XGBoost config
+    # XGBoost config + validation-set hyperparameter search
     # -------------------------
     tree_method = "gpu_hist" if args.use_gpu else "hist"
     predictor = "gpu_predictor" if args.use_gpu else "auto"
 
+    # Parameters that are not searched remain fixed throughout the run.
     base_params = dict(
-        n_estimators=args.n_estimators,
-        learning_rate=args.learning_rate,
-        max_depth=args.max_depth,
-        subsample=args.subsample,
-        colsample_bytree=args.colsample_bytree,
-        min_child_weight=args.min_child_weight,
-        reg_lambda=args.reg_lambda,
-        reg_alpha=args.reg_alpha,
         objective="reg:squarederror",
         tree_method=tree_method,
         predictor=predictor,
@@ -666,7 +977,22 @@ def main():
         random_state=args.seed,
         verbosity=0,
     )
-    tm.log(f"Training XGBoost: tree_method={tree_method}, n_estimators={args.n_estimators}")
+    structure_candidates = build_stage1_structure_candidates(args)
+    boosting_schedules = build_stage2_boosting_schedules(args)
+    n_additional_stage2_fits = max(0, len(boosting_schedules) - 1)
+    tm.log(
+        f"XGBoost refined validation search: tree_method={tree_method}; "
+        f"stage 1={len(structure_candidates)} structure/regularization candidates; "
+        f"stage 2={len(boosting_schedules)} boosting schedules "
+        f"({n_additional_stage2_fits} additional fits because the default schedule is reused); "
+        f"selection metric={HYPERPARAM_SELECTION_METRIC}; early stopping disabled"
+    )
+
+    # After validation-based model selection, refit the selected configuration
+    # on train+validation cells before evaluating once on the untouched test set.
+    trainval_idx = np.concatenate([train_idx, val_idx])
+    X_trainval = X[trainval_idx] if sp.issparse(X) else X[trainval_idx, :]
+    Y_trainval = Y[trainval_idx]
 
     # -------------------------
     # Train one model per protein
@@ -674,24 +1000,47 @@ def main():
     n_proteins = Y.shape[1]
     Y_pred_test = np.zeros((len(test_idx), n_proteins), dtype=np.float32)
     Y_pred_all = np.zeros((n_cells, n_proteins), dtype=np.float32)
-    best_iters = []
+    best_iters = []  # retained for output compatibility; no early stopping is used
+    validation_rmse = []
+    stage1_validation_rmse = []
+    selected_params_per_protein = []
+    validation_search_details = {}
 
     for j, pname in enumerate(protein_names):
         t0 = time.time()
-        model = XGBRegressor(**base_params)
-        model.fit(
-            X_train,
-            Y_train[:, j],
-            eval_set=[(X_val, Y_val[:, j])],
-            eval_metric="rmse",
-            verbose=False,
-            early_stopping_rounds=args.early_stopping_rounds,
+
+        best_search_params, best_val_rmse, best_stage1_rmse, stage1_scores, stage2_scores = select_xgb_params_two_stage(
+            X_train=X_train,
+            y_train=Y_train[:, j],
+            X_val=X_val,
+            y_val=Y_val[:, j],
+            base_params=base_params,
+            args=args,
+            structure_candidates=structure_candidates,
+            boosting_schedules=boosting_schedules,
         )
+
+        final_params = dict(base_params)
+        final_params.update(best_search_params)
+        model = XGBRegressor(**final_params)
+        model.fit(X_trainval, Y_trainval[:, j], verbose=False)
+
         Y_pred_test[:, j] = model.predict(X_test).astype(np.float32, copy=False)
         Y_pred_all[:, j] = model.predict(X).astype(np.float32, copy=False)
-        best_iter = getattr(model, "best_iteration", None)
-        best_iters.append(int(best_iter) if best_iter is not None else -1)
-        tm.log(f"[{j+1}/{n_proteins}] trained {pname} in {time.time() - t0:.1f}s")
+
+        best_iters.append(-1)
+        validation_rmse.append(float(best_val_rmse))
+        stage1_validation_rmse.append(float(best_stage1_rmse))
+        selected_params_per_protein.append(dict(best_search_params))
+        validation_search_details[str(pname)] = {
+            "stage1_structure_scores": stage1_scores,
+            "stage2_boosting_scores": stage2_scores,
+        }
+        tm.log(
+            f"[{j+1}/{n_proteins}] {pname}: stage1 RMSE={best_stage1_rmse:.5f}; "
+            f"final val RMSE={best_val_rmse:.5f}; selected={best_search_params}; "
+            f"total={time.time() - t0:.1f}s"
+        )
 
     # -------------------------
     # Metrics: cell-wise
@@ -699,6 +1048,16 @@ def main():
     tm.log("Computing held-out cell-wise metrics...")
     metrics_df = per_protein_metrics(Y_test, Y_pred_test, protein_names)
     metrics_df["best_iteration"] = best_iters
+    metrics_df["validation_rmse"] = validation_rmse
+    metrics_df["stage1_validation_rmse"] = stage1_validation_rmse
+    metrics_df["selected_n_estimators"] = [p["n_estimators"] for p in selected_params_per_protein]
+    metrics_df["selected_learning_rate"] = [p["learning_rate"] for p in selected_params_per_protein]
+    metrics_df["selected_max_depth"] = [p["max_depth"] for p in selected_params_per_protein]
+    metrics_df["selected_subsample"] = [p["subsample"] for p in selected_params_per_protein]
+    metrics_df["selected_colsample_bytree"] = [p["colsample_bytree"] for p in selected_params_per_protein]
+    metrics_df["selected_min_child_weight"] = [p["min_child_weight"] for p in selected_params_per_protein]
+    metrics_df["selected_reg_lambda"] = [p["reg_lambda"] for p in selected_params_per_protein]
+    metrics_df["selected_reg_alpha"] = [p["reg_alpha"] for p in selected_params_per_protein]
 
     # -------------------------
     # Metrics: spatial grid on test split
@@ -890,6 +1249,8 @@ def main():
     # Summary
     # -------------------------
     summary = {
+        "n_cells_aligned_before_subsampling": int(n_cells_aligned_full),
+        "cell_subsample_fraction_requested": float(args.cell_subsample_fraction),
         "n_cells_total": int(n_cells),
         "n_train": int(len(train_idx)),
         "n_val": int(len(val_idx)),
@@ -901,8 +1262,46 @@ def main():
         "log1p_gene": bool(args.log1p_gene),
         "log1p_protein": bool(args.log1p_protein),
         "case_study_proteins": case_names,
-        "xgb_params": base_params,
+        "xgb_params": {
+            **base_params,
+            "n_estimators": int(args.n_estimators),
+            "learning_rate": float(args.learning_rate),
+            "max_depth": int(args.max_depth),
+            "subsample": float(args.subsample),
+            "colsample_bytree": float(args.colsample_bytree),
+            "min_child_weight": float(args.min_child_weight),
+            "reg_lambda": float(args.reg_lambda),
+            "reg_alpha": float(args.reg_alpha),
+        },
         "early_stopping_rounds": int(args.early_stopping_rounds),
+        "early_stopping_used": False,
+        "hyperparameter_selection": {
+            "method": "two_stage_validation_set_search_per_protein",
+            "selection_metric": HYPERPARAM_SELECTION_METRIC,
+            "stage1": {
+                "description": "structure_and_regularization",
+                "fixed_n_estimators": int(args.n_estimators),
+                "fixed_learning_rate": float(args.learning_rate),
+                "fixed_subsample": float(args.subsample),
+                "n_candidates": int(len(structure_candidates)),
+                "candidate_space": structure_candidates,
+            },
+            "stage2": {
+                "description": "boosting_schedule",
+                "n_schedules": int(len(boosting_schedules)),
+                "candidate_space": boosting_schedules,
+            },
+            "refit_after_selection": "train_plus_validation",
+            "test_used_for_selection": False,
+        },
+        "validation_search_details_by_protein": validation_search_details,
+        "selected_hyperparameters_by_protein": {
+            str(name): {
+                **selected_params_per_protein[i],
+                "validation_rmse": float(validation_rmse[i]),
+            }
+            for i, name in enumerate(protein_names)
+        },
         "metric_summary": {
             "median_pearson_r": float(np.nanmedian(metrics_df["pearson_r"])),
             "median_spearman_r": float(np.nanmedian(metrics_df["spearman_r"])),

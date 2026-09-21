@@ -2,42 +2,34 @@
 # -*- coding: utf-8 -*-
 
 """
-Mouse-time pipeline figures (updated for the Tg mouse-brain dataset).
+Left-to-right 3D time-axis pipeline figures for the Tg mouse-brain analysis.
 
-This version uses:
-- real slices from:
-    ROOT/h5ads/Tg/{GROUP_ID}_{sample_id}.h5ad
-- real-slice coordinates from:
-    ROOT/network_input/{GROUP_ID}_{sample_id}_validation.npz
-- virtual slices from:
-    ROOT/virtual_tissue/AD_time_grid256_spatial2.0/query/virtual_AD_time_{query_value:.3f}.h5ad
+Core visual design
+------------------
+- Biological time runs LEFT -> RIGHT.
+- The tissue maps are the only objects rendered in 3D.
+- The timeline is a 2D screen-space scaffold, so it is always exactly
+  horizontal relative to the figure bounding box, independent of the 3D camera.
+- Each tissue map is visually "hung" from its corresponding age marker by a
+  vertical screen-space suspension line connected to the projected top-center
+  of the tissue frame.
+- The 3D spatial maps can be rotated with --view-elev / --view-azim without
+  tilting the timeline.
+- Real slices use solid frames; virtual slices use dashed frames.
 
 Figures
 -------
-1. Real-slice stacks (gene stack and domain stack).
-2. Real + virtual slice stacks in time order (gene stack and domain stack).
-3. Mirrored stack of all slices (Allen-atlas style).
-4. 2D mirrored grid of real slices.
-5. 2D mirrored grid of virtual slices.
-6. 3D temporal stack with separate gene and domain views.
-7. 3D mirrored temporal stack.
-
-Notes
------
-- Gene maps use log1p(gene) with Reds colormap and alpha proportional to value.
-- Real slices read domains from h5ad, but read coordinates from the NPZ validation files.
-- Virtual slices read both domains and coordinates from the h5ad file.
-- Coordinate swapping and x/y reflection are applied once during data loading.
-- Mirrored panels then place the gene map on the left and a horizontal mirror
-  of the domain map on the right without any further coordinate swapping.
-- For the 11.8m virtual slice, only domains [1,4,6,8,10,11] are highlighted;
-  all other domains are shown in gray for both the gene and domain panels.
+1. Real slices: spatial-omics gene maps along a horizontal age scaffold.
+2. Real slices plus virtual-query spatial support: mirrored real gene/domain
+   maps together with 256 x 256 support pixels at 4.1, 8.25, 11.8, and 14.85m.
+   Query-time support planes use dashed frames.
+3. Real + virtual slices: mirrored gene/domain maps along the same scaffold.
 """
 
 import os
 import argparse
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,13 +38,14 @@ import scipy.sparse as sp
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
-from matplotlib.patches import Rectangle
+from matplotlib.patches import FancyArrowPatch
+from mpl_toolkits.mplot3d import proj3d
 
 
 # ============================================================
-# DATASET-SPECIFIC CONFIG
+# DATASET CONFIG
 # ============================================================
-ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
+ROOT = "/media/huifang/data/registration/mouse_brain"
 NET_IN = os.path.join(ROOT, "network_input")
 H5AD_DIR = os.path.join(ROOT, "h5ads", "Tg")
 VIRTUAL_DIR = os.path.join(
@@ -62,24 +55,21 @@ VIRTUAL_DIR = os.path.join(
     "query",
 )
 
-# VIRTUAL_DIR = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/spatialz"
-
-
+OUTDIR = "/media/huifang/data/registration/paper_figure/Figure5_mouse_time/pipeline_3d_left_to_right"
 
 GROUP_ID = 0
 
-# Real slices: sample_id 0,1,2 correspond to 2.5m, 5.7m, 17.9m.
 REAL_SLICE_SPECS = [
     {"age": 2.5, "label": "2.5m", "sample_id": 0},
     {"age": 5.7, "label": "5.7m", "sample_id": 1},
     {"age": 17.9, "label": "17.9m", "sample_id": 2},
 ]
 
-# Virtual slices: update/add query values here when needed.
-# The filename pattern is virtual_AD_time_{query_value:.3f}.h5ad
 VIRTUAL_SLICE_SPECS = [
     {"age": 4.1, "label": "4.1m", "query_value": 4.100},
+    {"age": 8.25, "label": "8.25m", "query_value": 8.250},
     {"age": 11.8, "label": "11.8m", "query_value": 11.800},
+    {"age": 14.85, "label": "14.85m", "query_value": 14.850},
 ]
 
 GENE_NAME = "Gfap"
@@ -87,89 +77,95 @@ REAL_DOMAIN_KEY = "axis_joint_domain"
 VIRTUAL_DOMAIN_KEY = "axis_joint_domain"
 VIRTUAL_COORD_KEY = "spatial"
 
-OUTDIR = "/media/huifang/data/registration/paper_figure/Figure5_mouse_time/pipeline"
 
-# Domain colors specified by the user.
-ALL_LABELS = list(range(13))
-BASE_CMAP = plt.get_cmap("tab20")
-LABEL_TO_COLOR = {lab: BASE_CMAP(i) for i, lab in enumerate(ALL_LABELS)}
-
-# Highlighted domains for the 11.8m virtual panel.
-HIGHLIGHT_118 = [0,1,3,4, 6, 8,9, 10, 11]
-
-# Style
+# ============================================================
+# PLOTTING CONFIG
+# ============================================================
 FIG_DPI = 400
-
-# Figure output control:
-#   "save" -> save files only
-#   "show" -> display interactively only
-#   "both" -> save and display every figure
-FIGURE_MODE = "show"
+FIGURE_MODE = "show"  # "save", "show", "both"
 SHOW_BLOCK = True
 
-BACKGROUND_GRAY = "#CFCFCF"
-FRAME_COLOR = "#A9A9A9"
-TEXT_COLOR = "#222222"
-
-STACK_DX = -55.0
-STACK_DY = 38.0
-
-GENE_POINT_SIZE = 5.0
-DOMAIN_POINT_SIZE = 5.0
-
-REAL_ALPHA = 0.85
-VIRTUAL_ALPHA = 0.72
-GENE_BG_ALPHA = 0.12
-
-MIRROR_FRAME_WIDTH = 1.6
-STACK_FRAME_WIDTH = 1.5
-DASHED_STYLE = (0, (4.0, 2.4))
-
-# Fixed square bounding box used for every slice in plotting coordinates.
-FIXED_BOX = (0.0, 1024.0, 0.0, 1024.0)
-
-# Global coordinate orientation.
-# These transformations are applied once, immediately when coordinates load.
-# The plotting functions therefore always receive coordinates in their final
-# display orientation.
+# Final display orientation of loaded spatial coordinates.
 SWAP_XY = True
 INVERT_X = True
 INVERT_Y = False
 
-# Draw the division between the left gene half and right mirrored-domain half.
-DRAW_MIRROR_DIVIDER = True
+# Shared spatial frame for all slices.
+FIXED_BOX = (0.0, 1024.0, 0.0, 1024.0)
 
-# Mirrored-view geometry: keep the original x-scale, but trim a small right
-# margin before mirroring so the center fold becomes a straight line.
-MIRROR_RIGHT_TRIM = 70.0
+# Mirrored geometry: gene on left, horizontally mirrored domains on right.
+MIRROR_GAP = 30.0
+MIRROR_CENTER_FOLD = 50.0
 
-# 3D temporal-stack controls. These figures are added in addition to the
-# existing 2D stack and grid figures.
-GENERATE_3D_SEPARATE_STACK = True
-GENERATE_3D_MIRRORED_STACK = True
+# Time is now the WORLD-X coordinate.
+# Older ages move farther to the right.
+TIME_SCALE_PER_MONTH = 95.0
 
-THREE_D_POINT_SIZE = 2.0
-THREE_D_MAX_POINTS_PER_SLICE = 30000
-THREE_D_GENE_ALPHA_MIN = 0.05
-THREE_D_GENE_ALPHA_MAX = 0.82
-THREE_D_DOMAIN_ALPHA = 0.72
-THREE_D_BACKGROUND_ALPHA = 0.12
+# Uniform visual scaling of the spatial Y/Z planes relative to temporal X.
+SPATIAL_DISPLAY_SCALE = 0.5
 
-# Camera angle. These can be adjusted interactively when --figure-mode show
-# or --figure-mode both is used.
-THREE_D_ELEV = 18
-THREE_D_AZIM = -68
+# 3D point appearance.
+POINT_SIZE_GENE = 1.0
+POINT_SIZE_DOMAIN = 1.0
+MAX_POINTS_PER_SLICE = 25000
 
-# Physical aspect of the rendered 3D boxes.
-THREE_D_BOX_ASPECT = (1.0, 1.0, 0.72)
-THREE_D_MIRROR_BOX_ASPECT = (1.75, 1.0, 0.72)
+# Figure 2 virtual-query support. The support is shown as a full 256 x 256
+# pixel raster over the whole spatial plane, rendered with grid lines instead
+# of occupied-pixel markers.
+VIRTUAL_SUPPORT_GRID_SIZE = 64
+VIRTUAL_SUPPORT_GRID_COLOR = "#808080"
+VIRTUAL_SUPPORT_GRID_ALPHA = 0.82
+VIRTUAL_SUPPORT_GRID_LW = 0.28
 
-# Optional vertical guides connecting the slice-frame corners.
-THREE_D_CONNECT_CORNERS = False
+REAL_ALPHA = 0.72
+VIRTUAL_ALPHA = 0.72
+DOMAIN_ALPHA = 0.62
+
+REAL_FRAME_COLOR = "#9A9A9A"
+VIRTUAL_FRAME_COLOR = "#9A9A9A"
+REAL_LABEL_COLOR = "#1F1F1F"
+VIRTUAL_LABEL_COLOR = "#8D8D8D"
+BACKGROUND_GRAY = "#D0D0D0"
+
+SOLID_LW = 1.4
+DASHED_LW = 1.4
+DASHED_STYLE = (0, (4.0, 2.4))
+
+# Screen-space horizontal timeline styling.
+TIMELINE_COLOR = "#2F2F2F"
+TIMELINE_LW = 1.9
+TIMELINE_ARROW_SCALE = 13.0
+TIMELINE_MARKER_SIZE = 7.8
+TIMELINE_MARKER_EDGE_COLOR = "white"
+TIMELINE_MARKER_EDGE_WIDTH = 0.9
+TIMELINE_CLEARANCE_FIG = 0.010
+TIMELINE_MIN_Y_FIG = 0.535
+TIMELINE_MAX_Y_FIG = 0.905
+TIMELINE_X_PAD_FIG = 0.020
+TIMELINE_LABEL_OFFSET_FIG = 0.016
+TIMELINE_LABEL_SECOND_TIER_FIG = 0.036
+
+# Suspension / hanger styling.
+HANGER_COLOR = "#7A7A7A"
+HANGER_LW = 0.85
+HANGER_ALPHA = 0.55
+HANGER_TOP_GAP_FIG = 0.006
+HANGER_BOTTOM_GAP_FIG = 0.004
+HANGER_ANCHOR_SIZE = 3.8
+
+# Camera applies ONLY to the spatial maps.
+VIEW_ELEV = 10.0
+VIEW_AZIM = -50.0
+VIEW_ROLL = 0.0
+
+# Domain colors.
+ALL_LABELS = list(range(13))
+BASE_CMAP = plt.get_cmap("tab20")
+LABEL_TO_COLOR = {lab: BASE_CMAP(i % 20) for i, lab in enumerate(ALL_LABELS)}
 
 
 # ============================================================
-# DATA STRUCTURES
+# DATA STRUCTURE
 # ============================================================
 @dataclass
 class SliceRecord:
@@ -193,42 +189,20 @@ def set_style() -> None:
     plt.rcParams.update(
         {
             "font.size": 11,
-            "axes.titlesize": 14,
+            "axes.titlesize": 15,
             "axes.labelsize": 11,
-            "xtick.labelsize": 9,
-            "ytick.labelsize": 9,
             "figure.facecolor": "white",
             "axes.facecolor": "white",
-            "axes.spines.top": False,
-            "axes.spines.right": False,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
         }
     )
 
 
-def finalize_figure(
-    fig,
-    save_path: str,
-    figure_mode: Optional[str] = None,
-) -> None:
-    """
-    Save, show, or both, then close the figure.
-
-    Parameters
-    ----------
-    fig
-        Matplotlib figure.
-    save_path
-        Output path used when mode is "save" or "both".
-    figure_mode
-        "save", "show", or "both". When None, uses FIGURE_MODE.
-    """
+def finalize_figure(fig, save_path: str, figure_mode: Optional[str] = None) -> None:
     mode = FIGURE_MODE if figure_mode is None else str(figure_mode).lower()
     if mode not in {"save", "show", "both"}:
-        raise ValueError(
-            f"Invalid figure mode {mode!r}; choose 'save', 'show', or 'both'."
-        )
+        raise ValueError(f"Invalid figure mode {mode!r}.")
 
     if mode in {"save", "both"}:
         ensure_dir(os.path.dirname(save_path) or ".")
@@ -236,6 +210,7 @@ def finalize_figure(
             save_path,
             dpi=FIG_DPI,
             bbox_inches="tight",
+            facecolor="white",
         )
         print(f"[SAVE] {save_path}")
 
@@ -262,9 +237,29 @@ def _normalize_domain_array(values: Sequence) -> np.ndarray:
 
 
 def load_coords_npz(net_in: str, group_id: int, sample_id: int) -> np.ndarray:
-    f = os.path.join(net_in, f"{group_id}_{sample_id}_validation.npz")
-    d = np.load(f)
-    return d["coord"].astype(np.float32)
+    path = os.path.join(net_in, f"{group_id}_{sample_id}_validation.npz")
+    data = np.load(path)
+    return data["coord"].astype(np.float32)
+
+
+def transform_loaded_coords(coords: np.ndarray) -> np.ndarray:
+    """Transform coordinates once into their final spatial display orientation."""
+    coords = np.asarray(coords, dtype=float)
+    if coords.ndim != 2 or coords.shape[1] < 2:
+        raise ValueError(f"Expected coordinate array of shape (n, 2+), got {coords.shape}")
+
+    coords = coords[:, :2].copy()
+
+    if SWAP_XY:
+        coords = coords[:, [1, 0]]
+
+    xmin, xmax, ymin, ymax = FIXED_BOX
+    if INVERT_X:
+        coords[:, 0] = xmin + xmax - coords[:, 0]
+    if INVERT_Y:
+        coords[:, 1] = ymin + ymax - coords[:, 1]
+
+    return coords
 
 
 def get_real_h5ad_path(group_id: int, sample_id: int) -> str:
@@ -273,7 +268,20 @@ def get_real_h5ad_path(group_id: int, sample_id: int) -> str:
 
 def get_virtual_h5ad_path(query_value: float) -> str:
     return os.path.join(VIRTUAL_DIR, f"virtual_AD_time_{query_value:.3f}.h5ad")
-    # return os.path.join(VIRTUAL_DIR, f"{query_value:.1f}.h5ad")
+
+
+def _validate_record_alignment(
+    coords: np.ndarray,
+    gene_values: np.ndarray,
+    domains: np.ndarray,
+    label: str,
+) -> None:
+    n = coords.shape[0]
+    if len(gene_values) != n or len(domains) != n:
+        raise ValueError(
+            f"Row mismatch for {label}: coords={n}, gene={len(gene_values)}, "
+            f"domains={len(domains)}"
+        )
 
 
 def load_real_slice_record(
@@ -289,9 +297,7 @@ def load_real_slice_record(
         raise FileNotFoundError(path)
 
     adata = sc.read_h5ad(path)
-    coords = transform_loaded_coords(
-        load_coords_npz(NET_IN, group_id, sample_id)
-    )
+    coords = transform_loaded_coords(load_coords_npz(NET_IN, group_id, sample_id))
 
     if gene_name not in adata.var_names:
         raise KeyError(f"Gene {gene_name!r} not found in {path}")
@@ -302,11 +308,7 @@ def load_real_slice_record(
         raise KeyError(f"{domain_key!r} not found in adata.obs for {path}")
     domains = _normalize_domain_array(adata.obs[domain_key].to_numpy())
 
-    if coords.shape[0] != adata.n_obs:
-        raise ValueError(
-            f"Coordinate size mismatch for real slice {label}: "
-            f"{coords.shape[0]} coords vs {adata.n_obs} observations"
-        )
+    _validate_record_alignment(coords, gene_values, domains, label)
 
     return SliceRecord(
         age=float(age),
@@ -337,9 +339,7 @@ def load_virtual_slice_record(
 
     if coord_key not in adata.obsm:
         raise KeyError(f"{coord_key!r} not found in adata.obsm for {path}")
-    coords = transform_loaded_coords(
-        np.asarray(adata.obsm[coord_key], dtype=float)
-    )
+    coords = transform_loaded_coords(np.asarray(adata.obsm[coord_key], dtype=float))
 
     if gene_name not in adata.var_names:
         raise KeyError(f"Gene {gene_name!r} not found in {path}")
@@ -349,6 +349,8 @@ def load_virtual_slice_record(
     if domain_key not in adata.obs:
         raise KeyError(f"{domain_key!r} not found in adata.obs for {path}")
     domains = _normalize_domain_array(adata.obs[domain_key].to_numpy())
+
+    _validate_record_alignment(coords, gene_values, domains, label)
 
     return SliceRecord(
         age=float(age),
@@ -363,321 +365,67 @@ def load_virtual_slice_record(
 
 def load_all_slices() -> Tuple[List[SliceRecord], List[SliceRecord]]:
     real_records = [
-        load_real_slice_record(GROUP_ID, item["sample_id"], item["age"], item["label"])
+        load_real_slice_record(
+            GROUP_ID,
+            item["sample_id"],
+            item["age"],
+            item["label"],
+        )
         for item in REAL_SLICE_SPECS
     ]
+
     virtual_records = [
-        load_virtual_slice_record(item["query_value"], item["age"], item["label"])
+        load_virtual_slice_record(
+            item["query_value"],
+            item["age"],
+            item["label"],
+        )
         for item in VIRTUAL_SLICE_SPECS
     ]
-    real_records = sorted(real_records, key=lambda r: r.age)
-    virtual_records = sorted(virtual_records, key=lambda r: r.age)
-    return real_records, virtual_records
 
-
-def extent_corners(
-    extent: Tuple[float, float, float, float],
-    offset: Tuple[float, float] = (0.0, 0.0),
-) -> np.ndarray:
-    xmin, xmax, ymin, ymax = extent
-    dx, dy = offset
-    return np.asarray(
-        [
-            [xmin + dx, ymin + dy],
-            [xmin + dx, ymax + dy],
-            [xmax + dx, ymin + dy],
-            [xmax + dx, ymax + dy],
-        ],
-        dtype=float,
+    return (
+        sorted(real_records, key=lambda r: r.age),
+        sorted(virtual_records, key=lambda r: r.age),
     )
 
 
-def transform_loaded_coords(coords: np.ndarray) -> np.ndarray:
-    """
-    Convert raw coordinates into the final plotting orientation once at load.
-
-    Processing order
-    ----------------
-    1. Keep the first two coordinate columns.
-    2. Swap x and y when SWAP_XY is True.
-    3. Reflect x within FIXED_BOX when INVERT_X is True.
-    4. Reflect y within FIXED_BOX when INVERT_Y is True.
-
-    With the current settings:
-        SWAP_XY = True
-        INVERT_X = True
-        INVERT_Y = False
-    """
-    coords = np.asarray(coords, dtype=float)
-
-    if coords.ndim != 2 or coords.shape[1] < 2:
-        raise ValueError(
-            f"Expected coordinates with shape (n, 2+), got {coords.shape}"
-        )
-
-    coords = coords[:, :2].copy()
-
-    if SWAP_XY:
-        coords = coords[:, [1, 0]]
-
-    xmin, xmax, ymin, ymax = FIXED_BOX
-
-    if INVERT_X:
-        coords[:, 0] = xmin + xmax - coords[:, 0]
-
-    if INVERT_Y:
-        coords[:, 1] = ymin + ymax - coords[:, 1]
-
-    return coords
-
-
-def get_record_extent(record: SliceRecord) -> Tuple[float, float, float, float]:
-    # Use one fixed square bounding box for all slices in plotting coordinates
-    # so the frames are directly comparable.
+# ============================================================
+# GEOMETRY / COLORS
+# ============================================================
+def get_record_extent() -> Tuple[float, float, float, float]:
     return FIXED_BOX
 
 
-def get_mirrored_parameters() -> Tuple[float, float, float, float, float]:
-    """
-    Geometry for the mirrored view after trimming a small right margin.
-
-    Returns
-    -------
-    xmin, usable_xmax, ymin, ymax, seam_x
-        Left gene view uses [xmin, usable_xmax].
-        Right mirrored domain view uses [seam_x, seam_x + (usable_xmax - xmin)].
-    """
+def get_mirrored_half_extents() -> Tuple[Tuple[float, float, float, float], Tuple[float, float, float, float]]:
     xmin, xmax, ymin, ymax = FIXED_BOX
-    usable_xmax = xmax - float(MIRROR_RIGHT_TRIM)
-    if usable_xmax <= xmin:
-        raise ValueError("MIRROR_RIGHT_TRIM is too large for FIXED_BOX.")
-    seam_x = usable_xmax
-    return xmin, usable_xmax, ymin, ymax, seam_x
+    width = xmax - xmin
+
+    left_x0 = xmin + MIRROR_CENTER_FOLD
+    left_x1 = xmax + MIRROR_CENTER_FOLD
+
+    right_x0 = xmax + MIRROR_GAP - MIRROR_CENTER_FOLD
+    right_x1 = right_x0 + width
+
+    left_extent = (left_x0, left_x1, ymin, ymax)
+    right_extent = (right_x0, right_x1, ymin, ymax)
+    return left_extent, right_extent
 
 
 def get_mirrored_extent() -> Tuple[float, float, float, float]:
-    xmin, usable_xmax, ymin, ymax, seam_x = get_mirrored_parameters()
-    width = usable_xmax - xmin
-    return xmin, seam_x + width, ymin, ymax
+    left_extent, right_extent = get_mirrored_half_extents()
+    xmin = min(left_extent[0], right_extent[0])
+    xmax = max(left_extent[1], right_extent[1])
+    ymin = min(left_extent[2], right_extent[2])
+    ymax = max(left_extent[3], right_extent[3])
+    return xmin, xmax, ymin, ymax
 
 
-def set_data_limits(
-    ax,
-    arrays: Sequence[np.ndarray],
-    pad_ratio: float = 0.06,
-) -> None:
-    """
-    Set limits from coordinates already transformed into display orientation.
-
-    No additional x/y reflection is performed here.
-    """
-    all_xy = np.vstack(arrays)
-    xmin, ymin = np.min(all_xy, axis=0)
-    xmax, ymax = np.max(all_xy, axis=0)
-
-    padx = max((xmax - xmin) * pad_ratio, 1e-8)
-    pady = max((ymax - ymin) * pad_ratio, 1e-8)
-
-    ax.set_xlim(xmin - padx, xmax + padx)
-    ax.set_ylim(ymin - pady, ymax + pady)
-    ax.set_aspect("equal")
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-
-def gene_facecolors(values: np.ndarray) -> np.ndarray:
-    values = np.asarray(values, dtype=float)
-    if values.size == 0:
-        return np.zeros((0, 4), dtype=float)
-
-    finite = values[np.isfinite(values)]
-    vmax = np.percentile(finite, 99.0) if finite.size else 1.0
-    vmax = max(float(vmax), 1e-8)
-    vnorm = np.clip(values / vmax, 0.0, 1.0)
-
-    colors = plt.cm.Reds(vnorm)
-    colors[:, 3] = np.clip(0.08 + 0.92 * vnorm, 0.08, 1.0)
-    return colors
-
-
-def domain_facecolors(
-    domains: np.ndarray,
-    highlight_domains: Optional[Sequence[int]] = None,
-    other_color=BACKGROUND_GRAY,
-) -> np.ndarray:
-    domains = _normalize_domain_array(domains)
-    use_subset = highlight_domains is not None
-    keep = set(int(x) for x in highlight_domains) if use_subset else set()
-
-    colors = []
-    for d in domains:
-        if use_subset and d not in keep:
-            colors.append(other_color)
-        else:
-            colors.append(LABEL_TO_COLOR.get(int(d), other_color))
-    return np.asarray(colors, dtype=object)
-
-
-def draw_frame(
-    ax,
-    extent: Tuple[float, float, float, float],
-    offset: Tuple[float, float] = (0.0, 0.0),
-    linestyle="-",
-    linewidth: float = STACK_FRAME_WIDTH,
-    edgecolor=FRAME_COLOR,
-    zorder: int = 20,
-) -> None:
-    xmin, xmax, ymin, ymax = extent
-    dx, dy = offset
-    rect = Rectangle(
-        (xmin + dx, ymin + dy),
-        xmax - xmin,
-        ymax - ymin,
-        fill=False,
-        edgecolor=edgecolor,
-        linewidth=linewidth,
-        linestyle=linestyle,
-        zorder=zorder,
-    )
-    ax.add_patch(rect)
-
-
-def add_slice_label(
-    ax,
-    record: SliceRecord,
-    extent: Tuple[float, float, float, float],
-    offset: Tuple[float, float] = (0.0, 0.0),
-    fontsize: float = 11.0,
-) -> None:
-    xmin, xmax, ymin, ymax = extent
-    dx, dy = offset
-    ax.text(
-        xmin + dx,
-        ymin + dy - 0.04 * (ymax - ymin),
-        record.label,
-        ha="left",
-        va="bottom",
-        fontsize=fontsize,
-        fontweight="bold",
-        color=TEXT_COLOR,
-    )
-
-
-def plot_single_gene_map(
-    ax,
-    record: SliceRecord,
-    offset: Tuple[float, float] = (0.0, 0.0),
-    selected_domains: Optional[Sequence[int]] = None,
-    point_size: float = GENE_POINT_SIZE,
-    draw_bbox: bool = True,
-    dashed: bool = False,
-    label_slice: bool = False,
-) -> np.ndarray:
-    coords = record.coords.copy()
-    coords[:, 0] += offset[0]
-    coords[:, 1] += offset[1]
-
-    colors = gene_facecolors(record.gene_values)
-    if selected_domains is not None:
-        keep = np.isin(record.domains, np.asarray(selected_domains, dtype=int))
-        bg = ~keep
-        if np.any(bg):
-            ax.scatter(
-                coords[bg, 0], coords[bg, 1],
-                c=BACKGROUND_GRAY,
-                s=point_size,
-                alpha=GENE_BG_ALPHA,
-                linewidths=0,
-                rasterized=True,
-                zorder=1,
-            )
-        coords = coords[keep]
-        colors = colors[keep]
-
-    alpha_factor = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
-    colors = colors.copy()
-    colors[:, 3] = np.clip(colors[:, 3] * alpha_factor, 0.03, 1.0)
-
-    ax.scatter(
-        coords[:, 0], coords[:, 1],
-        c=colors,
-        s=point_size,
-        linewidths=0,
-        rasterized=True,
-        zorder=2,
-    )
-
-    extent = get_record_extent(record)
-    if draw_bbox:
-        draw_frame(
-            ax, extent, offset=offset,
-            linestyle=DASHED_STYLE if dashed else "-",
-            linewidth=STACK_FRAME_WIDTH,
-        )
-    if label_slice:
-        add_slice_label(ax, record, extent, offset=offset)
-
-    extent = get_record_extent(record)
-    return np.vstack([coords, extent_corners(extent, offset=offset)])
-
-
-def plot_single_domain_map(
-    ax,
-    record: SliceRecord,
-    offset: Tuple[float, float] = (0.0, 0.0),
-    selected_domains: Optional[Sequence[int]] = None,
-    point_size: float = DOMAIN_POINT_SIZE,
-    draw_bbox: bool = True,
-    dashed: bool = False,
-    label_slice: bool = False,
-) -> np.ndarray:
-    coords = record.coords.copy()
-    coords[:, 0] += offset[0]
-    coords[:, 1] += offset[1]
-
-    colors = domain_facecolors(record.domains, highlight_domains=selected_domains)
-    alpha_value = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
-
-    ax.scatter(
-        coords[:, 0], coords[:, 1],
-        c=colors,
-        s=point_size,
-        alpha=alpha_value,
-        linewidths=0,
-        rasterized=True,
-        zorder=2,
-    )
-
-    extent = get_record_extent(record)
-    if draw_bbox:
-        draw_frame(
-            ax, extent, offset=offset,
-            linestyle=DASHED_STYLE if dashed else "-",
-            linewidth=STACK_FRAME_WIDTH,
-        )
-    if label_slice:
-        add_slice_label(ax, record, extent, offset=offset)
-
-    extent = get_record_extent(record)
-    return np.vstack([coords, extent_corners(extent, offset=offset)])
-
-
-def mirrored_half_coords(
-    record: SliceRecord,
-    offset: Tuple[float, float] = (0.0, 0.0),
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Create the Allen-atlas-style mirrored view from display-ready coordinates.
-
-    Design
-    ------
-    1. Coordinates are already transformed into the final display orientation.
-    2. The left half (gene map) keeps the original x-scale.
-    3. The right half (domain map) is mirrored at the same x-scale.
-    4. A small right margin is removed before mirroring so the two halves meet
-       along one perfectly straight center seam.
-    """
-    xmin, usable_xmax, ymin, ymax, seam_x = get_mirrored_parameters()
+def mirrored_half_coords(record: SliceRecord) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Construct matched gene/domain coordinates for a mirrored slice."""
+    xmin, xmax, ymin, ymax = FIXED_BOX
+    left_extent, right_extent = get_mirrored_half_extents()
+    left_x0, _, _, _ = left_extent
+    right_x0, _, _, _ = right_extent
 
     x_all = np.asarray(record.coords[:, 0], dtype=float)
     y_all = np.asarray(record.coords[:, 1], dtype=float)
@@ -686,7 +434,7 @@ def mirrored_half_coords(
         np.isfinite(x_all)
         & np.isfinite(y_all)
         & (x_all >= xmin)
-        & (x_all <= usable_xmax)
+        & (x_all <= xmax)
         & (y_all >= ymin)
         & (y_all <= ymax)
     )
@@ -694,1297 +442,991 @@ def mirrored_half_coords(
     x = x_all[keep_mask]
     y = y_all[keep_mask]
 
-    # Left: original x-scale.
-    gene_xy = np.column_stack([x + offset[0], y + offset[1]])
-
-    # Right: mirror at the same x-scale.
-    domain_xy = np.column_stack([
-        seam_x + (usable_xmax - x) + offset[0],
-        y + offset[1],
-    ])
+    gene_xy = np.column_stack([x + MIRROR_CENTER_FOLD, y])
+    domain_xy = np.column_stack([right_x0 + (xmax - x), y])
 
     return gene_xy, domain_xy, keep_mask
 
 
-def plot_mirrored_slice(
-    ax,
-    record: SliceRecord,
-    offset: Tuple[float, float] = (0.0, 0.0),
-    selected_domains: Optional[Sequence[int]] = None,
-    gene_point_size: float = GENE_POINT_SIZE,
-    domain_point_size: float = DOMAIN_POINT_SIZE,
-    draw_bbox: bool = True,
-    dashed: bool = False,
-    label_slice: bool = False,
-) -> np.ndarray:
-    gene_xy, dom_xy, keep_mask = mirrored_half_coords(record, offset=offset)
-
-    gene_values = np.asarray(record.gene_values)[keep_mask]
-    kept_domains = np.asarray(record.domains)[keep_mask]
-
-    gene_colors = gene_facecolors(gene_values).copy()
-    alpha_factor = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
-
-    if selected_domains is not None:
-        keep_gene = np.isin(kept_domains, np.asarray(selected_domains, dtype=int))
-        bg_gene = ~keep_gene
-
-        if np.any(bg_gene):
-            ax.scatter(
-                gene_xy[bg_gene, 0], gene_xy[bg_gene, 1],
-                c=BACKGROUND_GRAY,
-                s=gene_point_size,
-                alpha=GENE_BG_ALPHA,
-                linewidths=0,
-                rasterized=True,
-                zorder=1,
-            )
-
-        gene_xy_plot = gene_xy[keep_gene]
-        gene_colors_plot = gene_colors[keep_gene]
-    else:
-        gene_xy_plot = gene_xy
-        gene_colors_plot = gene_colors
-
-    gene_colors_plot[:, 3] = np.clip(
-        gene_colors_plot[:, 3] * alpha_factor, 0.03, 1.0
-    )
-    ax.scatter(
-        gene_xy_plot[:, 0], gene_xy_plot[:, 1],
-        c=gene_colors_plot,
-        s=gene_point_size,
-        linewidths=0,
-        rasterized=True,
-        zorder=2,
-    )
-
-    dom_colors = domain_facecolors(kept_domains, highlight_domains=selected_domains)
-    ax.scatter(
-        dom_xy[:, 0], dom_xy[:, 1],
-        c=dom_colors,
-        s=domain_point_size,
-        alpha=alpha_factor,
-        linewidths=0,
-        rasterized=True,
-        zorder=2,
-    )
-
-    extent = get_mirrored_extent()
-    if draw_bbox:
-        draw_frame(
-            ax, extent, offset=offset,
-            linestyle=DASHED_STYLE if dashed else "-",
-            linewidth=MIRROR_FRAME_WIDTH,
-        )
-
-        if DRAW_MIRROR_DIVIDER:
-            _, _, ymin, ymax = extent
-            seam_x = get_mirrored_parameters()[4] + offset[0]
-            ax.plot(
-                [seam_x, seam_x],
-                [ymin + offset[1], ymax + offset[1]],
-                color=FRAME_COLOR,
-                linewidth=0.9,
-                linestyle=DASHED_STYLE if dashed else "-",
-                zorder=19,
-            )
-
-    if label_slice:
-        add_slice_label(ax, record, extent, offset=offset)
-
-    return np.vstack([gene_xy, dom_xy, extent_corners(extent, offset=offset)])
-
-
-def make_domain_legend_handles(
-    labels: Sequence[int],
-    include_other: bool = False,
-    other_label: str = "Other domains",
-) -> List[Line2D]:
-    """Create a flat domain legend."""
-    handles = [
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="",
-            markerfacecolor=LABEL_TO_COLOR.get(int(label), BACKGROUND_GRAY),
-            markeredgecolor="none",
-            markersize=7,
-            label=f"Domain {int(label)}",
-        )
-        for label in labels
-    ]
-
-    if include_other:
-        handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                linestyle="",
-                markerfacecolor=BACKGROUND_GRAY,
-                markeredgecolor="none",
-                markersize=7,
-                label=other_label,
-            )
-        )
-
-    return handles
-
-
-def make_grouped_domain_legend_handles(
-    groups: Sequence[Dict],
-    include_other: bool = False,
-    other_label: str = "Other domains",
-) -> Tuple[List[Line2D], set]:
-    """
-    Create a grouped domain legend with text-only section headers.
-
-    Example
-    -------
-    Cortex
-      Domain 1
-      Domain 4
-      Domain 6
-      Domain 10
-
-    Hippocampus
-      Domain 8
-      Domain 11
-    """
-    handles: List[Line2D] = []
-    section_headers = set()
-
-    for group_index, group in enumerate(groups):
-        group_name = str(group["name"])
-        group_labels = [int(label) for label in group["labels"]]
-
-        # Text-only section header.
-        handles.append(
-            Line2D(
-                [],
-                [],
-                linestyle="",
-                marker="",
-                color="none",
-                label=group_name,
-            )
-        )
-        section_headers.add(group_name)
-
-        for label in group_labels:
-            handles.append(
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    linestyle="",
-                    markerfacecolor=LABEL_TO_COLOR.get(
-                        label,
-                        BACKGROUND_GRAY,
-                    ),
-                    markeredgecolor="none",
-                    markersize=7,
-                    label=f"Domain {label}",
-                )
-            )
-
-        # Add visual separation between anatomical groups.
-        if group_index < len(groups) - 1:
-            handles.append(
-                Line2D(
-                    [],
-                    [],
-                    linestyle="",
-                    marker="",
-                    color="none",
-                    label=" ",
-                )
-            )
-
-    if include_other:
-        handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                linestyle="",
-                markerfacecolor=BACKGROUND_GRAY,
-                markeredgecolor="none",
-                markersize=7,
-                label=other_label,
-            )
-        )
-
-    return handles, section_headers
-
-
-# ============================================================
-# FIGURES
-# ============================================================
-def plot_figure1_real_stacks(real_records: Sequence[SliceRecord], outdir: str) -> None:
-    set_style()
-    fig, axes = plt.subplots(1, 2, figsize=(12.8, 5.4))
-    ax_gene, ax_domain = axes
-
-    all_coords_gene = []
-    all_coords_domain = []
-
-    for idx, record in enumerate(reversed(real_records)):
-        ridx = len(real_records) - 1 - idx
-        offset = (ridx * STACK_DX, ridx * STACK_DY)
-        all_coords_gene.append(
-            plot_single_gene_map(ax_gene, record, offset=offset, dashed=False, label_slice=True)
-        )
-        all_coords_domain.append(
-            plot_single_domain_map(ax_domain, record, offset=offset, dashed=False, label_slice=True)
-        )
-
-    ax_gene.set_title(f"Observed data | {GENE_NAME} gene map")
-    ax_domain.set_title("Observed data | Spatial domains")
-    set_data_limits(ax_gene, all_coords_gene)
-    set_data_limits(ax_domain, all_coords_domain)
-
-    fig.tight_layout()
-    save_path = os.path.join(outdir, "figure1_observed_real_stacks.png")
-    finalize_figure(fig, save_path)
-
-
-def plot_figure2_all_stacks(records: Sequence[SliceRecord], outdir: str) -> None:
-    set_style()
-    fig, axes = plt.subplots(1, 2, figsize=(13.6, 5.6))
-    ax_gene, ax_domain = axes
-
-    all_gene_xy = []
-    all_domain_xy = []
-
-    ordered = sorted(records, key=lambda r: r.age)
-    for idx, record in enumerate(reversed(ordered)):
-        ridx = len(ordered) - 1 - idx
-        offset = (ridx * STACK_DX, ridx * STACK_DY)
-        selected = None
-        all_gene_xy.append(
-            plot_single_gene_map(
-                ax_gene, record, offset=offset,
-                selected_domains=selected,
-                dashed=(not record.is_real), label_slice=True,
-            )
-        )
-        all_domain_xy.append(
-            plot_single_domain_map(
-                ax_domain, record, offset=offset,
-                selected_domains=selected,
-                dashed=(not record.is_real), label_slice=True,
-            )
-        )
-
-    ax_gene.set_title(f"Time-ordered slices | {GENE_NAME} gene map")
-    ax_domain.set_title("Time-ordered slices | Spatial domains")
-    set_data_limits(ax_gene, all_gene_xy)
-    set_data_limits(ax_domain, all_domain_xy)
-
-    fig.tight_layout()
-    save_path = os.path.join(outdir, "figure2_all_slices_stacks.png")
-    finalize_figure(fig, save_path)
-
-
-def plot_figure3_mirrored_stack(records: Sequence[SliceRecord], outdir: str) -> None:
-    set_style()
-    fig, ax = plt.subplots(1, 1, figsize=(8.8, 6.4))
-
-    all_xy = []
-    ordered = sorted(records, key=lambda r: r.age)
-    for idx, record in enumerate(reversed(ordered)):
-        ridx = len(ordered) - 1 - idx
-        offset = (ridx * STACK_DX, ridx * STACK_DY)
-        selected = HIGHLIGHT_118 if (not record.is_real and abs(record.age - 11.8) < 1e-8) else None
-        all_xy.append(
-            plot_mirrored_slice(
-                ax, record, offset=offset,
-                selected_domains=selected,
-                dashed=(not record.is_real), label_slice=True,
-            )
-        )
-
-    ax.set_title("Mirrored temporal stack | Gene (left) and domain (right)")
-    set_data_limits(ax, all_xy)
-
-    fig.tight_layout()
-    save_path = os.path.join(outdir, "figure3_mirrored_all_slices_stack.png")
-    finalize_figure(fig, save_path)
-
-
-def plot_mirrored_grid(
-    records: Sequence[SliceRecord],
-    save_path: str,
-    title: str,
-    per_panel_selected_domains: Optional[Dict[str, Sequence[int]]] = None,
-    per_panel_legend: Optional[Dict[str, Dict]] = None,
-) -> None:
-    set_style()
-
-    n_panels = len(records)
-    fig, axes = plt.subplots(
-        1,
-        n_panels,
-        figsize=(5.2 * n_panels, 5.4),
-        squeeze=False,
-    )
-    axes = axes.ravel()
-
-    for ax, record in zip(axes, records):
-        selected_domains = (
-            None
-            if per_panel_selected_domains is None
-            else per_panel_selected_domains.get(record.label)
-        )
-
-        all_xy = plot_mirrored_slice(
-            ax,
-            record,
-            offset=(0.0, 0.0),
-            selected_domains=selected_domains,
-            dashed=(not record.is_real),
-            label_slice=False,
-        )
-
-        set_data_limits(ax, [all_xy])
-        ax.set_title(record.label)
-
-        if not per_panel_legend or record.label not in per_panel_legend:
-            continue
-
-        spec = per_panel_legend[record.label]
-        section_headers = set()
-
-        if "groups" in spec:
-            handles, section_headers = make_grouped_domain_legend_handles(
-                groups=spec["groups"],
-                include_other=spec.get("include_other", False),
-                other_label=spec.get(
-                    "other_label",
-                    "Other domains",
-                ),
-            )
-        else:
-            handles = make_domain_legend_handles(
-                labels=spec.get("labels", []),
-                include_other=spec.get("include_other", False),
-                other_label=spec.get(
-                    "other_label",
-                    "Other domains",
-                ),
-            )
-
-        legend = ax.legend(
-            handles=handles,
-            loc=spec.get("loc", "upper left"),
-            bbox_to_anchor=spec.get(
-                "bbox_to_anchor",
-                (1.01, 1.0),
-            ),
-            frameon=False,
-            title=spec.get("title"),
-            fontsize=spec.get("fontsize", 8.5),
-            title_fontsize=spec.get("title_fontsize", 9.5),
-            handlelength=1.0,
-            handletextpad=0.55,
-            labelspacing=0.25,
-            borderaxespad=0.0,
-        )
-
-        # Format the grouped anatomical section headers.
-        for text in legend.get_texts():
-            label = text.get_text()
-
-            if label in section_headers:
-                text.set_fontweight("bold")
-                text.set_fontsize(
-                    spec.get("section_fontsize", 9.5)
-                )
-            elif label == " ":
-                text.set_text("")
-
-    fig.suptitle(
-        title,
-        y=1.02,
-        fontsize=16,
-        fontweight="bold",
-    )
-    fig.tight_layout()
-    finalize_figure(fig, save_path)
-
-
-
-# ============================================================
-# 3D TEMPORAL STACKS
-# ============================================================
-def _sample_indices(
-    indices: np.ndarray,
-    max_points: int,
-    seed: int,
-) -> np.ndarray:
-    """Deterministically subsample a one-dimensional integer index array."""
-    indices = np.asarray(indices, dtype=int)
-    if len(indices) <= max_points:
-        return indices
-
-    rng = np.random.default_rng(seed)
-    return np.sort(
-        rng.choice(
-            indices,
-            size=max_points,
-            replace=False,
-        )
-    )
-
-
-def _select_3d_indices(
-    record: SliceRecord,
-    selected_domains: Optional[Sequence[int]],
-    seed: int,
-) -> np.ndarray:
-    """
-    Select points for a 3D layer.
-
-    For the restricted 11.8m slice, highlighted cortical/hippocampal points are
-    preferentially retained, while a smaller gray background sample preserves
-    the full anatomical silhouette.
-    """
-    n_points = len(record.coords)
-    all_indices = np.arange(n_points, dtype=int)
-
-    if n_points <= THREE_D_MAX_POINTS_PER_SLICE:
-        return all_indices
-
-    if selected_domains is None:
-        return _sample_indices(
-            all_indices,
-            THREE_D_MAX_POINTS_PER_SLICE,
-            seed,
-        )
-
-    selected_mask = np.isin(
-        record.domains,
-        np.asarray(selected_domains, dtype=int),
-    )
-    foreground = np.flatnonzero(selected_mask)
-    background = np.flatnonzero(~selected_mask)
-
-    foreground_target = int(
-        round(THREE_D_MAX_POINTS_PER_SLICE * 0.78)
-    )
-    foreground_indices = _sample_indices(
-        foreground,
-        min(foreground_target, len(foreground)),
-        seed,
-    )
-
-    remaining = THREE_D_MAX_POINTS_PER_SLICE - len(
-        foreground_indices
-    )
-    background_indices = _sample_indices(
-        background,
-        min(remaining, len(background)),
-        seed + 1,
-    )
-
-    selected = np.concatenate(
-        [foreground_indices, background_indices]
-    )
-
-    # Fill unused capacity when one group is small.
-    if len(selected) < THREE_D_MAX_POINTS_PER_SLICE:
-        unused = np.setdiff1d(
-            all_indices,
-            selected,
-            assume_unique=False,
-        )
-        fill = _sample_indices(
-            unused,
-            min(
-                THREE_D_MAX_POINTS_PER_SLICE - len(selected),
-                len(unused),
-            ),
-            seed + 2,
-        )
-        selected = np.concatenate([selected, fill])
-
-    return np.sort(selected)
-
-
-def _shared_gene_vmax(
-    records: Sequence[SliceRecord],
-    percentile: float = 99.0,
-) -> float:
-    """Compute one gene-expression scale shared by every 3D time layer."""
-    values = np.concatenate(
-        [
-            np.asarray(record.gene_values, dtype=float)
-            for record in records
-        ]
-    )
-    values = values[np.isfinite(values)]
-
-    if values.size == 0:
-        return 1.0
-
-    return max(
-        float(np.percentile(values, percentile)),
-        1e-8,
-    )
-
-
-def _gene_colors_3d(
-    values: np.ndarray,
-    vmax: float,
-    alpha_factor: float,
-) -> np.ndarray:
-    """Create Reds colors with expression-dependent opacity."""
+def gene_facecolors(values: np.ndarray, vmax: float, alpha_factor: float) -> np.ndarray:
     values = np.asarray(values, dtype=float)
-    normalized = np.clip(values / vmax, 0.0, 1.0)
-
+    normalized = np.clip(values / max(vmax, 1e-8), 0.0, 1.0)
     colors = plt.cm.Reds(normalized)
-    expression_alpha = (
-        THREE_D_GENE_ALPHA_MIN
-        + (
-            THREE_D_GENE_ALPHA_MAX
-            - THREE_D_GENE_ALPHA_MIN
-        )
-        * normalized
-    )
-    colors[:, 3] = np.clip(
-        expression_alpha * alpha_factor,
-        0.02,
-        1.0,
-    )
+    colors[:, 3] = np.clip((0.08 + 0.92 * normalized) * alpha_factor, 0.03, 1.0)
     return colors
 
 
-def _draw_3d_frame(
+def domain_facecolors(domains: np.ndarray) -> np.ndarray:
+    return np.asarray(
+        [LABEL_TO_COLOR.get(int(d), BACKGROUND_GRAY) for d in domains],
+        dtype=object,
+    )
+
+
+def shared_gene_vmax(records: Sequence[SliceRecord], percentile: float = 99.0) -> float:
+    values = np.concatenate([np.asarray(r.gene_values, dtype=float) for r in records])
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return 1.0
+    return max(float(np.percentile(values, percentile)), 1e-8)
+
+
+def sample_indices(n: int, max_points: int, seed: int) -> np.ndarray:
+    indices = np.arange(n, dtype=int)
+    if n <= max_points:
+        return indices
+
+    rng = np.random.default_rng(seed)
+    return np.sort(rng.choice(indices, size=max_points, replace=False))
+
+
+def age_to_time_x(age: float, youngest_age: float) -> float:
+    """Map age to WORLD-X; older ages move to the right."""
+    return (float(age) - float(youngest_age)) * TIME_SCALE_PER_MONTH
+
+
+# ============================================================
+# 3D SPATIAL DRAWING HELPERS
+# ============================================================
+def draw_plane_frame_3d(
     ax,
-    age_value: float,
+    time_x: float,
     extent: Tuple[float, float, float, float],
     is_real: bool,
-    offset: Tuple[float, float] = (0.0, 0.0),
-    linewidth: float = 1.3,
 ) -> None:
     """
-    Draw a solid real-slice frame or dashed virtual-slice frame.
+    Draw a spatial frame in a Y-Z plane at fixed temporal X.
 
-    3D orientation
-    --------------
-    x-axis : spatial x
-    y-axis : age / temporal depth
-    z-axis : spatial y
+    World coordinates:
+        X = time
+        Y = displayed spatial x
+        Z = displayed spatial y
     """
-    xmin, xmax, ymin, ymax = extent
-    dx, dy = offset
+    umin, umax, vmin, vmax = extent
 
-    x = np.asarray(
-        [xmin, xmax, xmax, xmin, xmin],
-        dtype=float,
-    ) + dx
-    y_depth = np.full(5, float(age_value))
-    z_spatial = np.asarray(
-        [ymin, ymin, ymax, ymax, ymin],
-        dtype=float,
-    ) + dy
+    x = np.full(5, float(time_x), dtype=float)
+    y = np.asarray([umin, umax, umax, umin, umin], dtype=float)
+    z = np.asarray([vmin, vmin, vmax, vmax, vmin], dtype=float)
 
     ax.plot(
         x,
-        y_depth,
-        z_spatial,
-        color=FRAME_COLOR,
-        linewidth=linewidth,
+        y,
+        z,
+        color=REAL_FRAME_COLOR if is_real else VIRTUAL_FRAME_COLOR,
+        linewidth=SOLID_LW if is_real else DASHED_LW,
         linestyle="-" if is_real else DASHED_STYLE,
-        alpha=0.95,
+        alpha=0.96,
         zorder=20,
     )
 
 
-def _draw_3d_mirror_seam(
-    ax,
-    age_value: float,
-    offset: Tuple[float, float] = (0.0, 0.0),
-    is_real: bool = True,
-) -> None:
-    """Draw the middle fold line in a mirrored 3D layer."""
-    _, _, ymin, ymax = get_mirrored_extent()
-    seam_x = get_mirrored_parameters()[4] + offset[0]
+def draw_mirror_seam_3d(ax, time_x: float, is_real: bool) -> None:
+    left_extent, right_extent = get_mirrored_half_extents()
+    seam_u = 0.5 * (left_extent[1] + right_extent[0])
+    vmin = left_extent[2]
+    vmax = left_extent[3]
 
     ax.plot(
-        [seam_x, seam_x],
-        [float(age_value), float(age_value)],
-        [ymin + offset[1], ymax + offset[1]],
-        color=FRAME_COLOR,
+        [time_x, time_x],
+        [seam_u, seam_u],
+        [vmin, vmax],
+        color=REAL_FRAME_COLOR if is_real else VIRTUAL_FRAME_COLOR,
         linewidth=0.8,
         linestyle="-" if is_real else DASHED_STYLE,
-        alpha=0.9,
+        alpha=0.90,
         zorder=19,
     )
 
 
-def _style_3d_axis(
+def style_3d_axis(
     ax,
-    ages: Sequence[float],
-    title: str,
-    mirrored: bool = False,
+    extent: Tuple[float, float, float, float],
+    time_positions: Sequence[float],
 ) -> None:
-    """
-    Apply a consistent camera, aspect, ticks, and transparent panes.
+    """Style only the 3D spatial scene. The timeline is drawn separately in 2D."""
+    umin, umax, vmin, vmax = extent
+    time_positions = np.asarray(time_positions, dtype=float)
 
-    3D orientation
-    --------------
-    x-axis : spatial x
-    y-axis : age / temporal depth (front to back)
-    z-axis : spatial y
-    """
-    if mirrored:
-        xmin, xmax, ymin, ymax = get_mirrored_extent()
-        ax.set_box_aspect(THREE_D_MIRROR_BOX_ASPECT)
-    else:
-        xmin, xmax, ymin, ymax = FIXED_BOX
-        ax.set_box_aspect(THREE_D_BOX_ASPECT)
+    t_span = max(float(np.ptp(time_positions)), 1.0)
+    u_span = max(float(umax - umin), 1.0)
+    v_span = max(float(vmax - vmin), 1.0)
 
-    ages = np.asarray(sorted(ages), dtype=float)
-    age_pad = max(
-        0.8,
-        0.06 * (ages.max() - ages.min()),
+    t_pad = max(0.06 * t_span, 35.0)
+    u_pad = 60.0
+    v_pad = 70.0
+
+    t0 = float(np.min(time_positions) - t_pad)
+    t1 = float(np.max(time_positions) + t_pad)
+    u0, u1 = umin - u_pad, umax + u_pad
+    v0, v1 = vmin - v_pad, vmax + v_pad
+
+    ax.set_xlim(t0, t1)
+    ax.set_ylim(u0, u1)
+    ax.set_zlim(v0, v1)
+
+    # Temporal X stays proportional to age spacing; spatial Y/Z are scaled
+    # uniformly to control how large the hanging maps appear.
+    display_span = np.asarray(
+        [
+            (t1 - t0),
+            (u1 - u0) * SPATIAL_DISPLAY_SCALE,
+            (v1 - v0) * SPATIAL_DISPLAY_SCALE,
+        ],
+        dtype=float,
     )
+    display_span /= max(float(np.max(display_span)), 1e-8)
 
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(
-        float(ages.min() - age_pad),
-        float(ages.max() + age_pad),
-    )
-    ax.set_zlim(ymin, ymax)
+    try:
+        ax.view_init(elev=VIEW_ELEV, azim=VIEW_AZIM, roll=VIEW_ROLL)
+    except TypeError:
+        ax.view_init(elev=VIEW_ELEV, azim=VIEW_AZIM)
 
-    ax.set_xticks([xmin, 0.5 * (xmin + xmax), xmax])
-    ax.set_yticks(ages)
-    ax.set_yticklabels([f"{age:g}m" for age in ages])
-    ax.set_zticks([ymin, 0.5 * (ymin + ymax), ymax])
-
-    ax.set_xlabel("Spatial x", labelpad=7)
-    ax.set_ylabel("Age", labelpad=8)
-    ax.set_zlabel("Spatial y", labelpad=7)
-    ax.set_title(title, pad=14)
-
-    ax.view_init(
-        elev=THREE_D_ELEV,
-        azim=THREE_D_AZIM,
-    )
     ax.set_proj_type("ortho")
-
-    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
-        axis.pane.set_facecolor((1.0, 1.0, 1.0, 0.0))
-        axis.pane.set_edgecolor((0.75, 0.75, 0.75, 0.55))
-
-    ax.grid(True, alpha=0.13)
+    ax.set_box_aspect(tuple(display_span))
+    ax.set_axis_off()
 
 
-def _draw_optional_3d_corner_guides(
-    ax,
-    ages: Sequence[float],
+# ============================================================
+# SCREEN-SPACE HORIZONTAL TIMELINE
+# ============================================================
+def _project_world_to_figure(fig, ax, xyz: Sequence[float]) -> Tuple[float, float]:
+    """Project one 3D world coordinate to figure-fraction coordinates."""
+    x3, y3, z3 = [float(v) for v in xyz]
+    x2, y2, _ = proj3d.proj_transform(x3, y3, z3, ax.get_proj())
+    x_disp, y_disp = ax.transData.transform((x2, y2))
+    x_fig, y_fig = fig.transFigure.inverted().transform((x_disp, y_disp))
+    return float(x_fig), float(y_fig)
+
+
+def _top_center_anchor(
+    time_x: float,
     extent: Tuple[float, float, float, float],
-) -> None:
-    """Optionally connect corresponding frame corners through time."""
-    if not THREE_D_CONNECT_CORNERS:
-        return
-
-    xmin, xmax, ymin, ymax = extent
-    age_min = min(ages)
-    age_max = max(ages)
-
-    for x, z in [
-        (xmin, ymin),
-        (xmin, ymax),
-        (xmax, ymin),
-        (xmax, ymax),
-    ]:
-        ax.plot(
-            [x, x],
-            [age_min, age_max],
-            [z, z],
-            color=FRAME_COLOR,
-            linewidth=0.55,
-            alpha=0.35,
-            zorder=0,
-        )
+) -> Tuple[float, float, float]:
+    """Top-center attachment location on a spatial Y-Z frame."""
+    umin, umax, _, vmax = extent
+    return float(time_x), 0.5 * (umin + umax), float(vmax)
 
 
-def plot_figure6_3d_time_stack(
+def draw_horizontal_time_scaffold(
+    fig,
     ax,
-    ages: Sequence[float],
-    extent: Tuple[float, float, float, float],
-) -> None:
-    """Optionally connect corresponding frame corners through time."""
-    if not THREE_D_CONNECT_CORNERS:
-        return
-
-    xmin, xmax, ymin, ymax = extent
-    zmin = min(ages)
-    zmax = max(ages)
-
-    for x, y in [
-        (xmin, ymin),
-        (xmin, ymax),
-        (xmax, ymin),
-        (xmax, ymax),
-    ]:
-        ax.plot(
-            [x, x],
-            [y, y],
-            [zmin, zmax],
-            color=FRAME_COLOR,
-            linewidth=0.55,
-            alpha=0.35,
-            zorder=0,
-        )
-
-
-def plot_figure6_3d_time_stack(
     records: Sequence[SliceRecord],
-    outdir: str,
+    time_positions: Sequence[float],
+    extent: Tuple[float, float, float, float],
+    title_label: str = "Age",
 ) -> None:
     """
-    Plot separate 3D temporal stacks for gene expression and spatial domains.
+    Draw the timeline entirely in 2D figure coordinates.
 
-    Each slice lies in its original spatial plane, with z equal to age in months.
-    Real slices use solid frames; virtual slices use dashed frames.
+    Consequences
+    ------------
+    1. The timeline is exactly horizontal on screen under every 3D camera angle.
+    2. Each timeline marker uses the screen-x coordinate of that slice's
+       projected top-center frame anchor.
+    3. A vertical screen-space hanger connects the marker to the tissue plane.
+       Hence the spatial maps visually hang from the horizontal timeline.
     """
-    set_style()
-    ordered = sorted(records, key=lambda record: record.age)
-    shared_vmax = _shared_gene_vmax(ordered)
+    if len(records) != len(time_positions):
+        raise ValueError("records and time_positions must have identical length")
 
-    fig = plt.figure(figsize=(17.2, 8.2))
-    ax_gene = fig.add_subplot(1, 2, 1, projection="3d")
-    ax_domain = fig.add_subplot(1, 2, 2, projection="3d")
+    # Projection depends on the final axes geometry; force a draw first.
+    fig.canvas.draw()
 
-    for layer_index, record in enumerate(ordered):
-        selected_domains = (
-            HIGHLIGHT_118
-            if (
-                not record.is_real
-                and abs(record.age - 11.8) < 1e-8
-            )
-            else None
-        )
-
-        indices = _select_3d_indices(
-            record,
-            selected_domains=selected_domains,
-            seed=1000 + layer_index,
-        )
-
-        coords = np.asarray(record.coords, dtype=float)[indices]
-        values = np.asarray(record.gene_values, dtype=float)[indices]
-        domains = np.asarray(record.domains)[indices]
-        age_depth = np.full(len(indices), record.age, dtype=float)
-
-        alpha_factor = (
-            REAL_ALPHA
-            if record.is_real
-            else VIRTUAL_ALPHA
-        )
-
-        # ---------------------------
-        # Gene-expression stack
-        # ---------------------------
-        if selected_domains is not None:
-            highlighted = np.isin(
-                domains,
-                np.asarray(selected_domains, dtype=int),
-            )
-            background = ~highlighted
-
-            if np.any(background):
-                ax_gene.scatter(
-                    coords[background, 0],
-                    age_depth[background],
-                    coords[background, 1],
-                    c=BACKGROUND_GRAY,
-                    s=THREE_D_POINT_SIZE,
-                    alpha=THREE_D_BACKGROUND_ALPHA,
-                    linewidths=0,
-                    depthshade=False,
-                    rasterized=True,
-                )
-
-            gene_coords = coords[highlighted]
-            gene_values = values[highlighted]
-            gene_depth = age_depth[highlighted]
-        else:
-            gene_coords = coords
-            gene_values = values
-            gene_depth = age_depth
-
-        gene_colors = _gene_colors_3d(
-            gene_values,
-            vmax=shared_vmax,
-            alpha_factor=alpha_factor,
-        )
-        ax_gene.scatter(
-            gene_coords[:, 0],
-            gene_depth,
-            gene_coords[:, 1],
-            c=gene_colors,
-            s=THREE_D_POINT_SIZE,
-            linewidths=0,
-            depthshade=False,
-            rasterized=True,
-        )
-
-        # ---------------------------
-        # Domain stack
-        # ---------------------------
-        domain_colors = domain_facecolors(
-            domains,
-            highlight_domains=selected_domains,
-        )
-        ax_domain.scatter(
-            coords[:, 0],
-            age_depth,
-            coords[:, 1],
-            c=domain_colors,
-            s=THREE_D_POINT_SIZE,
-            alpha=THREE_D_DOMAIN_ALPHA,
-            linewidths=0,
-            depthshade=False,
-            rasterized=True,
-        )
-
-        for ax in (ax_gene, ax_domain):
-            _draw_3d_frame(
+    anchor_fig = np.asarray(
+        [
+            _project_world_to_figure(
+                fig,
                 ax,
-                age_value=record.age,
-                extent=FIXED_BOX,
-                is_real=record.is_real,
+                _top_center_anchor(t, extent),
             )
-
-            # Add the age label near the front-left corner.
-            ax.text(
-                FIXED_BOX[0],
-                record.age,
-                FIXED_BOX[2] - 35.0,
-                record.label,
-                fontsize=8.5,
-                fontweight="bold",
-                color=TEXT_COLOR,
-            )
-
-    ages = [record.age for record in ordered]
-    _style_3d_axis(
-        ax_gene,
-        ages,
-        title=f"{GENE_NAME} expression through time (front-to-back age depth)",
-    )
-    _style_3d_axis(
-        ax_domain,
-        ages,
-        title="Spatial domains through time (front-to-back age depth)",
+            for t in time_positions
+        ],
+        dtype=float,
     )
 
-    for ax in (ax_gene, ax_domain):
-        _draw_optional_3d_corner_guides(
-            ax,
-            ages,
-            FIXED_BOX,
+    marker_x = anchor_fig[:, 0]
+    anchor_y = anchor_fig[:, 1]
+
+    # The marker x positions are kept exactly at the projected tissue-anchor
+    # positions so every suspension line remains truly vertical in screen space.
+    # For left-to-right chronological ordering, use the default negative azimuth
+    # (or another negative azimuth that keeps +world-X projecting to the right).
+    if len(marker_x) >= 2 and marker_x[-1] < marker_x[0]:
+        print(
+            "[WARN] Current camera projects older ages to the left. "
+            "Use a negative --view-azim (for example -60) for the intended "
+            "left-to-right chronological layout."
         )
 
-    # Shared gene-expression colorbar.
-    scalar_mappable = ScalarMappable(
-        norm=Normalize(vmin=0.0, vmax=shared_vmax),
-        cmap="Reds",
+    timeline_y = max(
+        TIMELINE_MIN_Y_FIG,
+        float(np.max(anchor_y) + TIMELINE_CLEARANCE_FIG),
     )
-    scalar_mappable.set_array([])
-    colorbar = fig.colorbar(
-        scalar_mappable,
-        ax=ax_gene,
-        fraction=0.025,
-        pad=0.06,
-        shrink=0.68,
-    )
-    colorbar.set_label(
-        f"log1p {GENE_NAME} expression",
-        fontsize=9.5,
-    )
-    colorbar.ax.tick_params(labelsize=8.5)
+    timeline_y = min(timeline_y, TIMELINE_MAX_Y_FIG)
 
-    # Real/virtual line-style legend.
-    frame_handles = [
-        Line2D(
-            [0],
-            [0],
-            color=FRAME_COLOR,
-            linewidth=1.8,
-            linestyle="-",
-            label="Observed",
-        ),
-        Line2D(
-            [0],
-            [0],
-            color=FRAME_COLOR,
-            linewidth=1.8,
-            linestyle=DASHED_STYLE,
-            label="Virtual",
-        ),
-    ]
-    fig.legend(
-        handles=frame_handles,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.985),
-        ncol=2,
-        frameon=False,
-    )
+    line_start = max(0.02, float(np.min(marker_x) - TIMELINE_X_PAD_FIG))
+    line_end = min(0.94, float(np.max(marker_x) + TIMELINE_X_PAD_FIG + 0.010))
 
-    # Compact all-domain legend outside the right subplot.
-    domain_handles = make_domain_legend_handles(
-        labels=ALL_LABELS,
-        include_other=True,
-        other_label="Other at 11.8m",
+    # Perfectly horizontal arrow in figure coordinates.
+    arrow = FancyArrowPatch(
+        (line_start, timeline_y),
+        (line_end, timeline_y),
+        transform=fig.transFigure,
+        arrowstyle="-|>",
+        mutation_scale=TIMELINE_ARROW_SCALE,
+        linewidth=TIMELINE_LW,
+        color=TIMELINE_COLOR,
+        shrinkA=0,
+        shrinkB=0,
+        clip_on=False,
+        zorder=200,
     )
-    ax_domain.legend(
-        handles=domain_handles,
-        loc="center left",
-        bbox_to_anchor=(1.03, 0.50),
-        frameon=False,
-        fontsize=7.8,
-        ncol=2,
-        title="Domains",
-        title_fontsize=9.0,
-        handletextpad=0.4,
-        columnspacing=0.8,
-    )
+    fig.add_artist(arrow)
 
-    fig.suptitle(
-        "3D temporal stack of observed and virtual mouse-brain slices",
-        y=0.995,
-        fontsize=16,
+    # Age label at the arrow end.
+    fig.text(
+        min(line_end + 0.008, 0.965),
+        timeline_y + 0.001,
+        title_label,
+        fontsize=14.5,
         fontweight="bold",
-    )
-    fig.subplots_adjust(
-        left=0.02,
-        right=0.84,
-        bottom=0.03,
-        top=0.91,
-        wspace=0.02,
+        color=TIMELINE_COLOR,
+        ha="left",
+        va="center",
+        zorder=205,
     )
 
-    save_path = os.path.join(
-        outdir,
-        "figure6_3d_gene_domain_time_stack.png",
+    use_two_tiers = len(records) >= 5
+
+    for i, (record, xmark, y_anchor) in enumerate(zip(records, marker_x, anchor_y)):
+        color = REAL_LABEL_COLOR if record.is_real else VIRTUAL_LABEL_COLOR
+
+        # Vertical screen-space suspension line; leaves a tiny visual gap at
+        # both the timeline and tissue attachment point.
+        y_top = timeline_y - HANGER_TOP_GAP_FIG
+        y_bottom = y_anchor + HANGER_BOTTOM_GAP_FIG
+        if y_bottom < y_top:
+            hanger = Line2D(
+                [xmark, xmark],
+                [y_top, y_bottom],
+                transform=fig.transFigure,
+                color=HANGER_COLOR,
+                linewidth=HANGER_LW,
+                alpha=HANGER_ALPHA,
+                solid_capstyle="round",
+                clip_on=False,
+                zorder=180,
+            )
+            fig.add_artist(hanger)
+
+        # Timeline intersection marker.
+        marker = Line2D(
+            [xmark],
+            [timeline_y],
+            transform=fig.transFigure,
+            marker="o",
+            linestyle="",
+            markersize=TIMELINE_MARKER_SIZE,
+            markerfacecolor=color,
+            markeredgecolor=TIMELINE_MARKER_EDGE_COLOR,
+            markeredgewidth=TIMELINE_MARKER_EDGE_WIDTH,
+            clip_on=False,
+            zorder=210,
+        )
+        fig.add_artist(marker)
+
+        # Small attachment dot on the spatial frame.
+        anchor_dot = Line2D(
+            [xmark],
+            [y_anchor],
+            transform=fig.transFigure,
+            marker="o",
+            linestyle="",
+            markersize=HANGER_ANCHOR_SIZE,
+            markerfacecolor=HANGER_COLOR,
+            markeredgecolor="none",
+            alpha=0.65,
+            clip_on=False,
+            zorder=185,
+        )
+        fig.add_artist(anchor_dot)
+
+        # Age labels remain horizontal. Dense seven-slice figures alternate
+        # between two shallow tiers to reduce collisions.
+        if use_two_tiers:
+            label_dy = (
+                TIMELINE_LABEL_OFFSET_FIG
+                if i % 2 == 0
+                else TIMELINE_LABEL_SECOND_TIER_FIG
+            )
+        else:
+            label_dy = TIMELINE_LABEL_OFFSET_FIG
+
+        fig.text(
+            xmark,
+            timeline_y + label_dy,
+            record.label,
+            fontsize=11.8 if use_two_tiers else 13.0,
+            fontweight="bold",
+            color=color,
+            ha="center",
+            va="bottom",
+            zorder=215,
+        )
+
+
+# ============================================================
+# LAYER PLOTTING
+# ============================================================
+def plot_gene_layer_3d(
+    ax,
+    record: SliceRecord,
+    time_x: float,
+    vmax: float,
+    seed: int,
+) -> None:
+    indices = sample_indices(len(record.coords), MAX_POINTS_PER_SLICE, seed)
+
+    coords = np.asarray(record.coords, dtype=float)[indices]
+    values = np.asarray(record.gene_values, dtype=float)[indices]
+
+    alpha_factor = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
+    colors = gene_facecolors(values, vmax=vmax, alpha_factor=alpha_factor)
+
+    ax.scatter(
+        np.full(len(coords), float(time_x)),
+        coords[:, 0],
+        coords[:, 1],
+        c=colors,
+        s=POINT_SIZE_GENE,
+        linewidths=0,
+        depthshade=False,
+        rasterized=True,
+        zorder=2,
     )
-    finalize_figure(fig, save_path)
+
+    draw_plane_frame_3d(
+        ax,
+        time_x,
+        get_record_extent(),
+        is_real=record.is_real,
+    )
 
 
-def plot_figure7_3d_mirrored_time_stack(
-    records: Sequence[SliceRecord],
-    outdir: str,
+def plot_mirrored_layer_3d(
+    ax,
+    record: SliceRecord,
+    time_x: float,
+    vmax: float,
+    seed: int,
+) -> None:
+    gene_xy, domain_xy, keep_mask = mirrored_half_coords(record)
+
+    retained_values = np.asarray(record.gene_values, dtype=float)[keep_mask]
+    retained_domains = np.asarray(record.domains)[keep_mask]
+
+    if not (
+        len(gene_xy)
+        == len(domain_xy)
+        == len(retained_values)
+        == len(retained_domains)
+    ):
+        raise RuntimeError(
+            f"Mirrored row alignment failed for {record.label}: "
+            f"gene_xy={len(gene_xy)}, domain_xy={len(domain_xy)}, "
+            f"gene_values={len(retained_values)}, domains={len(retained_domains)}"
+        )
+
+    indices = sample_indices(len(retained_values), MAX_POINTS_PER_SLICE, seed)
+    gene_xy = gene_xy[indices]
+    domain_xy = domain_xy[indices]
+    values = retained_values[indices]
+    domains = retained_domains[indices]
+
+    alpha_factor = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
+
+    gene_colors = gene_facecolors(values, vmax=vmax, alpha_factor=alpha_factor)
+    ax.scatter(
+        np.full(len(gene_xy), float(time_x)),
+        gene_xy[:, 0],
+        gene_xy[:, 1],
+        c=gene_colors,
+        s=POINT_SIZE_GENE,
+        linewidths=0,
+        depthshade=False,
+        rasterized=True,
+        zorder=2,
+    )
+
+    domain_colors = domain_facecolors(domains)
+    ax.scatter(
+        np.full(len(domain_xy), float(time_x)),
+        domain_xy[:, 0],
+        domain_xy[:, 1],
+        c=domain_colors,
+        s=POINT_SIZE_DOMAIN,
+        alpha=DOMAIN_ALPHA if record.is_real else DOMAIN_ALPHA * 0.95,
+        linewidths=0,
+        depthshade=False,
+        rasterized=True,
+        zorder=2,
+    )
+
+    draw_plane_frame_3d(
+        ax,
+        time_x,
+        get_mirrored_extent(),
+        is_real=record.is_real,
+    )
+    draw_mirror_seam_3d(ax, time_x, is_real=record.is_real)
+
+
+
+
+def draw_grid_raster_lines_3d(
+    ax,
+    time_x: float,
+    extent: Tuple[float, float, float, float],
+    grid_size: int = VIRTUAL_SUPPORT_GRID_SIZE,
+    color: str = VIRTUAL_SUPPORT_GRID_COLOR,
+    alpha: float = VIRTUAL_SUPPORT_GRID_ALPHA,
+    linewidth: float = VIRTUAL_SUPPORT_GRID_LW,
 ) -> None:
     """
-    Plot the mirrored gene/domain composition as separated 3D temporal planes.
+    Draw a full-space pixel raster using grid lines.
 
-    This is the direct 3D alternative to the crowded 2D mirrored stack.
+    This is a visualization-only representation of the 256 x 256 spatial
+    support layout used for virtual generation. The whole plane is shown as a
+    regular raster, without differentiating tissue-valid versus background
+    pixels.
     """
-    set_style()
-    ordered = sorted(records, key=lambda record: record.age)
-    shared_vmax = _shared_gene_vmax(ordered)
+    umin, umax, vmin, vmax = extent
+    du = (umax - umin) / float(grid_size)
+    dv = (vmax - vmin) / float(grid_size)
 
-    fig = plt.figure(figsize=(12.8, 8.5))
-    ax = fig.add_subplot(1, 1, 1, projection="3d")
-
-    for layer_index, record in enumerate(ordered):
-        selected_domains = (
-            HIGHLIGHT_118
-            if (
-                not record.is_real
-                and abs(record.age - 11.8) < 1e-8
-            )
-            else None
+    # Vertical grid lines in the Y-Z plane.
+    for i in range(grid_size + 1):
+        u = umin + i * du
+        ax.plot(
+            [time_x, time_x],
+            [u, u],
+            [vmin, vmax],
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            zorder=1,
         )
 
-        gene_xy, domain_xy, retained_mask = mirrored_half_coords(
-            record,
-            offset=(0.0, 0.0),
+    # Horizontal grid lines in the Y-Z plane.
+    for j in range(grid_size + 1):
+        v = vmin + j * dv
+        ax.plot(
+            [time_x, time_x],
+            [umin, umax],
+            [v, v],
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            zorder=1,
         )
 
-        retained_indices = np.flatnonzero(retained_mask)
-        retained_record = SliceRecord(
-            age=record.age,
-            label=record.label,
-            path=record.path,
-            is_real=record.is_real,
-            coords=record.coords[retained_mask],
-            gene_values=record.gene_values[retained_mask],
-            domains=record.domains[retained_mask],
-        )
 
-        local_indices = _select_3d_indices(
-            retained_record,
-            selected_domains=selected_domains,
-            seed=2000 + layer_index,
-        )
 
-        gene_xy = gene_xy[local_indices]
-        domain_xy = domain_xy[local_indices]
-        values = retained_record.gene_values[local_indices]
-        domains = retained_record.domains[local_indices]
-        age_depth = np.full(len(local_indices), record.age, dtype=float)
+def plot_virtual_support_layer_3d(
+    ax,
+    record: SliceRecord,
+    time_x: float,
+) -> None:
+    """
+    Plot only the virtual spatial support as full-space 256 x 256 raster grids.
 
-        alpha_factor = (
-            REAL_ALPHA
-            if record.is_real
-            else VIRTUAL_ALPHA
-        )
+    Important display rule:
+    each mirrored half corresponds to one original 1024 x 1024 spatial map, so
+    the raster should be shown as TWO square 256 x 256 grids rather than one
+    wide rectangular frame spanning both halves.
+    """
+    left_extent, right_extent = get_mirrored_half_extents()
 
-        # Gene half.
-        if selected_domains is not None:
-            highlighted = np.isin(
-                domains,
-                np.asarray(selected_domains, dtype=int),
-            )
-            background = ~highlighted
+    # Draw a complete square raster for each original 1024x1024 map.
+    draw_grid_raster_lines_3d(ax, time_x, left_extent)
+    draw_grid_raster_lines_3d(ax, time_x, right_extent)
 
-            if np.any(background):
-                ax.scatter(
-                    gene_xy[background, 0],
-                    age_depth[background],
-                    gene_xy[background, 1],
-                    c=BACKGROUND_GRAY,
-                    s=THREE_D_POINT_SIZE,
-                    alpha=THREE_D_BACKGROUND_ALPHA,
-                    linewidths=0,
-                    depthshade=False,
-                    rasterized=True,
-                )
-
-            gene_points = gene_xy[highlighted]
-            gene_values = values[highlighted]
-            gene_depth = age_depth[highlighted]
-        else:
-            gene_points = gene_xy
-            gene_values = values
-            gene_depth = age_depth
-
-        gene_colors = _gene_colors_3d(
-            gene_values,
-            vmax=shared_vmax,
-            alpha_factor=alpha_factor,
-        )
-        ax.scatter(
-            gene_points[:, 0],
-            gene_depth,
-            gene_points[:, 1],
-            c=gene_colors,
-            s=THREE_D_POINT_SIZE,
-            linewidths=0,
-            depthshade=False,
-            rasterized=True,
-        )
-
-        # Mirrored domain half.
-        domain_colors = domain_facecolors(
-            domains,
-            highlight_domains=selected_domains,
-        )
-        ax.scatter(
-            domain_xy[:, 0],
-            age_depth,
-            domain_xy[:, 1],
-            c=domain_colors,
-            s=THREE_D_POINT_SIZE,
-            alpha=THREE_D_DOMAIN_ALPHA,
-            linewidths=0,
-            depthshade=False,
-            rasterized=True,
-        )
-
-        _draw_3d_frame(
-            ax,
-            age_value=record.age,
-            extent=get_mirrored_extent(),
-            is_real=record.is_real,
-        )
-        if DRAW_MIRROR_DIVIDER:
-            _draw_3d_mirror_seam(
-                ax,
-                age_value=record.age,
-                is_real=record.is_real,
-            )
-
-        ax.text(
-            get_mirrored_extent()[0],
-            record.age,
-            get_mirrored_extent()[2] - 35.0,
-            record.label,
-            fontsize=8.5,
-            fontweight="bold",
-            color=TEXT_COLOR,
-        )
-
-    ages = [record.age for record in ordered]
-    _style_3d_axis(
+    # Draw two dashed square bounding boxes, one for each mirrored half, so the
+    # viewer reads them as two square support lattices rather than a single
+    # rectangular mirrored canvas.
+    draw_plane_frame_3d(
         ax,
-        ages,
-        title=(
-            f"Mirrored 3D temporal stack: "
-            f"{GENE_NAME} gene map (left) and domains (right)"
-        ),
-        mirrored=True,
+        time_x,
+        left_extent,
+        is_real=False,
+    )
+    draw_plane_frame_3d(
+        ax,
+        time_x,
+        right_extent,
+        is_real=False,
     )
 
-    _draw_optional_3d_corner_guides(
+# ============================================================
+# FIGURE 1
+# ============================================================
+def plot_figure1_real_gene_stack(
+    real_records: Sequence[SliceRecord],
+    outdir: str,
+) -> None:
+    set_style()
+    fig = plt.figure(figsize=(11.6, 6.8))
+    ax = fig.add_subplot(111, projection="3d")
+
+    ordered = sorted(real_records, key=lambda r: r.age)
+    vmax = shared_gene_vmax(ordered)
+    youngest_age = min(r.age for r in ordered)
+    time_positions = [age_to_time_x(r.age, youngest_age) for r in ordered]
+
+    for i, (record, time_x) in enumerate(zip(ordered, time_positions)):
+        plot_gene_layer_3d(
+            ax,
+            record,
+            time_x,
+            vmax=vmax,
+            seed=100 + i,
+        )
+
+    style_3d_axis(
         ax,
-        ages,
-        get_mirrored_extent(),
+        get_record_extent(),
+        time_positions,
     )
 
     scalar_mappable = ScalarMappable(
-        norm=Normalize(vmin=0.0, vmax=shared_vmax),
+        norm=Normalize(vmin=0.0, vmax=vmax),
         cmap="Reds",
     )
     scalar_mappable.set_array([])
     colorbar = fig.colorbar(
         scalar_mappable,
         ax=ax,
-        fraction=0.025,
-        pad=0.045,
-        shrink=0.62,
+        fraction=0.03,
+        pad=0.02,
+        shrink=0.70,
     )
-    colorbar.set_label(
-        f"log1p {GENE_NAME} expression",
-        fontsize=9.5,
+    colorbar.set_label(f"log1p {GENE_NAME} expression", fontsize=10)
+    colorbar.ax.tick_params(labelsize=9)
+
+    ax.set_title(
+        "Observed spatial omics through time",
+        pad=18,
+        fontsize=15,
+        fontweight="bold",
     )
-    colorbar.ax.tick_params(labelsize=8.5)
+
+    # Must be last: projection uses final camera and axes geometry.
+    draw_horizontal_time_scaffold(
+        fig,
+        ax,
+        ordered,
+        time_positions,
+        get_record_extent(),
+        title_label="Age",
+    )
+
+    finalize_figure(
+        fig,
+        os.path.join(outdir, "figure1_real_gene_3d_left_to_right_hanging.png"),
+    )
+
+
+# ============================================================
+# FIGURE 2
+# ============================================================
+def plot_figure2_real_mirrored_stack(
+    real_records: Sequence[SliceRecord],
+    virtual_records: Sequence[SliceRecord],
+    outdir: str,
+) -> None:
+    """
+    Plot measured mirrored states together with virtual-query spatial support.
+
+    Real ages (2.5, 5.7, 17.9m)
+        Full gene-expression + spatial-domain mirrored maps with solid frames.
+
+    Query ages (4.1, 8.25, 11.8, 14.85m)
+        Binary 256 x 256 spatial-support raster only, shown as gray square
+        pixels in the same mirrored layout with dashed bounding boxes.
+    """
+    set_style()
+    fig = plt.figure(figsize=(14.2, 7.8))
+    ax = fig.add_subplot(111, projection="3d")
+
+    real_ordered = sorted(real_records, key=lambda r: r.age)
+    virtual_ordered = sorted(virtual_records, key=lambda r: r.age)
+    ordered = sorted(real_ordered + virtual_ordered, key=lambda r: r.age)
+
+    # Figure 2's expression scale is defined only from measured tissue states.
+    vmax = shared_gene_vmax(real_ordered)
+    youngest_age = min(r.age for r in ordered)
+    time_positions = [age_to_time_x(r.age, youngest_age) for r in ordered]
+
+    for i, (record, time_x) in enumerate(zip(ordered, time_positions)):
+        if record.is_real:
+            plot_mirrored_layer_3d(
+                ax,
+                record,
+                time_x,
+                vmax=vmax,
+                seed=200 + i,
+            )
+        else:
+            plot_virtual_support_layer_3d(
+                ax,
+                record,
+                time_x,
+            )
+
+    style_3d_axis(
+        ax,
+        get_mirrored_extent(),
+        time_positions,
+    )
+
+    scalar_mappable = ScalarMappable(
+        norm=Normalize(vmin=0.0, vmax=vmax),
+        cmap="Reds",
+    )
+    scalar_mappable.set_array([])
+    colorbar = fig.colorbar(
+        scalar_mappable,
+        ax=ax,
+        fraction=0.028,
+        pad=0.02,
+        shrink=0.68,
+    )
+    colorbar.set_label(f"log1p {GENE_NAME} expression", fontsize=10)
+    colorbar.ax.tick_params(labelsize=9)
+
+    # First legend explains measured versus query-support planes.
+    state_handles = [
+        Line2D(
+            [0], [0],
+            color=REAL_FRAME_COLOR,
+            linewidth=1.6,
+            linestyle="-",
+            label="Measured tissue",
+        ),
+        Line2D(
+            [0], [0],
+            color=VIRTUAL_SUPPORT_GRID_COLOR,
+            linewidth=1.2,
+            alpha=0.9,
+            linestyle='-',
+            label="Virtual-query raster support (256×256)",
+        ),
+    ]
+    state_legend = ax.legend(
+        handles=state_handles,
+        loc="upper left",
+        bbox_to_anchor=(0.98, 1.02),
+        frameon=False,
+        fontsize=8.8,
+    )
+    ax.add_artist(state_legend)
+
+    domain_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            linestyle="",
+            markerfacecolor=LABEL_TO_COLOR[d],
+            markeredgecolor="none",
+            markersize=6.2,
+            label=f"Domain {d}",
+        )
+        for d in ALL_LABELS
+    ]
+    ax.legend(
+        handles=domain_handles,
+        loc="upper left",
+        bbox_to_anchor=(0.98, 0.88),
+        frameon=False,
+        fontsize=8.3,
+        ncol=2,
+        title="Spatial domains",
+        title_fontsize=9.5,
+        handletextpad=0.4,
+        columnspacing=0.9,
+    )
+
+    ax.set_title(
+        "Observed tissues and spatial support for virtual generation",
+        pad=18,
+        fontsize=15,
+        fontweight="bold",
+    )
+
+    # Include both measured and query ages on the common horizontal scaffold.
+    draw_horizontal_time_scaffold(
+        fig,
+        ax,
+        ordered,
+        time_positions,
+        get_mirrored_extent(),
+        title_label="Age",
+    )
+
+    finalize_figure(
+        fig,
+        os.path.join(
+            outdir,
+            "figure2_real_plus_virtual_support_3d_left_to_right_hanging.png",
+        ),
+    )
+
+
+# ============================================================
+# FIGURE 3
+# ============================================================
+def plot_figure3_all_mirrored_stack(
+    records: Sequence[SliceRecord],
+    outdir: str,
+) -> None:
+    set_style()
+    fig = plt.figure(figsize=(14.2, 7.8))
+    ax = fig.add_subplot(111, projection="3d")
+
+    ordered = sorted(records, key=lambda r: r.age)
+    vmax = shared_gene_vmax(ordered)
+    youngest_age = min(r.age for r in ordered)
+    time_positions = [age_to_time_x(r.age, youngest_age) for r in ordered]
+
+    for i, (record, time_x) in enumerate(zip(ordered, time_positions)):
+        plot_mirrored_layer_3d(
+            ax,
+            record,
+            time_x,
+            vmax=vmax,
+            seed=300 + i,
+        )
+
+    style_3d_axis(
+        ax,
+        get_mirrored_extent(),
+        time_positions,
+    )
+
+    scalar_mappable = ScalarMappable(
+        norm=Normalize(vmin=0.0, vmax=vmax),
+        cmap="Reds",
+    )
+    scalar_mappable.set_array([])
+    colorbar = fig.colorbar(
+        scalar_mappable,
+        ax=ax,
+        fraction=0.028,
+        pad=0.02,
+        shrink=0.68,
+    )
+    colorbar.set_label(f"log1p {GENE_NAME} expression", fontsize=10)
+    colorbar.ax.tick_params(labelsize=9)
 
     frame_handles = [
         Line2D(
-            [0],
-            [0],
-            color=FRAME_COLOR,
-            linewidth=1.8,
+            [0], [0],
+            color=REAL_FRAME_COLOR,
+            linewidth=1.6,
             linestyle="-",
-            label="Observed",
+            label="Real slice",
         ),
+        Line2D(
+            [0], [0],
+            color=VIRTUAL_FRAME_COLOR,
+            linewidth=1.6,
+            linestyle=DASHED_STYLE,
+            label="Virtual slice",
+        ),
+    ]
+
+    domain_handles = [
         Line2D(
             [0],
             [0],
-            color=FRAME_COLOR,
-            linewidth=1.8,
-            linestyle=DASHED_STYLE,
-            label="Virtual",
-        ),
+            marker="o",
+            linestyle="",
+            markerfacecolor=LABEL_TO_COLOR[d],
+            markeredgecolor="none",
+            markersize=6.2,
+            label=f"Domain {d}",
+        )
+        for d in ALL_LABELS
     ]
-    ax.legend(
+
+    frame_legend = ax.legend(
         handles=frame_handles,
         loc="upper left",
-        bbox_to_anchor=(0.01, 0.99),
+        bbox_to_anchor=(0.98, 1.02),
         frameon=False,
+        fontsize=9.0,
+    )
+    ax.add_artist(frame_legend)
+
+    ax.legend(
+        handles=domain_handles,
+        loc="upper left",
+        bbox_to_anchor=(0.98, 0.90),
+        frameon=False,
+        fontsize=8.4,
+        ncol=2,
+        title="Spatial domains",
+        title_fontsize=9.5,
+        handletextpad=0.4,
+        columnspacing=0.9,
     )
 
-    fig.tight_layout()
-    save_path = os.path.join(
-        outdir,
-        "figure7_3d_mirrored_time_stack.png",
+    ax.set_title(
+        "Real and virtual tissues along the time axis",
+        pad=18,
+        fontsize=15,
+        fontweight="bold",
     )
-    finalize_figure(fig, save_path)
+
+    draw_horizontal_time_scaffold(
+        fig,
+        ax,
+        ordered,
+        time_positions,
+        get_mirrored_extent(),
+        title_label="Age",
+    )
+
+    finalize_figure(
+        fig,
+        os.path.join(outdir, "figure3_all_mirrored_3d_left_to_right_hanging.png"),
+    )
 
 
 # ============================================================
-# RUN ALL
+# RUN
 # ============================================================
 def run_all() -> None:
     ensure_dir(OUTDIR)
+
     real_records, virtual_records = load_all_slices()
     all_records = sorted(real_records + virtual_records, key=lambda r: r.age)
 
-    # plot_figure1_real_stacks(real_records, OUTDIR)
-    # plot_figure2_all_stacks(all_records, OUTDIR)
-    # plot_figure3_mirrored_stack(all_records, OUTDIR)
+    plot_figure1_real_gene_stack(real_records, OUTDIR)
+    plot_figure2_real_mirrored_stack(real_records, virtual_records, OUTDIR)
+    plot_figure3_all_mirrored_stack(all_records, OUTDIR)
 
-    # plot_mirrored_grid(
-    #     records=real_records,
-    #     save_path=os.path.join(OUTDIR, "figure4_real_slices_mirrored_grid.png"),
-    #     title="Observed real slices | Mirrored gene and domain views",
-    # )
-
-    per_panel_selected_domains = {
-        "4.1m": None,
-        "11.8m": HIGHLIGHT_118,
-    }
-    per_panel_legend = {
-        "4.1m": {
-            "labels": ALL_LABELS,
-            "include_other": False,
-            "title": "All domains",
-        },
-        "11.8m": {
-            "groups": [
-                {
-                    "name": "Cortex",
-                    "labels": [1, 4, 6, 9,10],
-                },
-                {
-                    "name": "Hippocampus",
-                    "labels": [8, 11],
-                },
-                {
-                    "name": "Thalamus",
-                    "labels": [0],
-                },
-                {
-                    "name": "Hypothalamus",
-                    "labels": [3],
-                },
-
-            ],
-            "include_other": True,
-            "other_label": "Other domains",
-            "title": None,
-        },
-    }
-    plot_mirrored_grid(
-        records=virtual_records,
-        save_path=os.path.join(OUTDIR, "figure5_virtual_slices_mirrored_grid.png"),
-        title="Virtual slices | Mirrored gene and domain views",
-        per_panel_selected_domains=per_panel_selected_domains,
-        per_panel_legend=per_panel_legend,
-    )
-
-    if GENERATE_3D_SEPARATE_STACK:
-        plot_figure6_3d_time_stack(
-            records=all_records,
-            outdir=OUTDIR,
-        )
-
-    if GENERATE_3D_MIRRORED_STACK:
-        plot_figure7_3d_mirrored_time_stack(
-            records=all_records,
-            outdir=OUTDIR,
-        )
-
-    print(f"[DONE] Figures saved to: {OUTDIR}")
+    print(f"[DONE] Figures written/displayed from: {OUTDIR}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate mouse-time pipeline figures."
+        description=(
+            "Generate left-to-right 3D mouse time-pipeline figures with a "
+            "screen-horizontal timeline and hanging spatial maps."
+        )
     )
     parser.add_argument(
         "--figure-mode",
         choices=["save", "show", "both"],
         default=FIGURE_MODE,
+        help="Figure handling mode.",
+    )
+    parser.add_argument(
+        "--gene",
+        default=GENE_NAME,
+        help="Marker gene to visualize.",
+    )
+    parser.add_argument(
+        "--time-scale",
+        type=float,
+        default=TIME_SCALE_PER_MONTH,
         help=(
-            "Figure handling: 'save' writes files only; "
-            "'show' displays figures only; "
-            "'both' writes and displays every figure."
+            "World-X distance per month. Larger values increase left-to-right "
+            "age separation between tissue planes."
         ),
+    )
+    # Backward-compatible alias for scripts/commands using the old option.
+    parser.add_argument(
+        "--z-scale",
+        type=float,
+        dest="time_scale_alias",
+        default=None,
+        help="Backward-compatible alias for --time-scale.",
+    )
+    parser.add_argument(
+        "--spatial-display-scale",
+        type=float,
+        default=SPATIAL_DISPLAY_SCALE,
+        help=(
+            "Uniform display scaling of the spatial Y/Z planes relative to "
+            "temporal X. Smaller values make the hanging maps more compact."
+        ),
+    )
+    parser.add_argument(
+        "--virtual-support-grid-lw",
+        type=float,
+        default=VIRTUAL_SUPPORT_GRID_LW,
+        help=(
+            "Line width used for the 256x256 virtual spatial-support grid shown in Figure 2."
+        ),
+    )
+    parser.add_argument(
+        "--mirror-center-fold",
+        type=float,
+        default=MIRROR_CENTER_FOLD,
+        help="Shift mirrored gene/domain halves inward to reduce center margin.",
+    )
+    parser.add_argument(
+        "--view-elev",
+        type=float,
+        default=VIEW_ELEV,
+        help="3D elevation for spatial-map viewing. Timeline remains horizontal.",
+    )
+    parser.add_argument(
+        "--view-azim",
+        type=float,
+        default=VIEW_AZIM,
+        help="3D azimuth for spatial-map viewing. Timeline remains horizontal.",
+    )
+    parser.add_argument(
+        "--view-roll",
+        type=float,
+        default=VIEW_ROLL,
+        help="Optional 3D spatial-map roll. Timeline remains horizontal.",
+    )
+    parser.add_argument(
+        "--timeline-clearance",
+        type=float,
+        default=TIMELINE_CLEARANCE_FIG,
+        help="Figure-fraction vertical clearance between map anchors and timeline.",
     )
     args = parser.parse_args()
 
     globals()["FIGURE_MODE"] = args.figure_mode
-    print(f"[INFO] Figure mode: {FIGURE_MODE}")
+    globals()["GENE_NAME"] = args.gene
+    globals()["TIME_SCALE_PER_MONTH"] = float(
+        args.time_scale_alias if args.time_scale_alias is not None else args.time_scale
+    )
+    globals()["SPATIAL_DISPLAY_SCALE"] = float(args.spatial_display_scale)
+    globals()["VIRTUAL_SUPPORT_GRID_LW"] = float(args.virtual_support_grid_lw)
+    globals()["MIRROR_CENTER_FOLD"] = float(args.mirror_center_fold)
+    globals()["VIEW_ELEV"] = float(args.view_elev)
+    globals()["VIEW_AZIM"] = float(args.view_azim)
+    globals()["VIEW_ROLL"] = float(args.view_roll)
+    globals()["TIMELINE_CLEARANCE_FIG"] = float(args.timeline_clearance)
+
+    print(f"[INFO] FIGURE_MODE = {FIGURE_MODE}")
+    print(f"[INFO] GENE_NAME = {GENE_NAME}")
+    print(f"[INFO] TIME_SCALE_PER_MONTH = {TIME_SCALE_PER_MONTH}")
+    print(f"[INFO] SPATIAL_DISPLAY_SCALE = {SPATIAL_DISPLAY_SCALE}")
+    print(f"[INFO] VIRTUAL_SUPPORT_GRID_LW = {VIRTUAL_SUPPORT_GRID_LW}")
+    print(f"[INFO] MIRROR_CENTER_FOLD = {MIRROR_CENTER_FOLD}")
+    print(f"[INFO] VIEW_ELEV = {VIEW_ELEV}")
+    print(f"[INFO] VIEW_AZIM = {VIEW_AZIM}")
+    print(f"[INFO] VIEW_ROLL = {VIEW_ROLL}")
+    print(f"[INFO] TIMELINE_CLEARANCE_FIG = {TIMELINE_CLEARANCE_FIG}")
 
     run_all()
 

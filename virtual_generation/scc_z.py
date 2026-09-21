@@ -571,7 +571,7 @@ AXIS_POSITIONS = {
 
 # instead of one fixed global pair, provide all candidate anchors
 
-# plot_axis_kernel_weight_debug([10,310],250)
+plot_axis_kernel_weight_debug([10,300],300)
 
 # analysis mode uses one fixed reference slice/grid
 ANALYSIS_REFERENCE_ANCHOR_ID = 1
@@ -598,7 +598,7 @@ RADIUS = None
 
 # gene generation
 GENE_MODE = "mean"
-N_PROGRAMS = 64
+
 
 # optional attributes
 USE_ATTRIBUTES = True

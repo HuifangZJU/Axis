@@ -2,21 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-Protein–gene differential visualization with globally-computed marker-correlation
-heatmap + aligned protein–gene dotplot.
+Protein–gene differential visualization with protein–protein correlation maps
+and protein–gene differential dotplots saved as separate figures.
 
-Main revision
--------------
-The marker-correlation map is now computed from the FULL gene universe for the
-displayed protein markers, rather than only the displayed top genes. This makes
-the protein-module structure much less selection-biased and more defensible.
-
-Compared with the previous version, this script:
-1. Uses all genes for marker–marker correlation and clustering.
-2. Still displays only the selected protein markers in the final figure.
-3. Keeps the combined heatmap + dotplot strictly column-aligned in a single plot.
-4. Restores gene-block separators and improves figure readability.
-5. Adds optional protein-module separators based on the clustered correlation map.
+Design
+------
+1. Input and output folders are configured independently.
+2. Protein–protein correlation is computed from the FULL gene universe.
+3. Protein–protein correlation maps and protein–gene dotplots are saved
+   separately; no combined heatmap+dotplot figure is generated.
+4. Four main figures are produced:
+   - full protein correlation map
+   - full proteins with top marker genes
+   - marker protein correlation map
+   - marker proteins with top marker genes
+5. Dotplot gene and protein annotations are italicized.
 
 Expected input RDS columns
 --------------------------
@@ -32,7 +32,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
-from matplotlib import cm
 import seaborn as sns
 import pyreadr
 
@@ -41,6 +40,13 @@ from scipy.spatial.distance import pdist
 
 
 DEFAULT_PROTEIN_MARKERS = ["CD8", "CD20", "CD68", "a.SMA", "IDO1", "NKX2-1", "CXCL13", "E-cadherin"]
+
+INPUT_FOLDER = "/media/huifang/data/registration/phenocycler/haotian/"
+OUTPUT_FOLDER = (
+    "/media/huifang/data/registration/paper_analysis/"
+    "Figure7_modality/d_differential_dotplot/"
+)
+
 
 
 # ============================================================
@@ -373,32 +379,7 @@ def map_sizes(values, smin=24, smax=220):
     return smin + (vv - lo) * (smax - smin) / (hi - lo)
 
 
-def add_gene_block_separators(ax, block_ranges: Sequence[Tuple[str, int, int]], n_markers: int, n_genes: int):
-    for marker, start, end in block_ranges:
-        if start > 0:
-            yline = n_genes - start - 0.5
-            ax.axhline(y=yline, color="0.70", lw=0.8, alpha=0.9)
-        if marker != "leftover":
-            y_center = n_genes - (start + end - 1) / 2.0 - 1.0
-            ax.text(
-                n_markers + 0.18,
-                y_center,
-                marker,
-                va="center",
-                ha="left",
-                fontsize=8,
-                color="0.35",
-            )
 
-
-def module_boundaries(module_labels: np.ndarray) -> List[int]:
-    bounds = []
-    if len(module_labels) <= 1:
-        return bounds
-    for i in range(1, len(module_labels)):
-        if module_labels[i] != module_labels[i - 1]:
-            bounds.append(i)
-    return bounds
 
 
 def plot_marker_correlation_heatmap(corr: pd.DataFrame, out_png: str, title: str):
@@ -435,7 +416,7 @@ def dotplot_on_axis(
     gene_order: Sequence[str],
     block_ranges: Sequence[Tuple[str, int, int]],
     title: str,
-    cmap: str = "coolwarm",
+    cmap: str = "vlag",
     vmax_percentile: float = 95,
     sig_outline_fdr: float = 0.05,
 ):
@@ -489,14 +470,20 @@ def dotplot_on_axis(
     ax.set_xticklabels(marker_order, rotation=45, ha="right", fontsize=9)
     ax.set_yticks(np.arange(len(gene_order)))
     ax.set_yticklabels(y_display_order, fontsize=8)
+
+    # Italicize displayed protein and gene annotations.
+    for tick_label in ax.get_xticklabels():
+        tick_label.set_fontstyle("italic")
+    for tick_label in ax.get_yticklabels():
+        tick_label.set_fontstyle("italic")
+
     ax.set_xlim(-0.5, len(marker_order) - 0.5)
     ax.set_ylim(-0.5, len(gene_order) - 0.5)
     ax.set_axisbelow(True)
     ax.grid(which="major", axis="both", linestyle=":", alpha=0.16)
-    ax.set_xlabel("Protein markers")
-    ax.set_ylabel("Genes")
+    ax.set_xlabel("Protein markers",weight="bold")
+    ax.set_ylabel("Gene markers",weight="bold")
     ax.set_title(title, pad=8)
-    add_gene_block_separators(ax, block_ranges, len(marker_order), len(gene_order))
     return sc
 
 def plot_dotplot_only(
@@ -508,10 +495,10 @@ def plot_dotplot_only(
     title: str,
     sig_outline_fdr: float = 0.05,
 ):
-    W = max(8.5, 0.34 * len(marker_order) + 4.0)
+    W = max(3.5, 0.25 * len(marker_order) + 2.0)
     H = max(7.2, 0.16 * len(gene_order) + 3.1)
 
-    fig, ax = plt.subplots(figsize=(W, H), dpi=300)
+    fig, ax = plt.subplots(figsize=(W, H), dpi=400)
     sc = dotplot_on_axis(
         ax=ax,
         df_plot=df_plot,
@@ -521,222 +508,67 @@ def plot_dotplot_only(
         title=title,
         sig_outline_fdr=sig_outline_fdr,
     )
-    cbar = fig.colorbar(sc, ax=ax, fraction=0.024, pad=0.02)
+    cbar = fig.colorbar(
+        sc,
+        ax=ax,
+        fraction=0.05,
+        pad=0.06,
+    )
     cbar.set_label("logFC")
 
+    # Move colorbar downward.
+    cbar_pos = cbar.ax.get_position()
+    cbar.ax.set_position([
+        cbar_pos.x0,
+        cbar_pos.y0 - 0.1,  # larger value -> move farther down
+        cbar_pos.width,
+        cbar_pos.height,
+    ])
+
     ref = np.nanpercentile(df_plot["AveExpr"], [20, 50, 80])
     ref_sizes = map_sizes(ref, smin=24, smax=220)
+
     handles = [
-        ax.scatter([], [], s=ref_sizes[i], c="gray", alpha=0.7, label=f"AveExpr≈{ref[i]:.2g}")
-        for i in range(len(ref))
-    ]
-    handles.append(
-        ax.scatter([], [], s=78, facecolors="white", edgecolors="black", linewidths=0.7,
-                   label=f"adj.P.Val≤{sig_outline_fdr:g}")
-    )
-    ax.legend(
-        handles=handles,
-        title="Dot encoding",
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1.0),
-        frameon=False,
-    )
-
-    fig.savefig(out_png, bbox_inches="tight")
-    plt.close(fig)
-
-
-def plot_combined_corr_dotplot_single_axis(
-    corr: pd.DataFrame,
-    df_plot: pd.DataFrame,
-    marker_order: Sequence[str],
-    gene_order: Sequence[str],
-    block_ranges: Sequence[Tuple[str, int, int]],
-    module_labels: np.ndarray,
-    out_png: str,
-    title: str,
-    sig_outline_fdr: float = 0.05,
-    gap_rows: float = 1.8,
-):
-    """
-    Combined figure in one main axis:
-    - top: marker-correlation heatmap
-    - bottom: protein-gene dotplot
-    Columns are exactly aligned.
-    """
-    marker_order = list(marker_order)
-    gene_order = list(gene_order)
-    n_markers = len(marker_order)
-    n_genes = len(gene_order)
-
-    x_map = {m: i for i, m in enumerate(marker_order)}
-    y_display_order = gene_order[::-1]
-    y_map = {g: i for i, g in enumerate(y_display_order)}
-
-    d = df_plot.copy()
-    d = d[d["marker"].isin(marker_order) & d["gene"].isin(gene_order)].copy()
-    d["x"] = d["marker"].map(x_map)
-    d["y"] = d["gene"].map(y_map)
-    d = d.dropna(subset=["x", "y", "logFC", "AveExpr", "adj.P.Val"]).copy()
-
-    x = d["x"].to_numpy(dtype=int)
-    y = d["y"].to_numpy(dtype=float)
-    logfc = d["logFC"].to_numpy(dtype=float)
-    ave = d["AveExpr"].to_numpy(dtype=float)
-    sig = d["adj.P.Val"].to_numpy(dtype=float) <= sig_outline_fdr
-
-    vmax = np.nanpercentile(np.abs(logfc), 97)
-    if not np.isfinite(vmax) or vmax == 0:
-        vmax = max(float(np.nanmax(np.abs(logfc))), 1.0)
-    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
-    sizes = map_sizes(ave, smin=24, smax=220)
-
-    corr_use = corr.loc[marker_order, marker_order].copy()
-    corr_plot = corr_use.iloc[::-1].to_numpy(dtype=float)
-
-    y_heat_start = n_genes + gap_rows
-    y_heat_end = y_heat_start + n_markers - 1
-
-    W = max(3.8, 0.55 * n_markers )
-    H = max(8.8, 0.17 * (n_genes + n_markers) + 2.6)
-
-    fig = plt.figure(figsize=(W, H), dpi=300)
-    ax = fig.add_axes([0.08, 0.08, 0.66, 0.84])
-
-    # Heatmap
-    im_corr = ax.imshow(
-        corr_plot,
-        cmap="vlag",
-        vmin=-1,
-        vmax=1,
-        origin="lower",
-        extent=(-0.5, n_markers - 0.5, y_heat_start - 0.5, y_heat_end + 0.5),
-        interpolation="nearest",
-        aspect="auto",
-        zorder=1,
-    )
-
-    # heatmap grid
-    for i in range(n_markers + 1):
-        ax.plot([i - 0.5, i - 0.5], [y_heat_start - 0.5, y_heat_end + 0.5],
-                color="white", lw=0.45, alpha=0.85, zorder=2)
-        ax.plot([-0.5, n_markers - 0.5], [y_heat_start - 0.5 + i, y_heat_start - 0.5 + i],
-                color="white", lw=0.45, alpha=0.85, zorder=2)
-
-    # module separators across both panels
-    bounds = module_boundaries(module_labels)
-    for b in bounds:
-        xb = b - 0.5
-        ax.axvline(xb, color="0.25", lw=1.3, alpha=0.95, zorder=5)
-
-    # faint grid only for dotplot region
-    for xi in range(n_markers + 1):
-        ax.plot([xi - 0.5, xi - 0.5], [-0.5, n_genes - 0.5], color="0.92", lw=0.55, zorder=0)
-    for yi in range(n_genes + 1):
-        ax.plot([-0.5, n_markers - 0.5], [yi - 0.5, yi - 0.5], color="0.94", lw=0.40, zorder=0)
-
-    # Dotplot
-    m0 = ~sig
-    ax.scatter(
-        x[m0], y[m0],
-        c=np.clip(logfc[m0], -vmax, vmax),
-        s=sizes[m0],
-        cmap="coolwarm",
-        norm=norm,
-        linewidths=0.0,
-        alpha=0.93,
-        zorder=3,
-    )
-    sc = ax.scatter(
-        x[sig], y[sig],
-        c=np.clip(logfc[sig], -vmax, vmax),
-        s=sizes[sig],
-        cmap="coolwarm",
-        norm=norm,
-        linewidths=0.55,
-        edgecolors="black",
-        alpha=0.98,
-        zorder=4,
-    )
-
-    # gene block separators
-    add_gene_block_separators(ax, block_ranges, n_markers, n_genes)
-
-    # panel separator line
-    sep_y = n_genes + gap_rows / 2.0 - 0.5
-    ax.axhline(sep_y, color="0.35", lw=1.0, alpha=0.9)
-
-    # colored module strip just above heatmap
-    unique_mods = list(dict.fromkeys(module_labels.tolist()))
-    palette = sns.color_palette("Set2", n_colors=max(len(unique_mods), 3))
-    mod_to_color = {m: palette[i % len(palette)] for i, m in enumerate(unique_mods)}
-    strip_y0 = y_heat_end + 0.18
-    strip_y1 = y_heat_end + 0.60
-    for i, lab in enumerate(module_labels):
-        ax.add_patch(
-            plt.Rectangle((i - 0.5, strip_y0), 1.0, strip_y1 - strip_y0,
-                          facecolor=mod_to_color[lab], edgecolor="none", alpha=0.95, zorder=6)
+        ax.scatter(
+            [], [],
+            s=ref_sizes[i],
+            c="gray",
+            alpha=0.7,
+            label=f"AveExpr≈{ref[i]:.2g}",
         )
-
-    # text panel labels
-    ax.text((n_markers - 1) / 2.0, y_heat_end + 1.1,
-            "Marker–marker correlation (computed from full gene universe)",
-            ha="center", va="bottom", fontsize=12)
-    ax.text((n_markers - 1) / 2.0, n_genes + 0.15,
-            "Protein–gene differential dotplot",
-            ha="center", va="bottom", fontsize=12)
-
-    # axes ticks
-    ax.set_xticks(np.arange(n_markers))
-    ax.set_xticklabels(marker_order, rotation=45, ha="right", fontsize=10)
-
-    heatmap_row_labels_bottom_to_top = list(corr_use.index[::-1])
-    y_ticks_bottom = np.arange(n_genes)
-    y_ticks_top = np.arange(n_markers) + y_heat_start
-    ax.set_yticks(list(y_ticks_bottom) + list(y_ticks_top))
-    ax.set_yticklabels(y_display_order + heatmap_row_labels_bottom_to_top, fontsize=8)
-
-    # color protein labels by module
-    for tick, lab in zip(ax.get_xticklabels(), module_labels):
-        tick.set_color(mod_to_color[lab])
-        tick.set_fontweight("bold")
-
-    ax.set_xlim(-0.5, n_markers - 0.5)
-    ax.set_ylim(-0.5, y_heat_end + 1.4)
-    ax.set_xlabel("Protein markers")
-    ax.set_ylabel("")
-    ax.set_title(title, pad=16, fontsize=15)
-
-    # colorbars
-    cax1 = fig.add_axes([0.77, 0.56, 0.022, 0.33])
-    cb1 = fig.colorbar(im_corr, cax=cax1)
-    cb1.set_label("Marker–marker correlation", fontsize=10)
-
-    cax2 = fig.add_axes([0.77, 0.18, 0.022, 0.22])
-    cb2 = fig.colorbar(sc, cax=cax2)
-    cb2.set_label("logFC", fontsize=10)
-
-    # dot legend
-    ref = np.nanpercentile(df_plot["AveExpr"], [20, 50, 80])
-    ref_sizes = map_sizes(ref, smin=24, smax=220)
-    handles = [
-        ax.scatter([], [], s=ref_sizes[i], c="gray", alpha=0.7, label=f"AveExpr≈{ref[i]:.2g}")
         for i in range(len(ref))
     ]
+
     handles.append(
-        ax.scatter([], [], s=78, facecolors="white", edgecolors="black", linewidths=0.7,
-                   label=f"adj.P.Val≤{sig_outline_fdr:g}")
+        ax.scatter(
+            [], [],
+            s=78,
+            facecolors="white",
+            edgecolors="black",
+            linewidths=0.7,
+            label=f"adj.P.Val≤{sig_outline_fdr:g}",
+        )
     )
+
     ax.legend(
         handles=handles,
         title="Dot encoding",
         loc="upper left",
-        bbox_to_anchor=(1.01, 0.52),
+        bbox_to_anchor=(1.02, 0.9),
         frameon=False,
+
+        # Main control for vertical distance between legend rows.
+        labelspacing=1.,
+
+        # Optional spacing refinements.
+        handletextpad=1.0,
+        borderaxespad=0.0,
     )
 
     fig.savefig(out_png, bbox_inches="tight")
     plt.close(fig)
+
+
 
 
 # ============================================================
@@ -752,6 +584,8 @@ def run_panel_analysis(
     out_prefix: str,
     out_dir: str,
     title_prefix: str,
+    corr_figure_name: str,
+    dotplot_figure_name: str,
 ):
     rank_df = rank_markers_by_directional_variability(df, fdr_thresh=fdr_thresh)
 
@@ -818,10 +652,12 @@ def run_panel_analysis(
         os.path.join(out_dir, f"gene_order_{out_prefix}.csv"), index=False
     )
 
+    # Protein–protein correlation and protein–gene differential signal are
+    # deliberately plotted as independent figures.
     plot_marker_correlation_heatmap(
         corr=corr,
-        out_png=os.path.join(out_dir, f"marker_corr_{out_prefix}.png"),
-        title=f"{title_prefix}: marker–marker correlation",
+        out_png=os.path.join(out_dir, corr_figure_name),
+        title=f"{title_prefix}: protein–protein correlation",
     )
 
     plot_dotplot_only(
@@ -829,22 +665,9 @@ def run_panel_analysis(
         marker_order=marker_order,
         gene_order=gene_order,
         block_ranges=block_ranges,
-        out_png=os.path.join(out_dir, f"dotplot_{out_prefix}.png"),
-        title=f"{title_prefix}: protein–gene differential dotplot",
+        out_png=os.path.join(out_dir, dotplot_figure_name),
+        title=f"{title_prefix}: proteins with top marker genes",
         sig_outline_fdr=fdr_thresh,
-    )
-
-    plot_combined_corr_dotplot_single_axis(
-        corr=corr,
-        df_plot=df_plot,
-        marker_order=marker_order,
-        gene_order=gene_order,
-        block_ranges=block_ranges,
-        module_labels=ordered_module_labels,
-        out_png=os.path.join(out_dir, f"marker_corr_dotplot_{out_prefix}.png"),
-        title=f"{title_prefix}: marker modules and protein–gene differential map",
-        sig_outline_fdr=fdr_thresh,
-        gap_rows=1.8,
     )
 
     return {
@@ -865,9 +688,17 @@ def main():
     setup_style()
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root_folder", default="/media/huifang/data/registration/phenocycler/haotian/")
+    ap.add_argument(
+        "--input_folder",
+        default=INPUT_FOLDER,
+        help="Folder containing the differential-analysis RDS input.",
+    )
     ap.add_argument("--in_rds", default="xenium_DE.rds")
-    ap.add_argument("--out_dir", default="de_dotplot_matrix_v6")
+    ap.add_argument(
+        "--output_folder",
+        default=OUTPUT_FOLDER,
+        help="Folder used only for generated tables and figures.",
+    )
     ap.add_argument("--topk_all", type=int, default=10)
     ap.add_argument("--topk_selected", type=int, default=10)
     ap.add_argument("--fdr_thresh", type=float, default=0.05)
@@ -875,16 +706,20 @@ def main():
     ap.add_argument("--preserve_selected_order", action="store_true")
     args = ap.parse_args()
 
-    out_dir = os.path.join(args.root_folder, args.out_dir)
+    # Input and output locations are intentionally independent.
+    in_path = os.path.join(args.input_folder, args.in_rds)
+    out_dir = os.path.abspath(args.output_folder)
     os.makedirs(out_dir, exist_ok=True)
 
-    in_path = os.path.join(args.root_folder, args.in_rds)
     print("[LOAD]", in_path)
+    print("[OUTPUT]", out_dir)
 
     df = read_rds_df(in_path)
     validate_columns(df)
     df = to_numeric_cols(df)
 
+    # 1. Full protein set: correlation map.
+    # 2. Full protein set: top marker genes dotplot.
     run_panel_analysis(
         df=df,
         markers_subset=None,
@@ -893,10 +728,18 @@ def main():
         fdr_thresh=args.fdr_thresh,
         out_prefix="all_markers",
         out_dir=out_dir,
-        title_prefix="All markers",
+        title_prefix="Full proteins",
+        corr_figure_name="full_protein_correlation_map.png",
+        dotplot_figure_name="full_protein_top_marker_genes.png",
     )
 
-    sel_markers = args.selected_markers if args.selected_markers is not None else DEFAULT_PROTEIN_MARKERS
+    # 3. Selected marker proteins: correlation map.
+    # 4. Selected marker proteins: top marker genes dotplot.
+    sel_markers = (
+        args.selected_markers
+        if args.selected_markers is not None
+        else DEFAULT_PROTEIN_MARKERS
+    )
     run_panel_analysis(
         df=df,
         markers_subset=sel_markers,
@@ -905,13 +748,15 @@ def main():
         fdr_thresh=args.fdr_thresh,
         out_prefix="selected_markers",
         out_dir=out_dir,
-        title_prefix="Selected markers",
+        title_prefix="Marker proteins",
+        corr_figure_name="marker_protein_correlation_map.png",
+        dotplot_figure_name="marker_protein_top_marker_genes.png",
     )
 
     print("[DONE] Results saved to:", out_dir)
-    print("Marker-correlation is now computed from the full gene universe for the displayed proteins.")
-    print("The displayed dotplot still uses the selected top genes only.")
-    print("The combined figure remains strictly column-aligned.")
+    print("Protein–protein correlation is computed from the full gene universe.")
+    print("Protein–gene dotplots display the selected top marker genes only.")
+    print("Correlation maps and dotplots are saved as separate figures.")
 
 
 if __name__ == "__main__":

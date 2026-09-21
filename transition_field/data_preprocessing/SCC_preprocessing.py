@@ -33,7 +33,7 @@ def load_scc_data(out_dir):
 
 
 
-# gen_scc_h5file()
+gen_scc_h5file()
 # print('all done')
 
 out_dir='/media/huifang/data/registration/SCC/huifang/'
@@ -43,6 +43,8 @@ for k, slices in patients.items():
     for sl in slices:
         sc.pp.filter_genes(sl, min_cells=15, inplace=True)
         sc.pp.filter_cells(sl, min_genes=100, inplace=True)
+        sc.pp.normalize_total(sl, target_sum=1e4)
+        sc.pp.log1p(sl)
     all_gene_lists = [sl.var.index for sl in slices]
     common_genes = reduce(np.intersect1d, all_gene_lists)
     # 2. Subset each slice to the common genes, gather coordinates & data

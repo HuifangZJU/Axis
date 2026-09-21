@@ -10,10 +10,19 @@ before any temporal subtraction or trend analysis.
 The streamlined workflow contains:
 1. Coordinate alignment and common-gene extraction.
 2. Per-domain temporal gene statistics and pattern fractions.
-3. Marker-gene spatial triptychs.
-4. Per-domain top-gene composition summaries.
-5. Cortical-layer and hippocampal representative spatial maps selected only
-   from the per-domain top-gene results.
+3. Persisted per-location spatial maps for selected marker genes.
+4. Marker-gene spatial triptychs.
+5. Per-domain top-gene composition summaries.
+6. Cortical-layer and hippocampal representative temporal-pattern maps selected
+   from the per-domain top-gene results. Each representative gene is saved as
+   an independent figure, with its region-level representative-pattern fraction
+   annotated with all region-present temporal trends in an in-plot bottom legend.
+
+For each gene listed in SPATIAL_MAP_GENES, evaluation also saves a compact NPZ
+under OUTDIR/spatial_maps/. The NPZ contains the exact matched coordinates,
+three preprocessed timepoint values, two spatial deltas, the per-location trend
+pattern, amplitude, domains, and observation names. This makes downstream
+pipeline plotting independent of the analysis code.
 
 Heatmap clustering, heatmap plotting, and their intermediate tables have been
 removed. In trend maps, every selected anatomical location is first plotted in
@@ -42,13 +51,13 @@ from spatial_delta_utils import extract_preprocessed_matrix
 # ============================================================
 # CONFIG
 # ============================================================
-OUTDIR = "/media/huifang/data/registration/paper_figure/Figure5_mouse_time/ghi/"
+OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure56_mouse/5ghi/"
 os.makedirs(OUTDIR, exist_ok=True)
 
 TIMEPOINTS = [
-    {"label": "2p5",  "time": 2.5,  "path": "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_2.500.h5ad"},
-    {"label": "5p7",  "time": 5.7,  "path": "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_5.700.h5ad"},
-    {"label": "17p9", "time": 17.9, "path": "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_17.900.h5ad"},
+    {"label": "2p5",  "time": 2.5,  "path": "/media/huifang/data/registration/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_2.500.h5ad"},
+    {"label": "5p7",  "time": 5.7,  "path": "/media/huifang/data/registration/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_5.700.h5ad"},
+    {"label": "17p9", "time": 17.9, "path": "/media/huifang/data/registration/mouse_brain/virtual_tissue/AD_time_grid256_spatial2.0/analysis/virtual_AD_time_17.900.h5ad"},
 ]
 
 COORD_KEY = "spatial"
@@ -57,6 +66,11 @@ DOMAIN_KEY = "axis_joint_domain"
 HIPPOCAMPUS_DOMAINS = ["8", "11"]
 CORTICAL_LAYER_DOMAINS = ["1", "4", "6", "10"]
 MARKER_CASE_GENES = ["Gfap", "Arc"]
+
+# Location-level products persisted for downstream plot-only pipelines.
+# By default this matches the marker genes used by plot_gene_triptych().
+SPATIAL_MAP_GENES = MARKER_CASE_GENES.copy()
+SPATIAL_MAP_DIRNAME = "spatial_maps"
 
 COORD_ROUND_DECIMALS = 4
 
@@ -407,6 +421,174 @@ def classify_location_pattern(v1: np.ndarray, v2: np.ndarray, v3: np.ndarray) ->
     pat[(d12 < -tau) & (d23 > tau)] = "Trough"
 
     return pat, amp.astype(np.float32)
+
+
+# ============================================================
+# PERSIST LOCATION-LEVEL SPATIAL MAPS
+# ============================================================
+def save_spatial_gene_maps(
+    data: List[AlignedTimepoint],
+    genes: Sequence[str],
+    outdir: str,
+) -> pd.DataFrame:
+    """
+    Save the per-location temporal products used by spatial plotting.
+
+    This function is intentionally part of the *evaluation* stage. It stores
+    the already-computed location-level products so later pipeline figures can
+    be strictly plot-only and do not need to repeat normalization, alignment,
+    subtraction, or temporal-pattern classification.
+
+    One compressed NPZ is written per requested gene with these arrays:
+
+        gene
+        coords
+        domains
+        obs_names
+        valid_domain_mask
+        times
+        time_labels
+        value_2p5
+        value_5p7
+        value_17p9
+        delta_5p7_minus_2p5
+        delta_17p9_minus_5p7
+        delta_17p9_minus_2p5
+        pattern
+        amplitude
+
+    The spatial rows are in exactly the same matched order as ``data[0]``.
+    """
+    if len(data) != 3:
+        raise ValueError(
+            f"Expected exactly three aligned timepoints, got {len(data)}."
+        )
+
+    ensure_dir(outdir)
+
+    genes_available = data[0].genes.astype(str).tolist()
+    gene_to_index = {gene: i for i, gene in enumerate(genes_available)}
+
+    coords = np.asarray(data[0].coords, dtype=np.float32)
+    domains = np.asarray(data[0].domains, dtype=str)
+    obs_names = np.asarray(data[0].obs_names, dtype=str)
+    valid_mask = valid_domain_mask(domains).astype(bool)
+
+    times = np.asarray([tp.time for tp in data], dtype=np.float32)
+    time_labels = np.asarray([tp.label for tp in data], dtype=str)
+
+    manifest_rows = []
+
+    for gene in genes:
+        gene = str(gene)
+
+        if gene not in gene_to_index:
+            print(f"[WARN] Spatial-map gene {gene!r} not found. Skip.")
+            continue
+
+        j = gene_to_index[gene]
+
+        value_1 = np.asarray(data[0].X[:, j], dtype=np.float32)
+        value_2 = np.asarray(data[1].X[:, j], dtype=np.float32)
+        value_3 = np.asarray(data[2].X[:, j], dtype=np.float32)
+
+        delta_12 = (value_2 - value_1).astype(np.float32)
+        delta_23 = (value_3 - value_2).astype(np.float32)
+        delta_13 = (value_3 - value_1).astype(np.float32)
+
+        patterns, amplitude = classify_location_pattern(
+            value_1,
+            value_2,
+            value_3,
+        )
+        patterns = np.asarray(patterns, dtype=str)
+        amplitude = np.asarray(amplitude, dtype=np.float32)
+
+        # Record the exact threshold used for this gene for provenance.
+        tau = max(
+            PATTERN_MIN_DELTA,
+            float(np.nanmedian(amplitude) * PATTERN_RELATIVE_FACTOR),
+        )
+
+        save_path = os.path.join(
+            outdir,
+            f"{safe_name(gene)}_spatial_temporal_map.npz",
+        )
+
+        np.savez_compressed(
+            save_path,
+            gene=np.asarray(gene),
+            coords=coords,
+            domains=domains,
+            obs_names=obs_names,
+            valid_domain_mask=valid_mask,
+            times=times,
+            time_labels=time_labels,
+            value_2p5=value_1,
+            value_5p7=value_2,
+            value_17p9=value_3,
+            delta_5p7_minus_2p5=delta_12,
+            delta_17p9_minus_5p7=delta_23,
+            delta_17p9_minus_2p5=delta_13,
+            pattern=patterns,
+            amplitude=amplitude,
+            pattern_threshold=np.asarray(tau, dtype=np.float32),
+            normalization_target_sum=np.asarray(
+                NORMALIZATION_TARGET_SUM,
+                dtype=np.float32,
+            ),
+            library_size_normalize=np.asarray(
+                LIBRARY_SIZE_NORMALIZE,
+                dtype=bool,
+            ),
+            log1p_before_analysis=np.asarray(
+                LOG1P_BEFORE_ANALYSIS,
+                dtype=bool,
+            ),
+        )
+
+        unique_patterns, pattern_counts = np.unique(
+            patterns,
+            return_counts=True,
+        )
+        count_map = dict(zip(unique_patterns.tolist(), pattern_counts.tolist()))
+
+        manifest_rows.append({
+            "gene": gene,
+            "file": save_path,
+            "n_locations": int(len(coords)),
+            "n_valid_domain_locations": int(valid_mask.sum()),
+            "pattern_threshold": float(tau),
+            "n_increasing": int(count_map.get("Increasing", 0)),
+            "n_decreasing": int(count_map.get("Decreasing", 0)),
+            "n_peak": int(count_map.get("Peak", 0)),
+            "n_trough": int(count_map.get("Trough", 0)),
+            "n_mixed": int(count_map.get("Mixed", 0)),
+        })
+
+        print(f"[SAVE] Spatial map {gene}: {save_path}")
+
+    manifest_df = pd.DataFrame(manifest_rows)
+    manifest_path = os.path.join(outdir, "spatial_maps_manifest.csv")
+    manifest_df.to_csv(manifest_path, index=False)
+    print(f"[SAVE] Spatial-map manifest: {manifest_path}")
+
+    return manifest_df
+
+
+def load_saved_spatial_gene_map(
+    path: str,
+) -> dict:
+    """
+    Lightweight loader for downstream plot-only scripts.
+
+    No analysis is performed here; arrays are returned exactly as persisted.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+
+    payload = np.load(path, allow_pickle=False)
+    return {key: payload[key] for key in payload.files}
 
 
 # ============================================================
@@ -1106,17 +1288,37 @@ def plot_all_domains_top_genes_summary(
             ax.set_yticklabels(
                 dfd["gene"]
                 .astype(str)
-                .tolist()
-            )
+                .tolist(),
+                fontsize=14
 
-            ax.set_title(
-                f"Domain {dom}",
-                fontsize=13,
-                pad=8,
             )
+            for tick_label in ax.get_yticklabels():
+                tick_label.set_fontstyle("italic")
+            if dom in ["1","4","6","10"]:
+                ax.set_title(
+                    f"Cortex | Domain {dom}",
+                    fontsize=18,
+                    pad=8,
+                )
+            elif dom in ["8","11"]:
+                ax.set_title(
+                    f"Hippocampus | Domain {dom}",
+                    fontsize=18,
+                    pad=8,
+                    x=0.5,
+                    ha="center",
+                )
+            else:
+                ax.set_title(
+                    f"Domain {dom}",
+                    fontsize=18,
+                    pad=8,
+                )
+
 
             ax.set_xlabel(
-                "Fraction of matched locations"
+                "Fraction of locations",
+                fontsize=12
             )
 
             # Keep the actual stacked-bar scale at [0, 1].
@@ -1132,35 +1334,35 @@ def plot_all_domains_top_genes_summary(
             # change the effective PNG bounding box.
             # ----------------------------------------------------------
 
-            for i, (_, row) in enumerate(dfd.iterrows()):
-                d12 = pd.to_numeric(
-                    row["mean_delta_5p7_minus_2p5"],
-                    errors="coerce",
-                )
-
-                d23 = pd.to_numeric(
-                    row["mean_delta_17p9_minus_5p7"],
-                    errors="coerce",
-                )
-
-                annotation = (
-                    f"Δ12={d12:.2f}, "
-                    f"Δ23={d23:.2f}"
-                )
-
-                bar_end = float(left[i])
-
-                ax.text(
-                    bar_end + 0.015,
-                    i,
-                    annotation,
-                    va="center",
-                    ha="left",
-                    fontsize=8,
-                    color="0.35",
-                    transform=ax.transData,
-                    clip_on=False,
-                )
+            # for i, (_, row) in enumerate(dfd.iterrows()):
+            #     d12 = pd.to_numeric(
+            #         row["mean_delta_5p7_minus_2p5"],
+            #         errors="coerce",
+            #     )
+            #
+            #     d23 = pd.to_numeric(
+            #         row["mean_delta_17p9_minus_5p7"],
+            #         errors="coerce",
+            #     )
+            #
+            #     annotation = (
+            #         f"Δ12={d12:.2f}, "
+            #         f"Δ23={d23:.2f}"
+            #     )
+            #
+            #     bar_end = float(left[i])
+            #
+            #     ax.text(
+            #         bar_end + 0.015,
+            #         i,
+            #         annotation,
+            #         va="center",
+            #         ha="left",
+            #         fontsize=10,
+            #         color="0.35",
+            #         transform=ax.transData,
+            #         clip_on=False,
+            #     )
 
             # Optional visual guide for 100%
             ax.axvline(
@@ -1177,16 +1379,16 @@ def plot_all_domains_top_genes_summary(
         # ==============================================================
         # Shared legend within fixed figure canvas
         # ==============================================================
-
-        fig.legend(
-            handles=handles,
-            loc="upper center",
-            ncol=len(plotted_patterns),
-            frameon=False,
-            bbox_to_anchor=(0.5, 0.985),
-            columnspacing=1.0,
-            handlelength=1.3,
-        )
+        #
+        # fig.legend(
+        #     handles=handles,
+        #     loc="upper center",
+        #     ncol=len(plotted_patterns),
+        #     frameon=False,
+        #     bbox_to_anchor=(0.5, 0.985),
+        #     columnspacing=1.0,
+        #     handlelength=1.3,
+        # )
 
         # Reserve:
         # left   -> gene names
@@ -1195,8 +1397,8 @@ def plot_all_domains_top_genes_summary(
         #
         # Fixed margins make all saved PNG dimensions identical.
         fig.subplots_adjust(
-            left=0.2,
-            right=0.72,
+            left=0.3,
+            right=0.9,
             bottom=0.15,
             top=0.85,
         )
@@ -1590,25 +1792,27 @@ def _select_region_representatives_from_top_domain_genes(
 
 
 REGION_PLOT_CONFIG = {
-    "cortical_layers": {
-        "group_name": "Cortical layers",
+    "cortex": {
+        "group_name": "Cortex",
         "group_domains": ["1", "4", "6", "10"],
         "point_size": 10,
-        "xlim": None,   # e.g. (200, 900)
-        "ylim": None,   # e.g. (900, 200) if your plotting funcs do not invert y
-        "figsize": (18.0, 10.8),   # 3 x 4 layout
+        "xlim": None,
+        "ylim": None,
+        "figsize": (4.8, 4.5),
         "equal_aspect": True,
     },
     "hippocampus": {
         "group_name": "Hippocampus",
         "group_domains": ["8", "11"],
         "point_size": 14,
-        "xlim": None,   # e.g. (300, 760)
-        "ylim": None,   # e.g. (760, 260)
-        "figsize": (18.0, 10.8),   # still 3 x 4 layout
+        "xlim": None,
+        "ylim": None,
+        "figsize": (4.8, 4.5),
         "equal_aspect": True,
     },
 }
+
+
 def _apply_axis_style(
     ax,
     xlim: Optional[Tuple[float, float]] = None,
@@ -1623,7 +1827,123 @@ def _apply_axis_style(
         ax.set_aspect("equal", adjustable="box")
 
 
-def _plot_region_pattern_gene_panel(
+def _region_pattern_fractions(
+    patterns: np.ndarray,
+    group_mask: np.ndarray,
+) -> dict:
+    """Return pooled region-level fractions for every temporal pattern present."""
+    pattern_order = ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
+    patterns = np.asarray(patterns, dtype=object)
+    group_mask = np.asarray(group_mask, dtype=bool)
+    valid = group_mask & pd.notna(patterns)
+
+    if not np.any(valid):
+        return {pattern: np.nan for pattern in pattern_order}
+
+    region_patterns = patterns[valid]
+    return {
+        pattern: float(np.mean(region_patterns == pattern))
+        for pattern in pattern_order
+    }
+
+
+def _hex_to_rgba01(color, alpha: float = 1.0) -> np.ndarray:
+    rgba = np.array(plt.matplotlib.colors.to_rgba(color), dtype=float)
+    rgba[3] = float(alpha)
+    return rgba
+
+
+
+def _render_pattern_pixel_image(
+    coords: np.ndarray,
+    patterns: np.ndarray,
+    mask: np.ndarray,
+    background_color: str = BG_COLOR,
+) -> tuple:
+    """Render selected locations as a pixel-based RGBA image on the regularized grid."""
+    coords = np.asarray(coords, dtype=float)
+    patterns = np.asarray(patterns, dtype=object)
+    mask = np.asarray(mask, dtype=bool)
+
+    valid = mask & np.all(np.isfinite(coords[:, :2]), axis=1)
+    coords_valid = coords[valid, :2]
+    patterns_valid = patterns[valid]
+    if coords_valid.shape[0] == 0:
+        raise ValueError("No valid selected locations available for pixel rendering.")
+
+    x_vals = np.unique(np.round(coords_valid[:, 0], 8))
+    y_vals = np.unique(np.round(coords_valid[:, 1], 8))
+    x_vals.sort()
+    y_vals.sort()
+
+    x_to_col = {value: idx for idx, value in enumerate(x_vals)}
+    y_to_row = {value: idx for idx, value in enumerate(y_vals)}
+
+    image = np.ones((len(y_vals), len(x_vals), 4), dtype=float)
+    image[..., :] = _hex_to_rgba01("white", alpha=1.0)
+
+    for (x, y), pattern in zip(coords_valid, patterns_valid):
+        col = x_to_col[np.round(x, 8)]
+        row = y_to_row[np.round(y, 8)]
+        color = background_color if pattern == "Mixed" else PATTERN_COLORS.get(pattern, background_color)
+        image[row, col, :] = _hex_to_rgba01(color, alpha=1.0)
+
+    dx = float(np.median(np.diff(x_vals))) if len(x_vals) > 1 else 1.0
+    dy = float(np.median(np.diff(y_vals))) if len(y_vals) > 1 else 1.0
+    extent = (
+        float(x_vals.min() - dx / 2.0),
+        float(x_vals.max() + dx / 2.0),
+        float(y_vals.min() - dy / 2.0),
+        float(y_vals.max() + dy / 2.0),
+    )
+    return image, extent
+
+
+
+def _ordered_region_legend_items(fractions: dict) -> list:
+    """Order directional trend legend items by descending regional fraction."""
+    primary_patterns = ["Increasing", "Decreasing", "Peak", "Trough"]
+    items = []
+    for pattern in primary_patterns:
+        frac = fractions.get(pattern, np.nan)
+        if np.isfinite(frac) and frac > 0:
+            items.append((pattern, float(frac)))
+    items.sort(key=lambda x: (-x[1], x[0]))
+    return items
+
+
+def _region_pattern_fraction(
+    patterns: np.ndarray,
+    group_mask: np.ndarray,
+    pattern_name: str,
+) -> float:
+    """Compatibility wrapper returning one pooled region-level pattern fraction."""
+    return _region_pattern_fractions(patterns, group_mask).get(
+        str(pattern_name),
+        np.nan,
+    )
+
+
+def _resolve_gene_figure_path(
+    save_path: str,
+    gene: str,
+) -> Path:
+    """Convert the historical panel save_path into one output path per gene."""
+    save_path = Path(save_path)
+    safe_gene = safe_name(gene)
+
+    if save_path.suffix.lower() == ".png":
+        out_dir = save_path.parent
+        stem = save_path.stem
+    else:
+        out_dir = save_path
+        stem = "representative_gene"
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / f"{stem}_{safe_gene}.png"
+
+
+def _plot_region_pattern_genes_individually(
     data: List[AlignedTimepoint],
     stats_df: pd.DataFrame,
     group_name: str,
@@ -1635,14 +1955,18 @@ def _plot_region_pattern_gene_panel(
     point_size: float = 10,
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
-    figsize: Tuple[float, float] = (18.0, 10.8),
+    figsize: Tuple[float, float] = (4.8, 4.5),
     equal_aspect: bool = True,
 ):
     """
-    Generic 3 x n region panel plotter.
-    Row 1: delta 5.7m - 2.5m
-    Row 2: delta 17.9m - 5.7m
-    Row 3: temporal pattern map
+    Save one temporal-pattern map per representative gene for an anatomical region.
+
+    Only the former last row of the 3 x N panel is retained: the per-location
+    temporal-pattern map. The two month-to-month delta maps are not generated.
+
+    The representative gene selection itself is unchanged. For each selected
+    gene, the legend reports the fraction of all locations pooled across the
+    region's domains that exhibit that gene's assigned representative pattern.
     """
     selected = _select_region_representatives_from_top_domain_genes(
         stats_df=stats_df,
@@ -1652,109 +1976,180 @@ def _plot_region_pattern_gene_panel(
         n_representatives=n_representatives,
     )
 
-    if selection_csv_path is None:
-        selection_csv_path = os.path.splitext(save_path)[0] + "_selected_genes.csv"
-    selected.to_csv(selection_csv_path, index=False)
-    print(f"[SAVE] {selection_csv_path}")
-
     genes = data[0].genes.astype(str).tolist()
-    gene_to_index = {g: i for i, g in enumerate(genes)}
-
+    gene_to_index = {gene: i for i, gene in enumerate(genes)}
     coords = data[0].coords
     group_mask = np.isin(
         data[0].domains.astype(str),
-        [str(d) for d in group_domains],
+        [str(domain) for domain in group_domains],
     )
 
-    set_style()
-    n_genes = len(selected)
-    fig, axes = plt.subplots(
-        3,
-        n_genes,
-        figsize=figsize,
-        squeeze=False,
-        sharex=False,
-        sharey=False,
-    )
+    # Compute pooled region-level fractions for every trend of each selected gene.
+    # These fractions are location-weighted across all domains in the region.
+    pattern_order = ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
+    pattern_cache = {}
+    fraction_cache = {}
 
-    for col_idx, (_, row) in enumerate(selected.iterrows()):
+    selected = selected.copy()
+    for pattern_name in pattern_order:
+        selected[f"region_{pattern_name.lower()}_fraction"] = np.nan
+
+    for row_index, row in selected.iterrows():
         gene = str(row["gene"])
+
         if gene not in gene_to_index:
             continue
+
         j = gene_to_index[gene]
-
-        v1 = data[0].X[:, j]
-        v2 = data[1].X[:, j]
-        v3 = data[2].X[:, j]
-
-        d12 = v2 - v1
-        d23 = v3 - v2
-        pats, _ = classify_location_pattern(v1, v2, v3)
-
-        patt = str(row["pattern_name"])
-        source_domain = str(row["source_domain"])
-
-        scatter_delta_panel(
-            axes[0, col_idx],
-            coords,
-            d12,
-            f"{gene} | 5.7m − 2.5m",
-            mask=group_mask,
-            s=point_size,
+        patterns, _ = classify_location_pattern(
+            data[0].X[:, j],
+            data[1].X[:, j],
+            data[2].X[:, j],
         )
-        scatter_delta_panel(
-            axes[1, col_idx],
-            coords,
-            d23,
-            f"{gene} | 17.9m − 5.7m",
-            mask=group_mask,
-            s=point_size,
-        )
-        scatter_trend_panel(
-            axes[2, col_idx],
-            coords,
-            pats,
-            # f"{gene} | {patt}\nstrongest in domain {source_domain}",
-            f"{gene} | {patt}",
-            mask=group_mask,
-            s=point_size,
-        )
+        pattern_cache[gene] = patterns
 
-        for r in range(3):
-            _apply_axis_style(
-                axes[r, col_idx],
-                xlim=xlim,
-                ylim=ylim,
-                equal_aspect=equal_aspect,
+        fractions = _region_pattern_fractions(
+            patterns=patterns,
+            group_mask=group_mask,
+        )
+        fraction_cache[gene] = fractions
+
+        for pattern_name, fraction in fractions.items():
+            selected.loc[
+                row_index,
+                f"region_{pattern_name.lower()}_fraction",
+            ] = fraction
+
+    # Retain the earlier convenience column for the selected representative
+    # pattern, while also exporting every region-level trend fraction above.
+    selected["region_pattern_fraction"] = [
+        fraction_cache.get(str(row["gene"]), {}).get(
+            str(row["pattern_name"]),
+            np.nan,
+        )
+        for _, row in selected.iterrows()
+    ]
+
+    if selection_csv_path is None:
+        selection_csv_path = os.path.splitext(save_path)[0] + "_selected_genes.csv"
+    ensure_dir(os.path.dirname(selection_csv_path) or ".")
+    selected.to_csv(selection_csv_path, index=False)
+    print(f"[SAVE] {selection_csv_path}")
+
+    set_style()
+
+    for _, row in selected.iterrows():
+        gene = str(row["gene"])
+        pattern_name = str(row["pattern_name"])
+
+        if gene not in gene_to_index:
+            print(f"[WARN] Gene {gene!r} not found in aligned data. Skip figure.")
+            continue
+
+        patterns = pattern_cache.get(gene)
+        if patterns is None:
+            j = gene_to_index[gene]
+            patterns, _ = classify_location_pattern(
+                data[0].X[:, j],
+                data[1].X[:, j],
+                data[2].X[:, j],
             )
 
-    # handles = [
-    #     plt.Line2D(
-    #         [0], [0],
-    #         marker="o",
-    #         color="w",
-    #         markerfacecolor=PATTERN_COLORS[p],
-    #         markersize=7,
-    #         label=p,
-    #     )
-    #     for p in ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
-    # ]
-    # axes[2, -1].legend(
-    #     handles=handles,
-    #     loc="upper right",
-    #     frameon=False,
-    #     title="Pattern",
-    # )
+        fig, ax = plt.subplots(figsize=figsize)
 
-    # fig.suptitle(
-    #     f"{group_name}: temporal patterns selected from per-domain top-{top_n_per_domain} genes",
-    #     y=1.01,
-    #     fontsize=16,
-    # )
-    fig.tight_layout()
-    fig.savefig(save_path, dpi=FIG_DPI, bbox_inches="tight")
-    print(f"[SAVE] {save_path}")
-    plt.close(fig)
+        pixel_image, pixel_extent = _render_pattern_pixel_image(
+            coords=coords,
+            patterns=patterns,
+            mask=group_mask,
+            background_color=BG_COLOR,
+        )
+        ax.imshow(
+            pixel_image,
+            origin="lower",
+            extent=pixel_extent,
+            interpolation="nearest",
+            aspect="equal",
+            zorder=1,
+        )
+        ax.set_title(f"{group_name} | {gene}", fontsize=18)
+
+        _apply_axis_style(
+            ax=ax,
+            xlim=xlim,
+            ylim=ylim,
+            equal_aspect=equal_aspect,
+        )
+
+        # Spatial maps should not show Cartesian axes, ticks, or spines.
+        # The title and legend remain visible.
+        ax.set_axis_off()
+
+        # Show every temporal trend actually present in this region for this gene.
+        # Stable is displayed last; the other four patterns are ordered by fraction.
+        fractions = fraction_cache.get(gene, {})
+        legend_handles = []
+        for legend_name, fraction in _ordered_region_legend_items(fractions):
+            color = BG_COLOR if legend_name == "Stable" else PATTERN_COLORS[legend_name]
+            legend_handles.append(
+                plt.Line2D(
+                    [0],
+                    [0],
+                    color=color,
+                    lw=6,
+                    label=f"{legend_name}: {100.0 * fraction:.1f}%",
+                )
+            )
+
+        if legend_handles:
+            # Put the legend in the reserved figure margin below the map so it
+            # never overlaps the pixel image. Stable/Mixed is intentionally not
+            # included in this annotation legend.
+            fig.legend(
+                handles=legend_handles,
+                loc="lower center",
+                bbox_to_anchor=(0.5, 0.025),
+                ncol=min(2, len(legend_handles)),
+                frameon=False,
+                columnspacing=1.,
+                handlelength=1.35,
+                handletextpad=0.60,
+                fontsize=12.,
+                borderaxespad=0.0,
+            )
+
+        # Reserve a larger bottom margin for the external legend so the spatial
+        # image and annotations remain completely separated.
+        fig.subplots_adjust(
+            left=0.04,
+            right=0.98,
+            bottom=0.20,
+            top=0.88,
+        )
+
+        gene_save_path = _resolve_gene_figure_path(
+            save_path=save_path,
+            gene=gene,
+        )
+        fig.savefig(
+            gene_save_path,
+            dpi=FIG_DPI,
+            facecolor="white",
+        )
+        representative_fraction = fraction_cache.get(gene, {}).get(
+            pattern_name,
+            np.nan,
+        )
+        representative_percent = (
+            f"{100.0 * representative_fraction:.1f}%"
+            if np.isfinite(representative_fraction)
+            else "NA"
+        )
+        print(
+            f"[SAVE] {group_name} | {gene} | {pattern_name} "
+            f"({representative_percent}): {gene_save_path}"
+        )
+        plt.close(fig)
+
 
 def plot_cortical_layer_pattern_gene_panel(
     data: List[AlignedTimepoint],
@@ -1768,8 +2163,8 @@ def plot_cortical_layer_pattern_gene_panel(
     ylim: Optional[Tuple[float, float]] = None,
     figsize: Optional[Tuple[float, float]] = None,
 ):
-    cfg = REGION_PLOT_CONFIG["cortical_layers"]
-    _plot_region_pattern_gene_panel(
+    cfg = REGION_PLOT_CONFIG["cortex"]
+    _plot_region_pattern_genes_individually(
         data=data,
         stats_df=stats_df,
         group_name=cfg["group_name"],
@@ -1799,7 +2194,7 @@ def plot_hippocampus_pattern_gene_panel(
     figsize: Optional[Tuple[float, float]] = None,
 ):
     cfg = REGION_PLOT_CONFIG["hippocampus"]
-    _plot_region_pattern_gene_panel(
+    _plot_region_pattern_genes_individually(
         data=data,
         stats_df=stats_df,
         group_name=cfg["group_name"],
@@ -1822,15 +2217,25 @@ def main():
         choices=["eval", "plot", "both"],
         default="plot",
         help=(
-            "'eval': compute and save the domain statistics table only; "
-            "'plot': load the saved table and generate figures; "
-            "'both': evaluate and then plot."
+            "'eval': compute and save domain statistics plus location-level "
+            "spatial maps; 'plot': load the saved domain table and generate "
+            "figures; 'both': evaluate/save and then plot."
+        ),
+    )
+    parser.add_argument(
+        "--spatial-map-genes",
+        nargs="+",
+        default=SPATIAL_MAP_GENES,
+        help=(
+            "Genes whose per-location temporal values, deltas, and trend "
+            "patterns are persisted under OUTDIR/spatial_maps/."
         ),
     )
     args = parser.parse_args()
 
     figdir = os.path.join(OUTDIR, "figures")
     tbldir = os.path.join(OUTDIR, "tables")
+    spatial_map_dir = os.path.join(OUTDIR, SPATIAL_MAP_DIRNAME)
     stats_csv = os.path.join(tbldir, "domain_gene_stats.csv")
 
     ensure_dir(tbldir)
@@ -1840,6 +2245,15 @@ def main():
         stats_df = compute_domain_gene_stats(data)
         stats_df.to_csv(stats_csv, index=False)
         print(f"[OK] saved: {stats_csv}")
+
+        # Persist the exact location-level products used by whole-spatial
+        # delta/trend plotting. Downstream pipeline scripts can now load these
+        # NPZ files directly without repeating the analysis.
+        save_spatial_gene_maps(
+            data=data,
+            genes=args.spatial_map_genes,
+            outdir=spatial_map_dir,
+        )
 
     if args.mode in {"plot", "both"}:
         ensure_dir(figdir)
@@ -1867,14 +2281,14 @@ def main():
                 remove_invalid_background=True,
             )
 
-        # plot_all_domains_top_genes_summary(
-        #     stats_df=stats_df,
-        #     save_path=os.path.join(
-        #         figdir,
-        #         "all_domains_top_genes_summary.png",
-        #     ),
-        #     top_n_show=TOP_GENES_PER_DOMAIN,
-        # )
+        plot_all_domains_top_genes_summary(
+            stats_df=stats_df,
+            save_path=os.path.join(
+                figdir,
+                "all_domains_top_genes_summary.png",
+            ),
+            top_n_show=TOP_GENES_PER_DOMAIN,
+        )
 
         selected_dir = os.path.join(
             figdir,
@@ -1882,6 +2296,7 @@ def main():
         )
         ensure_dir(selected_dir)
 
+        # Saves four independent cortex trend-map figures, one per representative gene.
         plot_cortical_layer_pattern_gene_panel(
             data=data,
             stats_df=stats_df,
@@ -1891,6 +2306,7 @@ def main():
             ylim=(0, 1024),  # if your scatter functions do not already invert y
         )
 
+        # Saves four independent hippocampus trend-map figures, one per representative gene.
         plot_hippocampus_pattern_gene_panel(
             data=data,
             stats_df=stats_df,

@@ -54,7 +54,7 @@ Figures
 - domain_metric_boxplot_all.png
 - all_domain_scatter.png
 - selected_gene_domain_panel.png
-- selected_gene_domain_heatmap.png
+- selected_gene_domain_dotplot.png
 - per_domain/domain_<id>_detail.png
 
 Per-domain detail layout
@@ -96,6 +96,8 @@ from spatial_delta_utils import (
 )
 
 
+
+import math
 # ============================================================
 # CONFIG
 # ============================================================
@@ -106,7 +108,7 @@ REAL_DISEASE_PATH = "/media/huifang/data/registration/xenium/mouse_brain/h5ads/0
 VIRTUAL_NORMAL_PATH = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_105.700.h5ad"
 VIRTUAL_DISEASE_PATH = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_5.700.h5ad"
 
-OUTDIR = "/media/huifang/data/registration/paper_figure/Figure6_disease/delta_fidelity"
+OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure56_mouse/6_delta_fidelity"
 
 # Saved evaluation object required by the per-domain spatial plots.
 VIRTUAL_SPATIAL_DELTA_PATH = os.path.join(OUTDIR, "virtual_spatial_delta.h5ad")
@@ -896,7 +898,7 @@ def plot_metric_boxplot_all(
         palette=domain_pal,
         dodge=False,
         jitter=0.22,
-        size=8.0,
+        size=10.0,
         alpha=0.92,
         edgecolor="white",
         linewidth=0.55,
@@ -921,30 +923,39 @@ def plot_metric_boxplot_all(
     )
 
     ax.set_title(
-        "Real vs virtual: domain-wise comparison",
-        fontsize=18,
-        fontweight="bold",
+        "Domain-wise gene delta comparison",
+        fontsize=24,
         pad=16,
     )
 
     ax.set_xlabel("")
+    ax.set_ylim([0,1.05])
 
     ax.set_ylabel(
         "Metric value",
-        fontsize=15,
+        fontsize=18,
         labelpad=10,
     )
 
     ax.tick_params(
         axis="x",
-        labelsize=13,
+        labelsize=18,
         rotation=28,
-        pad=6,
+        pad=-3,
     )
+    import matplotlib.transforms as mtransforms
+    offset = mtransforms.ScaledTranslation(
+        0.7,  # 4 points to the right
+        0,
+        fig.dpi_scale_trans,
+    )
+
+    for label in ax.get_xticklabels():
+        label.set_transform(label.get_transform() + offset)
 
     ax.tick_params(
         axis="y",
-        labelsize=13,
+        labelsize=18,
     )
 
     # Make x labels slightly easier to read.
@@ -976,7 +987,7 @@ def plot_metric_boxplot_all(
             markeredgewidth=0.5,
             color=domain_pal[d],
             label=d,
-            markersize=8.5,
+            markersize=10,
         )
         for d in domain_order
     ]
@@ -985,13 +996,13 @@ def plot_metric_boxplot_all(
     ax.legend(
         handles=handles,
         frameon=False,
-        bbox_to_anchor=(1.01, 1.0),
+        bbox_to_anchor=(1.1, 1.02),
         loc="upper left",
         title="Domain",
         ncol=1,
-        fontsize=12.5,
-        title_fontsize=14,
-        labelspacing=0.70,
+        fontsize=16,
+        title_fontsize=18,
+        labelspacing=0.20,
         handletextpad=0.65,
         borderaxespad=0.0,
     )
@@ -1096,42 +1107,6 @@ def plot_selected_gene_domain_panel(delta_df: pd.DataFrame, plot_genes: Sequence
     save_or_show(fig, save_path)
 
 
-# def plot_selected_gene_domain_heatmap(delta_df: pd.DataFrame, plot_genes: Sequence[str], domain_order: Sequence[str], save_path=None):
-#     set_style()
-#
-#     dfg = delta_df[delta_df["gene"].isin(plot_genes)].copy()
-#
-#     real_mat = (
-#         dfg.pivot_table(index="gene", columns="domain", values="real_delta", aggfunc="mean")
-#         .reindex(index=plot_genes, columns=domain_order)
-#     )
-#     virt_mat = (
-#         dfg.pivot_table(index="gene", columns="domain", values="virtual_delta", aggfunc="mean")
-#         .reindex(index=plot_genes, columns=domain_order)
-#     )
-#
-#     concat = pd.concat({"real": real_mat, "virtual": virt_mat}, axis=1)
-#
-#     fig, ax = plt.subplots(figsize=(0.75 * max(8, concat.shape[1]) + 2.8, 0.42 * max(8, concat.shape[0]) + 1.8))
-#     sns.heatmap(
-#         concat,
-#         cmap="vlag",
-#         center=0,
-#         linewidths=0.1,
-#         linecolor="white",
-#         cbar_kws={"label": "Delta"},
-#         ax=ax,
-#     )
-#     ax.set_title("Selected genes across domains: real vs virtual delta")
-#     ax.set_xlabel("")
-#     ax.set_ylabel("Gene")
-#     save_or_show(fig, save_path)
-
-import math
-# import numpy as np
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# from scipy.stats import pearsonr
 
 def plot_selected_gene_domain_dotplot(
     delta_df: pd.DataFrame,
@@ -1245,7 +1220,7 @@ def plot_selected_gene_domain_dotplot(
                 xd + dx,
                 yd + dy,
                 dom,
-                fontsize=10.5,
+                fontsize=14,
                 color=color,
                 fontweight="bold",
                 zorder=4,
@@ -1254,29 +1229,61 @@ def plot_selected_gene_domain_dotplot(
         # correlation across domains for this gene
         if len(x) >= 3 and np.std(x) > 0 and np.std(y) > 0:
             r = pearsonr(x, y)[0]
-            title = f"{gene}\nr = {r:.2f}"
+            title = f"{gene} | r = {r:.2f}"
         else:
             title = gene
 
-        ax.set_title(title, fontsize=15, fontweight="bold", pad=10)
-        ax.set_xlabel("Real delta", fontsize=13)
-        ax.set_ylabel("Virtual delta", fontsize=13)
+        ax.set_title(title, fontsize=22, pad=10)
+        ax.set_xlabel("Real delta", fontsize=18)
+        ax.set_ylabel("Virtual delta", fontsize=18)
         ax.set_xlim(lo, hi)
         ax.set_ylim(lo, hi)
         ax.set_aspect("equal", adjustable="box")
-        ax.tick_params(axis="both", labelsize=11)
+        ax.tick_params(axis="both", labelsize=18)
 
     # turn off unused axes
     for ax in axes[len(plot_genes):]:
         ax.axis("off")
 
-    # fig.suptitle(
-    #     "Selected genes across domains: real vs virtual delta",
-    #     y=0.995,
-    #     fontsize=18,
-    #     fontweight="bold",
-    # )
-    fig.tight_layout()
+    # ------------------------------------------------------------
+    # Domain annotation legend
+    #
+    # Match the domain_metric_boxplot_all figure: one colored dot
+    # per domain, using the same tab20 mapping and numeric order.
+    # ------------------------------------------------------------
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            linestyle="",
+            markerfacecolor=domain_colors[d],
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            color=domain_colors[d],
+            label=d,
+            markersize=10,
+        )
+        for d in ordered_domains
+    ]
+
+    fig.legend(
+        handles=handles,
+        frameon=False,
+        bbox_to_anchor=(0.995, 0.98),
+        loc="upper right",
+        title="Domain",
+        ncol=1,
+        fontsize=15,
+        title_fontsize=18,
+        labelspacing=0.20,
+        handletextpad=0.65,
+        borderaxespad=0.0,
+    )
+
+    # Preserve the existing subplot geometry while reserving a small
+    # right margin for the domain legend.
+    fig.tight_layout(rect=[0.0, 0.0, 0.92, 1.0])
 
     save_or_show(fig, save_path)
 # ============================================================
@@ -1941,9 +1948,166 @@ def display_gene_name(gene: str) -> str:
     return gene_aliases.get(str(gene), str(gene))
 
 
-def plot_one_domain_detail(
+SPATIAL_PATTERN_DOMINANCE_THRESHOLD = 0.65
+
+
+def compute_domain_spatial_pattern_summary(
+    ad_virtual_delta,
+    domain: str,
+    gene: str,
+    domain_key: str = DOMAIN_KEY,
+):
+    """Summarize spatial increase/decrease shares for one domain and gene."""
+    labels = get_domain_labels(ad_virtual_delta, domain_key)
+    values = extract_delta_gene_vector(ad_virtual_delta, gene)
+
+    if (
+        FILTER_VALID_FOR_VISUALIZATION
+        and "_delta_common_valid" in ad_virtual_delta.obs.columns
+    ):
+        vis_mask = ad_virtual_delta.obs["_delta_common_valid"].to_numpy(dtype=bool)
+    else:
+        vis_mask = np.ones(ad_virtual_delta.n_obs, dtype=bool)
+
+    mask = vis_mask & (labels == str(domain)) & np.isfinite(values)
+    values = values[mask]
+    n = int(values.size)
+    if n == 0:
+        return {
+            "n_locations": 0,
+            "positive_fraction": np.nan,
+            "negative_fraction": np.nan,
+            "zero_fraction": np.nan,
+            "active_fraction": np.nan,
+            "dominant_direction": "NA",
+            "dominant_share_active": np.nan,
+            "pattern_style": "Spatially heterogeneous",
+        }
+
+    positive_fraction = float(np.mean(values > 0))
+    negative_fraction = float(np.mean(values < 0))
+    zero_fraction = float(np.mean(values == 0))
+    active_fraction = positive_fraction + negative_fraction
+
+    if positive_fraction >= negative_fraction:
+        dominant_direction = "increase"
+        dominant_share = positive_fraction
+    else:
+        dominant_direction = "decrease"
+        dominant_share = negative_fraction
+
+    dominant_share_active = (
+        float(dominant_share / active_fraction)
+        if active_fraction > 0 else np.nan
+    )
+
+    if (
+        np.isfinite(dominant_share_active)
+        and dominant_share_active >= float(SPATIAL_PATTERN_DOMINANCE_THRESHOLD)
+    ):
+        pattern_style = f"Spatially coherent {dominant_direction}"
+    else:
+        pattern_style = "Spatially heterogeneous"
+
+    return {
+        "n_locations": n,
+        "positive_fraction": positive_fraction,
+        "negative_fraction": negative_fraction,
+        "zero_fraction": zero_fraction,
+        "active_fraction": active_fraction,
+        "dominant_direction": dominant_direction,
+        "dominant_share_active": dominant_share_active,
+        "pattern_style": pattern_style,
+    }
+
+
+
+def prepare_domain_visual_payload(
     dfd: pd.DataFrame,
-    metric_row: pd.Series,
+    domain: str,
+    ad_virt_delta,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+    use_absolute: bool = TOP_GENE_RANK_USE_ABS,
+):
+    """Prepare ranked heatmap and representative spatial map content for one domain."""
+    rank_mode = validate_top_gene_rank_mode(rank_mode)
+    comparison_mode = "real" if rank_mode == "virtual" else "virtual"
+
+    source_col = f"{rank_mode}_delta"
+    comparison_col = f"{comparison_mode}_delta"
+    source_display = rank_mode.capitalize()
+    comparison_display = comparison_mode.capitalize()
+
+    ranked_df, _, heat_genes = select_top_genes_for_domain(
+        dfd=dfd,
+        rank_mode=rank_mode,
+        use_absolute=use_absolute,
+        n_label=TOP_LABEL_GENES,
+        n_heat=TOP_HEATMAP_GENES,
+        location_fraction_df=location_fraction_df,
+    )
+    if ranked_df.empty:
+        return None
+
+    rep_gene = str(heat_genes[0] if heat_genes else ranked_df.iloc[0]["gene"])
+    rank_notation = f"|{rank_mode} delta|" if use_absolute else f"signed {rank_mode} delta"
+
+    heat_columns = [source_col, comparison_col]
+    heat_df = (
+        ranked_df[ranked_df["gene"].isin(heat_genes)]
+        .set_index("gene")[heat_columns]
+        .loc[heat_genes]
+    )
+    heat_df.columns = [f"{source_display} delta", f"{comparison_display} delta"]
+    heat_df.index = [display_gene_name(gene) for gene in heat_df.index]
+
+    spatial_labels = get_domain_labels(ad_virt_delta, DOMAIN_KEY)
+    spatial_values_all = extract_delta_gene_vector(ad_virt_delta, rep_gene)
+    if (
+        FILTER_VALID_FOR_VISUALIZATION
+        and "_delta_common_valid" in ad_virt_delta.obs.columns
+    ):
+        spatial_valid = ad_virt_delta.obs["_delta_common_valid"].to_numpy(dtype=bool)
+    else:
+        spatial_valid = np.ones(ad_virt_delta.n_obs, dtype=bool)
+
+    spatial_mask = spatial_valid & (spatial_labels == str(domain)) & np.isfinite(spatial_values_all)
+    spatial_values = spatial_values_all[spatial_mask]
+
+    heat_values = heat_df.to_numpy(dtype=float)
+    finite_heat = heat_values[np.isfinite(heat_values)]
+    heat_vmax = float(np.max(np.abs(finite_heat))) if finite_heat.size else 0.0
+
+    finite_spatial = spatial_values[np.isfinite(spatial_values)]
+    spatial_vmax = (
+        float(np.percentile(np.abs(finite_spatial), SPATIAL_DELTA_VMAX_PERCENTILE))
+        if finite_spatial.size else 0.0
+    )
+
+    vmax = max(heat_vmax, spatial_vmax, 1e-6)
+    shared_norm = Normalize(vmin=-vmax, vmax=vmax, clip=True)
+
+    return {
+        "ranked_df": ranked_df,
+        "heat_df": heat_df,
+        "rep_gene": rep_gene,
+        "rep_gene_display": display_gene_name(rep_gene),
+        "rank_notation": rank_notation,
+        "shared_norm": shared_norm,
+        "shared_cmap": sns.color_palette("vlag", as_cmap=True),
+        "pattern_summary": compute_domain_spatial_pattern_summary(
+            ad_virtual_delta=ad_virt_delta,
+            domain=domain,
+            gene=rep_gene,
+            domain_key=DOMAIN_KEY,
+        ),
+    }
+
+
+
+def plot_one_domain_heatmap(
+    dfd: pd.DataFrame,
     domain: str,
     ad_virt_delta,
     location_fraction_df: Optional[pd.DataFrame] = None,
@@ -1951,459 +2115,203 @@ def plot_one_domain_detail(
     rank_mode: str = TOP_GENE_RANK_MODE,
     use_absolute: bool = TOP_GENE_RANK_USE_ABS,
 ):
-    """
-    Layout
-    ------
-    gs[0,0] : all-gene agreement scatter
-    gs[1,0] : spatial delta map
-    gs[:,1] : ranked real/virtual delta heatmap
-
-    The spatial map and heatmap use one shared diverging color scale.
-    Therefore only the heatmap colorbar is required.
-    """
-
+    """Generate the ranked per-domain heatmap only."""
     set_style()
-
-    # ============================================================
-    # Gene ranking
-    # ============================================================
-    rank_mode = validate_top_gene_rank_mode(
-        rank_mode
+    payload = prepare_domain_visual_payload(
+        dfd=dfd,
+        domain=domain,
+        ad_virt_delta=ad_virt_delta,
+        location_fraction_df=location_fraction_df,
+        rank_mode=rank_mode,
+        use_absolute=use_absolute,
     )
-
-    comparison_mode = (
-        "real"
-        if rank_mode == "virtual"
-        else "virtual"
-    )
-
-    source_col = f"{rank_mode}_delta"
-    comparison_col = f"{comparison_mode}_delta"
-
-    source_display = rank_mode.capitalize()
-    comparison_display = comparison_mode.capitalize()
-
-    ranked_df, label_genes, heat_genes = (
-        select_top_genes_for_domain(
-            dfd=dfd,
-            rank_mode=rank_mode,
-            use_absolute=use_absolute,
-            n_label=TOP_LABEL_GENES,
-            n_heat=TOP_HEATMAP_GENES,
-            location_fraction_df=location_fraction_df,
-        )
-    )
-
-    if ranked_df.empty:
+    if payload is None:
         return
 
-    rep_gene = str(
-        heat_genes[0]
-        if heat_genes
-        else ranked_df.iloc[0]["gene"]
-    )
+    heat_df = payload["heat_df"]
+    rep_gene_display = payload["rep_gene_display"]
 
-    rank_notation = (
-        f"|{rank_mode} delta|"
-        if use_absolute
-        else f"signed {rank_mode} delta"
-    )
-
-    # ============================================================
-    # Heatmap values
-    #
-    # Build this BEFORE plotting so we can calculate one common
-    # color normalization for heatmap + spatial map.
-    # ============================================================
-    heat_columns = [
-        source_col,
-        comparison_col,
-    ]
-
-    heat_df = (
-        ranked_df[
-            ranked_df["gene"].isin(heat_genes)
-        ]
-        .set_index("gene")[heat_columns]
-        .loc[heat_genes]
-    )
-
-    heat_df.columns = [
-        f"{source_display} delta",
-        f"{comparison_display} delta",
-    ]
-
-    # Display preferred gene symbols without changing the underlying ranking/data.
-    heat_df.index = [
-        display_gene_name(gene)
-        for gene in heat_df.index
-    ]
-
-    # ============================================================
-    # Selected-domain spatial values
-    # ============================================================
-    spatial_labels = get_domain_labels(
-        ad_virt_delta,
-        DOMAIN_KEY,
-    )
-
-    spatial_values_all = extract_delta_gene_vector(
-        ad_virt_delta,
-        rep_gene,
-    )
-
-    if (
-        FILTER_VALID_FOR_VISUALIZATION
-        and "_delta_common_valid" in ad_virt_delta.obs.columns
-    ):
-        spatial_valid = ad_virt_delta.obs[
-            "_delta_common_valid"
-        ].to_numpy(dtype=bool)
-    else:
-        spatial_valid = np.ones(
-            ad_virt_delta.n_obs,
-            dtype=bool,
-        )
-
-    spatial_mask = (
-        spatial_valid
-        & (spatial_labels == str(domain))
-        & np.isfinite(spatial_values_all)
-    )
-
-    spatial_values = spatial_values_all[
-        spatial_mask
-    ]
-
-    # ============================================================
-    # ONE shared delta scale
-    #
-    # Heatmap:
-    #     full max |Δ|
-    #
-    # Spatial:
-    #     percentile-based max as in the original spatial map,
-    #     preventing isolated spatial outliers from determining scale.
-    # ============================================================
-    heat_values = heat_df.to_numpy(
-        dtype=float
-    )
-
-    finite_heat = heat_values[
-        np.isfinite(heat_values)
-    ]
-
-    if finite_heat.size:
-        heat_vmax = float(
-            np.max(
-                np.abs(finite_heat)
-            )
-        )
-    else:
-        heat_vmax = 0.0
-
-    finite_spatial = spatial_values[
-        np.isfinite(spatial_values)
-    ]
-
-    if finite_spatial.size:
-        spatial_vmax = float(
-            np.percentile(
-                np.abs(finite_spatial),
-                SPATIAL_DELTA_VMAX_PERCENTILE,
-            )
-        )
-    else:
-        spatial_vmax = 0.0
-
-    vmax = max(
-        heat_vmax,
-        spatial_vmax,
-        1e-6,
-    )
-
-    shared_norm = Normalize(
-        vmin=-vmax,
-        vmax=vmax,
-        clip=True,
-    )
-
-    shared_cmap = "RdBu_r"
-
-    # ============================================================
-    # Main figure
-    # ============================================================
-    fig = plt.figure(
-        figsize=(10.6, 6.4)
-    )
-
-
-    gs = GridSpec(
-        2,
-        2,
-        figure=fig,
-        width_ratios=[
-            1.0,
-            0.30,
-        ],
-        height_ratios=[
-            1.0,
-            1.0,
-        ],
-        left=0.075,
-        right=0.955,
-        bottom=0.075,
-        top=0.93,
-        wspace=-0.35,
-        hspace=0.30,
-    )
-
-    # ============================================================
-    # Upper-left: all-gene agreement
-    # ============================================================
-    ax1 = fig.add_subplot(
-        gs[0, 0]
-    )
-
-    x = dfd[
-        "real_delta"
-    ].to_numpy(
-        dtype=np.float32
-    )
-
-    y = dfd[
-        "virtual_delta"
-    ].to_numpy(
-        dtype=np.float32
-    )
-
-    ax1.scatter(
-        x,
-        y,
-        s=26,
-        color="#ee8ca0",
-        alpha=0.82,
-        edgecolor="white",
-        linewidth=0.3,
-    )
-
-    lo, hi = compute_full_ylim(
-        [x, y],
-        pad_frac=0.10,
-    )
-
-    ax1.axhline(
-        0,
-        color="0.86",
-        lw=0.8,
-        zorder=0,
-    )
-
-    ax1.axvline(
-        0,
-        color="0.86",
-        lw=0.8,
-        zorder=0,
-    )
-
-    ax1.plot(
-        [lo, hi],
-        [lo, hi],
-        ls="--",
-        lw=1.1,
-        color="0.45",
-        zorder=1,
-    )
-
-    ax1.set_xlim(lo, hi)
-    ax1.set_ylim(lo, hi)
-
-    ax1.set_aspect(
-        "equal",
-        adjustable="box",
-    )
-
-    ax1.set_title(
-        "All-gene delta agreement",
-        fontsize=13,
-        pad=7,
-    )
-
-    ax1.set_xlabel(
-        "Real delta",
-        fontsize=11.5,
-    )
-
-    ax1.set_ylabel(
-        "Virtual delta",
-        fontsize=11.5,
-    )
-
-    # ------------------------------------------------------------
-    # Gene labels
-    # ------------------------------------------------------------
-    gene_lookup = (
-        dfd
-        .drop_duplicates("gene")
-        .set_index("gene")
-    )
-
-    offset = (
-        0.012
-        * max(
-            hi - lo,
-            1e-8,
-        )
-    )
-
-    for gene in label_genes:
-
-        if gene not in gene_lookup.index:
-            continue
-
-        row = gene_lookup.loc[
-            gene
-        ]
-
-        rx = float(
-            row["real_delta"]
-        )
-
-        vy = float(
-            row["virtual_delta"]
-        )
-
-        if np.isfinite(rx) and np.isfinite(vy):
-            ax1.text(
-                rx + offset,
-                vy + offset,
-                display_gene_name(gene),
-                fontsize=10,
-            )
-
-    # ------------------------------------------------------------
-    # Metric annotation
-    # ------------------------------------------------------------
-    txt = (
-        f"Pearson = {metric_row['pearson_r']:.2f}\n"
-        f"Spearman = {metric_row['spearman_r']:.2f}\n"
-        f"Cosine = {metric_row['cosine']:.2f}\n"
-        f"Sign acc = {metric_row['sign_accuracy']:.2f}"
-    )
-
-    ax1.text(
-        0.04,
-        0.96,
-        txt,
-        transform=ax1.transAxes,
-        va="top",
-        ha="left",
-        fontsize=11,
-        bbox=dict(
-            boxstyle="round,pad=0.28",
-            facecolor="white",
-            alpha=0.88,
-            edgecolor="0.8",
-        ),
-    )
-
-    # ============================================================
-    # Lower-left: spatial map
-    #
-    # No nested GridSpec and no spatial colorbar are needed anymore.
-    # ============================================================
-    ax2 = fig.add_subplot(
-        gs[1, 0]
-    )
-
-    plot_virtual_domain_delta_map(
-        ax=ax2,
-        ad_virtual_delta=ad_virt_delta,
-        domain=domain,
-        gene=rep_gene,
-        norm=shared_norm,
-        cmap_name=shared_cmap,
-    )
-
-    # ============================================================
-    # Right: full-height heatmap
-    # ============================================================
-    ax3 = fig.add_subplot(
-        gs[:, 1]
-    )
-
+    # fig_h = max(4.6, 0.34 * max(8, heat_df.shape[0]) + 1.0)
+    fig, ax = plt.subplots(figsize=(3.7, 4))
     sns.heatmap(
         heat_df,
-        ax=ax3,
-        cmap=shared_cmap,
-        norm=shared_norm,
+        ax=ax,
+        cmap=payload["shared_cmap"],
+        norm=payload["shared_norm"],
         linewidths=0.4,
         linecolor="white",
-
-        # This is now the SINGLE colorbar shared conceptually by
-        # both the heatmap and spatial delta map.
         cbar=True,
-        cbar_kws={
-            "label": "Delta",
-            "fraction": 0.055,
-            "pad": 0.04,
-        },
+        cbar_kws={"label": "log1p gene delta", "fraction": 0.085, "pad": 0.05},
     )
-
-    ax3.set_title(
-        f"Top genes ranked by {rank_notation}",
-        fontsize=11.5,
-        pad=7,
-    )
-
-    ax3.set_xlabel("")
-    ax3.set_ylabel("")
-
-    ax3.tick_params(
-        axis="y",
-        labelsize=12,
-        pad=3,
-    )
-
-    ax3.tick_params(
-        axis="x",
-        labelsize=12,
-        rotation=0,
-    )
-
-    # ------------------------------------------------------------
-    # Highlight gene shown in spatial panel
-    # ------------------------------------------------------------
-    rep_gene_display = display_gene_name(rep_gene)
+    if domain == "1":
+        ax.set_title(
+            f"Cortex | Domain {domain}",
+            fontsize=12.5,
+            pad=8,
+        )
+    elif domain == "3":
+        ax.set_title(
+            f"Hypothalamus | Domain {domain}",
+            fontsize=12.5,
+            pad=8,
+        )
+    elif domain == "11":
+        ax.set_title(
+            f"Hippocampus | Domain {domain}",
+            fontsize=12.5,
+            pad=8,
+        )
+    else:
+        ax.set_title(
+            f"Domain {domain}",
+            fontsize=12.5,
+            pad=8,
+        )
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.tick_params(axis="y", labelsize=9, pad=1)
+    ax.tick_params(axis="x", labelsize=10.5, rotation=0,pad=-2)
+    for tick_label in ax.get_yticklabels():
+        tick_label.set_fontstyle("italic")
 
     if rep_gene_display in heat_df.index:
         rep_idx = list(heat_df.index).index(rep_gene_display)
-
-        ax3.add_patch(
+        ax.add_patch(
             plt.Rectangle(
                 (0, rep_idx),
                 len(heat_df.columns),
                 1,
                 fill=False,
                 edgecolor="black",
-                linewidth=1.6,
+                linewidth=1.5,
                 clip_on=False,
             )
         )
-    # plt.show()
+
+    fig.tight_layout()
+    save_or_show(fig, save_path)
 
 
-    save_or_show(
-        fig,
-        save_path,
+def plot_one_domain_spatialmap(
+    dfd: pd.DataFrame,
+    domain: str,
+    ad_virt_delta,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    save_path=None,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+    use_absolute: bool = TOP_GENE_RANK_USE_ABS,
+):
+    """Generate the representative spatial delta map with compact in-panel annotations."""
+    set_style()
+    payload = prepare_domain_visual_payload(
+        dfd=dfd,
+        domain=domain,
+        ad_virt_delta=ad_virt_delta,
+        location_fraction_df=location_fraction_df,
+        rank_mode=rank_mode,
+        use_absolute=use_absolute,
+    )
+    if payload is None:
+        return
+
+    rep_gene = payload["rep_gene"]
+    rep_gene_display = payload["rep_gene_display"]
+    summary = payload["pattern_summary"]
+
+    fig, ax = plt.subplots(figsize=(6.3, 6.6))
+    # Reserve a narrow strip on the right for the centered colorbar.
+    fig.subplots_adjust(left=0.06, right=0.84, top=0.92, bottom=0.06)
+
+    plot_virtual_domain_delta_map(
+        ax=ax,
+        ad_virtual_delta=ad_virt_delta,
+        domain=domain,
+        gene=rep_gene,
+        norm=payload["shared_norm"],
+        cmap_name=payload["shared_cmap"],
     )
 
+    ax.set_title(
+        f"Domain {domain} | {rep_gene_display} | {summary['pattern_style']}",
+        fontsize=16,
+        pad=10,
+        x=0.55
+    )
 
+    # ------------------------------------------------------------
+    # Increase / decrease shares in the upper-left of the image.
+    # Red = increase; blue = decrease.
+    # ------------------------------------------------------------
+    increase_color = "#c53b3b"
+    decrease_color = "#3b6fb6"
 
+    x_dot = 0.025
+    x_text = 0.060
+    y_increase = 0.97
+    y_decrease = 0.92
 
+    ax.text(
+        x_dot,
+        y_increase,
+        "●",
+        transform=ax.transAxes,
+        color=increase_color,
+        fontsize=13,
+        va="top",
+        ha="left",
+        zorder=20,
+    )
+    ax.text(
+        x_text,
+        y_increase,
+        f"Increase: {100.0 * summary['positive_fraction']:.1f}%",
+        transform=ax.transAxes,
+        color="black",
+        fontsize=12.5,
+        va="top",
+        ha="left",
+        zorder=20,
+    )
 
+    ax.text(
+        x_dot,
+        y_decrease,
+        "●",
+        transform=ax.transAxes,
+        color=decrease_color,
+        fontsize=13,
+        va="top",
+        ha="left",
+        zorder=20,
+    )
+    ax.text(
+        x_text,
+        y_decrease,
+        f"Decrease: {100.0 * summary['negative_fraction']:.1f}%",
+        transform=ax.transAxes,
+        color="black",
+        fontsize=12.5,
+        va="top",
+        ha="left",
+        zorder=20,
+    )
 
+    # ------------------------------------------------------------
+    # Compact colorbar centered vertically on the right side.
+    # ------------------------------------------------------------
+    sm = ScalarMappable(
+        norm=payload["shared_norm"],
+        cmap=plt.get_cmap(payload["shared_cmap"]),
+    )
+    sm.set_array([])
 
+    # [left, bottom, width, height] in figure coordinates.
+    cax = fig.add_axes([0.875, 0.34, 0.025, 0.30])
+    cbar = fig.colorbar(sm, cax=cax)
+    cbar.set_label("log1p gene delta", fontsize=11.5)
+    cbar.ax.tick_params(labelsize=10.5)
+
+    save_or_show(fig, save_path)
 
 
 
@@ -2416,26 +2324,31 @@ def plot_all_domain_details(
     rank_mode: str = TOP_GENE_RANK_MODE,
     use_absolute: bool = TOP_GENE_RANK_USE_ABS,
 ):
-    """Generate streamlined per-domain detail plots."""
+    """Generate per-domain heatmap and spatial-map figures separately."""
     ensure_outdir(save_dir)
     rank_mode = validate_top_gene_rank_mode(rank_mode)
 
-    for dom in metric_df["domain"].tolist():
+    # for dom in metric_df["domain"].tolist():
+    for dom in ["1","3","11"]:
         dfd = delta_df[delta_df["domain"] == dom].copy()
-        mrow = metric_df[metric_df["domain"] == dom]
-        if len(dfd) == 0 or len(mrow) == 0:
+        if len(dfd) == 0:
             continue
 
-        plot_one_domain_detail(
+        plot_one_domain_heatmap(
             dfd=dfd,
-            metric_row=mrow.iloc[0],
             domain=dom,
             ad_virt_delta=ad_virt_delta,
             location_fraction_df=location_fraction_df,
-            save_path=os.path.join(
-                save_dir,
-                f"domain_{dom}_detail_{rank_mode}_ranked.png",
-            ),
+            save_path=os.path.join(save_dir, f"domain_{dom}_heatmap_ranked.png"),
+            rank_mode=rank_mode,
+            use_absolute=use_absolute,
+        )
+        plot_one_domain_spatialmap(
+            dfd=dfd,
+            domain=dom,
+            ad_virt_delta=ad_virt_delta,
+            location_fraction_df=location_fraction_df,
+            save_path=os.path.join(save_dir, f"domain_{dom}_spatialmap.png"),
             rank_mode=rank_mode,
             use_absolute=use_absolute,
         )
@@ -2848,21 +2761,21 @@ def plot_precalculated_results():
     # --------------------------------------------------------
     # Summary plots
     # --------------------------------------------------------
-    plot_metric_boxplot_all(
-        metric_df,
-        save_path=os.path.join(
-            figdir,
-            "domain_metric_boxplot_all.png",
-        ),
-    )
-    #
+    # plot_metric_boxplot_all(
+    #     metric_df,
+    #     save_path=os.path.join(
+    #         figdir,
+    #         "domain_metric_boxplot_all.png",
+    #     ),
+    # )
+    # # #
     # plot_selected_gene_domain_dotplot(
     #     delta_df=delta_df,
     #     plot_genes=plot_genes,
     #     domain_order=domain_order,
     #     save_path=os.path.join(
     #         figdir,
-    #         "selected_gene_domain_heatmap.png",
+    #         "selected_gene_domain_dotplot.png",
     #     ),
     # )
 

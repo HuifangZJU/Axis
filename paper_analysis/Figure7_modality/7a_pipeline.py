@@ -19,12 +19,12 @@ INVERT_Y = False
 CANVAS_SIZE = 1024.0
 MAX_PLOT_CELLS = 50000
 RANDOM_SEED = 0
-STACK_OFFSET_X = 80.0
-STACK_OFFSET_Y = -80.0
+STACK_OFFSET_X = 100.0
+STACK_OFFSET_Y = -100.0
 BASE_POINT_SIZE = 1.0
 ZOOM_POINT_SIZE = 100.0
 ROI_LINEWIDTH = 1.8
-FRAME_LINEWIDTH = 1.4
+FRAME_LINEWIDTH = 2
 FIG_DPI = 300
 
 
@@ -253,18 +253,18 @@ def plot_stacked_signal_panels(
                 zorder=zbase + 2,
             )
         )
-        ax.text(
-            dx + 18, dy + 32,
-            marker,
-            fontsize=10.5,
-            fontweight="bold",
-            ha="left", va="bottom",
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.96, pad=0.5),
-            zorder=zbase + 3,
-        )
+        # ax.text(
+        #     dx + 18, dy + 32,
+        #     marker,
+        #     fontsize=10.5,
+        #     fontweight="bold",
+        #     ha="left", va="bottom",
+        #     bbox=dict(facecolor="white", edgecolor="none", alpha=0.96, pad=0.5),
+        #     zorder=zbase + 3,
+        # )
 
     apply_axis_style(ax, xlim=xlim, ylim=ylim)
-    ax.set_title(title, fontsize=14, pad=10)
+    # ax.set_title(title, fontsize=14, pad=10)
 
     # sm = ScalarMappable(norm=norm, cmap=cmap)
     # sm.set_array([])
@@ -421,29 +421,29 @@ def generate_cross_modality_pipeline_figures(
     ad_real_protein = sc.read_h5ad(real_protein_path)
     ad_virtual_protein = sc.read_h5ad(virtual_protein_path)
     #
-    # plot_stacked_signal_panels(
-    #     adata=ad_gene,
-    #     markers=gene_markers,
-    #     title="Figure 1. Measured gene tissue",
-    #     cmap="Reds",
-    #     colorbar_label="log1p gene signal",
-    #     save_path=os.path.join(outdir, "figure1_real_gene_stack.png"),
-    #     coord_key=gene_coord_key,
-    #     dashed_frame=False,
-    #     show=show,
-    # )
-    #
-    # plot_stacked_signal_panels(
-    #     adata=ad_real_protein,
-    #     markers=protein_markers,
-    #     title="Figure 2. Measured protein tissue",
-    #     cmap="Blues",
-    #     colorbar_label="log1p protein signal",
-    #     save_path=os.path.join(outdir, "figure2_real_protein_stack.png"),
-    #     coord_key=real_protein_coord_key,
-    #     dashed_frame=False,
-    #     show=show,
-    # )
+    plot_stacked_signal_panels(
+        adata=ad_gene,
+        markers=gene_markers,
+        title="Figure 1. Measured gene tissue",
+        cmap="Reds",
+        colorbar_label="log1p gene signal",
+        save_path=os.path.join(outdir, "figure1_real_gene_stack.png"),
+        coord_key=gene_coord_key,
+        dashed_frame=False,
+        show=show,
+    )
+
+    plot_stacked_signal_panels(
+        adata=ad_real_protein,
+        markers=protein_markers,
+        title="Figure 2. Measured protein tissue",
+        cmap="Blues",
+        colorbar_label="log1p protein signal",
+        save_path=os.path.join(outdir, "figure2_real_protein_stack.png"),
+        coord_key=real_protein_coord_key,
+        dashed_frame=False,
+        show=show,
+    )
 
     plot_location_overlay_with_side_callout(
         ad_gene=ad_gene,
@@ -462,29 +462,29 @@ def generate_cross_modality_pipeline_figures(
         show=show,
     )
 
-    # plot_stacked_signal_panels(
-    #     adata=ad_gene,
-    #     markers=gene_markers,
-    #     title="Figure 4. Measured gene tissue",
-    #     cmap="Reds",
-    #     colorbar_label="log1p gene signal",
-    #     save_path=os.path.join(outdir, "figure4_real_gene_stack_for_virtual.png"),
-    #     coord_key=gene_coord_key,
-    #     dashed_frame=False,
-    #     show=show,
-    # )
-    #
-    # plot_stacked_signal_panels(
-    #     adata=ad_virtual_protein,
-    #     markers=protein_markers,
-    #     title="Figure 5. Gene-aligned virtual protein tissue",
-    #     cmap="Blues",
-    #     colorbar_label="log1p protein signal",
-    #     save_path=os.path.join(outdir, "figure5_virtual_protein_stack.png"),
-    #     coord_key=virtual_protein_coord_key,
-    #     dashed_frame=True,
-    #     show=show,
-    # )
+    plot_stacked_signal_panels(
+        adata=ad_gene,
+        markers=gene_markers,
+        title="Figure 4. Measured gene tissue",
+        cmap="Reds",
+        colorbar_label="log1p gene signal",
+        save_path=os.path.join(outdir, "figure4_real_gene_stack_for_virtual.png"),
+        coord_key=gene_coord_key,
+        dashed_frame=False,
+        show=show,
+    )
+
+    plot_stacked_signal_panels(
+        adata=ad_virtual_protein,
+        markers=protein_markers,
+        title="Figure 5. Gene-aligned virtual protein tissue",
+        cmap="Blues",
+        colorbar_label="log1p protein signal",
+        save_path=os.path.join(outdir, "figure5_virtual_protein_stack.png"),
+        coord_key=virtual_protein_coord_key,
+        dashed_frame=True,
+        show=show,
+    )
 
     plot_location_overlay_with_side_callout(
         ad_gene=ad_gene,
@@ -517,10 +517,10 @@ if __name__ == "__main__":
     REAL_GENE = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_xenium.h5ad"
     REAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_protein.h5ad"
     VIRTUAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/modality_LUAD_2_A/analysis/virtual_protein_1.000.h5ad"
-    OUTDIR = "/media/huifang/data/registration/paper_figure/Figure7_modality/"
+    OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure7_modality/pipeline/"
 
-    GENE_MARKERS = ["ACTA2", "CD44", "NAPSA"]
-    PROTEIN_MARKERS = ["IDO1", "HLA-A", "CD20"]
+    GENE_MARKERS = ["HLA-A", "MKI67","HLA-DPB1"]
+    PROTEIN_MARKERS = ["HLA-A", "Ki67","HLA-DPB1"]
     ROI_BBOX = (600, 630, 600, 630)
 
     generate_cross_modality_pipeline_figures(

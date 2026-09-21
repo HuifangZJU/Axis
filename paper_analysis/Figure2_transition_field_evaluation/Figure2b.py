@@ -637,7 +637,7 @@ def plot_dlpfc_axis_alignment_overview(
 if __name__ == "__main__":
     plot_dlpfc_axis_alignment_overview(
         root="/media/huifang/data/registration/DLPFC/huifang",
-        group_id=2,
+        group_id=1,
         sample_ids=(0, 1, 2, 3),
         reference_id=1,
         obs_key="layer_guess_reordered",

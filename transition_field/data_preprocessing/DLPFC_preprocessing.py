@@ -52,7 +52,6 @@ for k,slices in enumerate(layer_groups):
         sc.pp.filter_genes(sl, min_cells=3)
         sc.pp.normalize_total(sl, target_sum=1e4)
         sc.pp.log1p(sl)
-        sc.pp.scale(sl, max_value=5)
 
         # genes=['MFGE8','PCDH8','RORB','COL5A2','NR4A2','MFGE8','PCDH8','RORB','COL5A2','NR4A2']
         # X_loc_gene = sl[:, genes].X

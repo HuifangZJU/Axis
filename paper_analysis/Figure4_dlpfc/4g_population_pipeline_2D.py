@@ -56,15 +56,15 @@ from scipy import sparse
 VIRTUAL_PATH = Path(
     "/media/huifang/data/registration/DLPFC/huifang/virtual_tissue/"
     "dlpfc_z_group1_grid80_spatial1/integration/"
-    "integrated_dlpfc_z_ref_0.h5ad"
-    # "integrated_dlpfc_z_ref_0_visium_ot.h5ad"
+    # "integrated_dlpfc_z_ref_0.h5ad"
+    "integrated_dlpfc_z_ref_0_visium_ot.h5ad"
 )
 
 META_PATH = Path(
     "/media/huifang/data/registration/DLPFC/huifang/virtual_tissue/"
     "dlpfc_z_group1_grid80_spatial1/integration/"
-    "integrated_dlpfc_z_ref_0_generation_meta.h5ad"
-    # "integrated_dlpfc_z_ref_0_visium_ot_generation_meta.h5ad"
+    # "integrated_dlpfc_z_ref_0_generation_meta.h5ad"
+    "integrated_dlpfc_z_ref_0_visium_ot_generation_meta.h5ad"
 )
 
 MARKER_GENE = "PCP4"

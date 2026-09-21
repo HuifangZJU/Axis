@@ -8,16 +8,16 @@ mouse-brain slices.
 The analysis computes anatomical neighborhood component agreement and detailed
 domain-neighborhood composition matrices.
 
-Exactly two figures are generated:
-
-1. The original anatomical neighborhood component-agreement boxplot.
-2. One average neighborhood heatmap figure with three subplots:
-      all domains, hippocampus, and cortical layers.
+The plotting workflow generates the anatomical neighborhood component-agreement
+boxplot and separate average neighborhood heatmaps for each anatomical region and
+method. Heatmaps are not vertically stacked.
 
 For the heatmaps, all available input tissues are used. The real-reference
 matrix is the mean across all real slices, while SpatialZ and AXIS matrices are
-the entry-wise means across all available virtual ages. Each heatmap subplot
-vertically stacks Real reference, SpatialZ, and AXIS. Hippocampus uses domains
+the entry-wise means across all available virtual ages. All independently saved
+heatmaps share one positive-only color normalization. Because neighborhood
+component fractions are nonnegative, only the white-to-red half of the seaborn
+``vlag`` palette is used; the blue half is excluded. Hippocampus uses domains
 8 and 11. Cortical layers use the requested order 1, 6, 4, and 11.
 """
 
@@ -76,7 +76,7 @@ REAL_SLICES: Dict[float, str] = {
 @dataclass(frozen=True)
 class Config:
     outdir: str = (
-        "/media/huifang/data/registration/paper_figure/Figure5_mouse_time/de/"
+        "/media/huifang/data/registration/paper_analysis/Figure56_mouse/5de/"
     )
 
     coord_key: str = "spatial"
@@ -90,7 +90,7 @@ class Config:
 
     case_times: Tuple[float, ...] = (4.1, 11.8)
     hippocampus_domains: Tuple[str, ...] = ("8", "11")
-    cortical_domains: Tuple[str, ...] = ("1", "6", "4", "11")
+    cortical_domains: Tuple[str, ...] = ("1", "4", "6", "9","10")
 
     figure_formats: Tuple[str, ...] = ("png", "pdf")
     figure_dpi: int = 350
@@ -132,8 +132,22 @@ GROUP_PALETTE = {
     "SpatialZ": "#8fa0b8",
 }
 
-HEATMAP_CMAP = "Reds"
+_VLAG_CMAP = sns.color_palette("vlag", as_cmap=True)
+HEATMAP_CMAP = mpl.colors.LinearSegmentedColormap.from_list(
+    "vlag_white_to_red",
+    _VLAG_CMAP(np.linspace(0.5, 1.0, 256)),
+)
 
+# Anatomical-region strip styling, following the compact side-header style used
+# in the coherent/heterogeneous marker heatmaps.
+CORTEX_REGION_COLOR = "#2F6F8F"
+HIPPOCAMPUS_REGION_COLOR = "#A45A3A"
+REGION_STRIP_WIDTH = 4.0
+REGION_LABEL_FONTSIZE = 11.5
+REGION_X_STRIP_OFFSET = 0.0
+REGION_X_TEXT_OFFSET = 0.08
+REGION_Y_STRIP_OFFSET = 0
+REGION_Y_TEXT_OFFSET = 0.1
 
 # =============================================================================
 # DATA ACCESS
@@ -551,7 +565,7 @@ def compute_region_summary(
     )
     region_definitions = {
         "Hippocampus": cfg.hippocampus_domains,
-        "Cortical layers": cfg.cortical_domains,
+        "Cortex": cfg.cortical_domains,
     }
 
     rows = []
@@ -876,8 +890,7 @@ def plot_domain_component_agreement(
     # ------------------------------------------------------------------
     ax.set_title(
         "Anatomical neighborhood component agreement",
-        fontsize=14,
-        fontweight="bold",
+        fontsize=18,
         pad=12,
     )
 
@@ -885,13 +898,13 @@ def plot_domain_component_agreement(
 
     ax.set_ylabel(
         "Neighborhood composition agreement",
-        fontsize=12,
+        fontsize=14,
         labelpad=8,
     )
 
     ax.tick_params(
         axis="x",
-        labelsize=11,
+        labelsize=15,
         pad=5,
     )
 
@@ -946,13 +959,13 @@ def plot_domain_component_agreement(
     # ------------------------------------------------------------------
     group_legend = legend_ax.legend(
         handles=group_handles,
-        title="Method",
+        # title="Method",
         loc="upper left",
-        bbox_to_anchor=(0.0, 1.00),
+        bbox_to_anchor=(0.0, 0.98),
         frameon=False,
         borderaxespad=0.0,
-        fontsize=10.5,
-        title_fontsize=11.5,
+        fontsize=14,
+        title_fontsize=15,
         handlelength=1.6,
         handletextpad=0.6,
         labelspacing=0.7,
@@ -977,11 +990,11 @@ def plot_domain_component_agreement(
         ),
         frameon=False,
         borderaxespad=0.0,
-        fontsize=10.0,
-        title_fontsize=11.5,
+        fontsize=14,
+        title_fontsize=15,
         markerscale=1.0,
         handletextpad=0.5,
-        labelspacing=0.55,
+        labelspacing=0.2,
         columnspacing=0.8,
         ncol=1,
     )
@@ -1013,36 +1026,16 @@ def select_region_matrix(
     return matrix.reindex(index=ordered, columns=ordered)
 
 
-def stack_condition_matrices(
-    real_matrix: pd.DataFrame,
-    spatialz_matrix: pd.DataFrame,
-    axis_matrix: pd.DataFrame,
-    domains: Sequence[str],
-) -> Tuple[pd.DataFrame, List[str], List[str]]:
-    """
-    Stack Real reference, SpatialZ, and AXIS vertically in one heatmap.
+def ordered_unique(values: Sequence[str]) -> List[str]:
+    seen = set()
+    ordered: List[str] = []
+    for value in values:
+        text = str(value)
+        if text not in seen:
+            ordered.append(text)
+            seen.add(text)
+    return ordered
 
-    This keeps each anatomical region as one subplot while preserving direct
-    method comparison at the same age.
-    """
-    ordered = [str(value) for value in domains]
-    matrices = [
-        select_region_matrix(real_matrix, ordered),
-        select_region_matrix(spatialz_matrix, ordered),
-        select_region_matrix(axis_matrix, ordered),
-    ]
-    values = np.vstack(
-        [matrix.to_numpy(dtype=float) for matrix in matrices]
-    )
-
-    row_labels = ordered * 3
-    group_labels = ["Real reference", "SpatialZ", "AXIS"]
-    stacked = pd.DataFrame(
-        values,
-        index=row_labels,
-        columns=ordered,
-    )
-    return stacked, row_labels, group_labels
 
 
 def annotate_heatmap(
@@ -1069,377 +1062,202 @@ def annotate_heatmap(
             )
 
 
-# def draw_condition_stacked_heatmap(
-#     axis: mpl.axes.Axes,
-#     stacked_matrix: pd.DataFrame,
-#     group_labels: Sequence[str],
-#     n_domains: int,
-#     title: str,
-#     norm: mpl.colors.Normalize,
-#     show_colorbar: bool,
-#     annotate: bool,
-# ) -> None:
-#     sns.heatmap(
-#         stacked_matrix,
-#         ax=axis,
-#         cmap=HEATMAP_CMAP,
-#         norm=norm,
-#         linewidths=0.45,
-#         linecolor="white",
-#         mask=stacked_matrix.isna(),
-#         cbar=show_colorbar,
-#         cbar_kws=(
-#             {
-#                 "label": "Neighborhood component fraction",
-#                 "shrink": 0.72,
-#                 "pad": 0.02,
-#             }
-#             if show_colorbar
-#             else None
-#         ),
-#         annot=False,
-#     )
-#
-#     axis.axhline(n_domains, color="#555555", linewidth=0.9)
-#     axis.axhline(2 * n_domains, color="#555555", linewidth=0.9)
-#
-#     for group_index, group_label in enumerate(group_labels):
-#         center = group_index * n_domains + n_domains / 2.0
-#         axis.text(
-#             -0.16,
-#             center,
-#             group_label,
-#             transform=axis.get_yaxis_transform(),
-#             ha="right",
-#             va="center",
-#             fontsize=6.8,
-#             fontweight="bold",
-#             color="#333333",
-#         )
-#
-#     axis.set_title(title, fontweight="bold", pad=5)
-#     axis.set_xlabel("Neighbor domain")
-#     axis.set_ylabel("Focal domain")
-#     axis.tick_params(axis="x", rotation=0, labelsize=6.5)
-#     axis.tick_params(axis="y", rotation=0, labelsize=6.2)
-#
-#     if annotate:
-#         annotate_heatmap(
-#             axis,
-#             stacked_matrix,
-#             vmax=float(norm.vmax),
-#             fontsize=5.4 if n_domains > 4 else 6.0,
-#         )
-#
-#
-# def plot_average_neighborhood_heatmaps(
-#     matrix_df: pd.DataFrame,
-#     domain_order: Sequence[str],
-#     cfg: Config,
-# ) -> None:
-#     """
-#     Plot one summary figure using ALL available input tissues.
-#
-#     Averaging convention
-#     --------------------
-#     Real reference:
-#         already the entry-wise mean neighborhood matrix across all real slices.
-#
-#     SpatialZ:
-#         entry-wise mean neighborhood matrix across all available SpatialZ ages.
-#
-#     AXIS:
-#         entry-wise mean neighborhood matrix across all available AXIS ages.
-#
-#     The figure contains three subplots:
-#         1. all domains
-#         2. hippocampus: domains 8 and 11
-#         3. cortical layers: domains 1, 6, 4, and 11
-#     """
-#     real_matrix = summarized_matrix_from_long(
-#         matrix_df,
-#         group="Real reference",
-#         domain_order=domain_order,
-#     )
-#     spatialz_matrix = summarized_matrix_from_long(
-#         matrix_df,
-#         group="SpatialZ",
-#         domain_order=domain_order,
-#     )
-#     axis_matrix = summarized_matrix_from_long(
-#         matrix_df,
-#         group="AXIS",
-#         domain_order=domain_order,
-#     )
-#
-#     region_definitions = [
-#         ("All domains", list(domain_order)),
-#         ("Hippocampus", list(cfg.hippocampus_domains)),
-#         ("Cortical layers", list(cfg.cortical_domains)),
-#     ]
-#
-#     stacked_regions = []
-#     for title, domains in region_definitions:
-#         stacked, _, group_labels = stack_condition_matrices(
-#             real_matrix,
-#             spatialz_matrix,
-#             axis_matrix,
-#             domains=domains,
-#         )
-#         stacked_regions.append((title, domains, stacked, group_labels))
-#
-#     finite_values = np.concatenate([
-#         stacked.to_numpy(dtype=float)[np.isfinite(stacked.to_numpy(dtype=float))]
-#         for _, _, stacked, _ in stacked_regions
-#     ])
-#     vmax = float(np.max(finite_values)) if finite_values.size else 1.0
-#     vmax = max(vmax, 1e-6)
-#
-#     norm = mpl.colors.PowerNorm(
-#         gamma=1.25,
-#         vmin=0.0,
-#         vmax=vmax,
-#     )
-#
-#     set_pub_style()
-#     figure, axes = plt.subplots(
-#         1,
-#         3,
-#         figsize=(13.2, 5.0),
-#         gridspec_kw={
-#             "width_ratios": [2.15, 0.85, 1.15],
-#             "wspace": 0.44,
-#         },
-#     )
-#
-#     for index, (title, domains, stacked, group_labels) in enumerate(stacked_regions):
-#         draw_condition_stacked_heatmap(
-#             axis=axes[index],
-#             stacked_matrix=stacked,
-#             group_labels=group_labels,
-#             n_domains=len(domains),
-#             title=title,
-#             norm=norm,
-#             show_colorbar=index == 2,
-#             annotate=(title != "All domains" or len(domains) <= 10),
-#         )
-#
-#     figure.suptitle(
-#         "Average anatomical neighborhood connectivity across all evaluated tissues",
-#         fontsize=10.5,
-#         fontweight="bold",
-#         y=0.98,
-#     )
-#     figure.subplots_adjust(
-#         left=0.09,
-#         right=0.95,
-#         top=0.87,
-#         bottom=0.13,
-#     )
-#
-#     save_or_show(
-#         figure,
-#         # None
-#         str(
-#             cfg.figure_dir
-#             / "anatomical_neighborhood_heatmaps_average.png"
-#         ),
-#     )
-def draw_condition_stacked_heatmap(
+
+def _draw_region_axis_headers(
     axis: mpl.axes.Axes,
-    stacked_matrix: pd.DataFrame,
-    group_labels: Sequence[str],
+    partition_index: int,
     n_domains: int,
-    title: str,
+) -> None:
+    """
+    Draw tight colored region strips plus grouped x/y anatomical labels.
+
+    X-axis groups describe NEIGHBOR domains.
+    Y-axis groups describe FOCAL domains.
+    """
+    if not (0 < int(partition_index) < int(n_domains)):
+        return
+
+    partition_index = int(partition_index)
+    n_domains = int(n_domains)
+
+    x_transform = axis.get_xaxis_transform()
+    y_transform = axis.get_yaxis_transform()
+
+    inset = -0.00
+
+    groups = [
+        {
+            "name": "Cortex",
+            "start": 0.0,
+            "end": float(partition_index),
+            "color": CORTEX_REGION_COLOR,
+        },
+        {
+            "name": "Hippocampus",
+            "start": float(partition_index),
+            "end": float(n_domains),
+            "color": HIPPOCAMPUS_REGION_COLOR,
+        },
+    ]
+
+    for group in groups:
+        start = group["start"]
+        end = group["end"]
+        center = 0.5 * (start + end)
+        color = group["color"]
+        name = group["name"]
+
+        # Horizontal strip immediately below the heatmap.
+        axis.plot(
+            [start + inset, end - inset],
+            [-REGION_X_STRIP_OFFSET, -REGION_X_STRIP_OFFSET],
+            transform=x_transform,
+            color=color,
+            linewidth=REGION_STRIP_WIDTH,
+            solid_capstyle="butt",
+            clip_on=False,
+            zorder=8,
+        )
+        axis.text(
+            center-0.5,
+            -REGION_X_TEXT_OFFSET,
+            f"{name} (Neighbor)",
+            transform=x_transform,
+            ha="center",
+            va="top",
+            fontsize=REGION_LABEL_FONTSIZE,
+            # fontweight="bold",
+            color=color,
+            clip_on=False,
+        )
+
+        # Vertical strip immediately left of the heatmap.
+        axis.plot(
+            [-REGION_Y_STRIP_OFFSET, -REGION_Y_STRIP_OFFSET],
+            [start + inset, end - inset],
+            transform=y_transform,
+            color=color,
+            linewidth=REGION_STRIP_WIDTH,
+            solid_capstyle="butt",
+            clip_on=False,
+            zorder=8,
+        )
+        axis.text(
+            -REGION_Y_TEXT_OFFSET,
+            center+1,
+            f"{name} (Focal)",
+            transform=y_transform,
+            rotation=90,
+            ha="center",
+            va="bottom",
+            fontsize=REGION_LABEL_FONTSIZE,
+            # fontweight="bold",
+            color=color,
+            clip_on=False,
+        )
+
+
+def draw_condition_heatmap(
+    axis: mpl.axes.Axes,
+    matrix: pd.DataFrame,
+    method_label: str,
+    region_title: str,
     norm: mpl.colors.Normalize,
     *,
     cbar_ax: Optional[mpl.axes.Axes] = None,
     annotate: bool = True,
-    grid_fontsize: float = 9.0,
+    grid_fontsize: float = 12.0,
     tick_fontsize: float = 11.0,
-    group_fontsize: float = 11.5,
     title_fontsize: float = 14.0,
     axis_fontsize: float = 12.0,
+    partition_index: Optional[int] = None,
+    partition_color: str = "#8A8A8A",
 ) -> None:
-    """
-    Plot one vertically stacked neighborhood heatmap.
-
-    Left side layout:
-        condition annotation | focal-domain labels | heatmap
-
-    The condition annotation and focal-domain labels are separated
-    horizontally so they do not overlap.
-    """
-
+    """Plot one method-specific anatomical-neighborhood heatmap."""
     sns.heatmap(
-        stacked_matrix,
+        matrix,
         ax=axis,
         cmap=HEATMAP_CMAP,
         norm=norm,
         linewidths=0.55,
         linecolor="white",
-        mask=stacked_matrix.isna(),
+        mask=matrix.isna(),
         cbar=(cbar_ax is not None),
         cbar_ax=cbar_ax,
         cbar_kws=(
-            {
-                "label": "Neighborhood component fraction",
-            }
+            {"label": "Neighborhood component fraction"}
             if cbar_ax is not None
             else None
         ),
         annot=False,
     )
 
-    # ==============================================================
-    # Separate Real / SpatialZ / AXIS blocks
-    # ==============================================================
-
-    axis.axhline(
-        n_domains,
-        color="#555555",
-        linewidth=1.15,
-    )
-
-    axis.axhline(
-        2 * n_domains,
-        color="#555555",
-        linewidth=1.15,
-    )
-
-    # ==============================================================
-    # FOCAL DOMAIN LABELS
-    #
-    # These stay immediately beside the heatmap.
-    # ==============================================================
-
     axis.set_yticklabels(
-        stacked_matrix.index.astype(str),
+        matrix.index.astype(str),
         rotation=0,
         fontsize=tick_fontsize,
     )
-
-    axis.yaxis.tick_left()
-
-    axis.tick_params(
-        axis="y",
-        labelsize=tick_fontsize,
-        pad=5,
-        length=0,
-    )
-
-    # ==============================================================
-    # CONDITION LABELS
-    #
-    # Put them farther to the LEFT than the focal-domain labels.
-    #
-    # x is in axes coordinates:
-    #     x = 0    -> heatmap left edge
-    #     x < 0    -> farther into left margin
-    #
-    # -0.20 gives a clear gap from the focal-domain tick labels.
-    # ==============================================================
-
-    display_group_labels = {
-        "Real reference": "Real\nreference",
-        "SpatialZ": "SpatialZ",
-        "AXIS": "AXIS",
-    }
-
-    for group_index, group_label in enumerate(group_labels):
-
-        center = (
-            group_index * n_domains
-            + n_domains / 2.0
-        )
-
-        display_label = display_group_labels.get(
-            str(group_label),
-            str(group_label),
-        )
-
-        axis.text(
-            -0.22,
-            center,
-            display_label,
-            transform=axis.get_yaxis_transform(),
-            ha="right",
-            va="center",
-            fontsize=group_fontsize,
-            fontweight="bold",
-            color="#333333",
-            linespacing=0.95,
-            clip_on=False,
-        )
-
-    # ==============================================================
-    # X-axis labels
-    # ==============================================================
-
     axis.set_xticklabels(
-        stacked_matrix.columns.astype(str),
+        matrix.columns.astype(str),
         rotation=0,
         fontsize=tick_fontsize,
     )
-
     axis.tick_params(
-        axis="x",
+        axis="both",
         labelsize=tick_fontsize,
         pad=5,
         length=0,
     )
 
-    # ==============================================================
-    # Titles / axis labels
-    # ==============================================================
-
+    # The anatomical region is encoded directly on the x/y grouped labels.
     axis.set_title(
-        title,
+        method_label,
         fontsize=title_fontsize,
-        fontweight="bold",
+        # fontweight="bold",
         pad=10,
     )
+    axis.set_xlabel("")
+    axis.set_ylabel("")
 
-    axis.set_xlabel(
-        "Neighbor domain",
-        fontsize=axis_fontsize,
-        labelpad=8,
-    )
+    if partition_index is not None and 0 < int(partition_index) < matrix.shape[0]:
+        # boundary = float(partition_index)
+        #
+        # # Gray matrix partitions retained from the previous version.
+        # axis.axhline(
+        #     boundary,
+        #     color=partition_color,
+        #     linewidth=2.0,
+        #     zorder=6,
+        # )
+        # axis.axvline(
+        #     boundary,
+        #     color=partition_color,
+        #     linewidth=2.0,
+        #     zorder=6,
+        # )
 
-    axis.set_ylabel(
-        "Focal domain",
-        fontsize=axis_fontsize,
-        labelpad=8,
-    )
-
-    # ==============================================================
-    # Numerical annotations
-    # ==============================================================
+        # Publication-style colored strips and grouped axis labels.
+        _draw_region_axis_headers(
+            axis=axis,
+            partition_index=int(partition_index),
+            n_domains=matrix.shape[0],
+        )
 
     if annotate:
         annotate_heatmap(
             axis,
-            stacked_matrix,
+            matrix,
             vmax=float(norm.vmax),
             fontsize=grid_fontsize,
         )
 
-    # ==============================================================
-    # Colorbar typography
-    # ==============================================================
-
     if cbar_ax is not None:
-
-        cbar_ax.tick_params(
-            labelsize=10.5,
-        )
-
+        cbar_ax.tick_params(labelsize=10.5)
         cbar_ax.set_ylabel(
             "Neighborhood component fraction",
             fontsize=11.5,
             labelpad=10,
         )
-
 
 
 def plot_average_neighborhood_heatmaps(
@@ -1448,294 +1266,111 @@ def plot_average_neighborhood_heatmaps(
     cfg: Config,
 ) -> None:
     """
-    Plot average neighborhood connectivity across all evaluated tissues.
+    Plot one combined cortex+hippocampus neighborhood heatmap per method.
 
-    Three SEPARATE figures are generated:
-
-        1. All domains
-        2. Hippocampus
-        3. Cortical layers
-
-    Averaging convention
-    --------------------
-    Real reference:
-        Entry-wise mean across all real slices.
-
-    SpatialZ:
-        Entry-wise mean across all available SpatialZ virtual ages.
-
-    AXIS:
-        Entry-wise mean across all available AXIS virtual ages.
-
-    All three figures use the SAME color normalization so the heatmap
-    intensities are directly comparable.
+    Domains are grouped by anatomical region, with cortical layers first and
+    hippocampus second. Gray partition lines separate the two groups. All
+    methods share the same positive-only normalization.
     """
-
-    # ==============================================================
-    # Summarize all input tissues
-    # ==============================================================
-
-    real_matrix = summarized_matrix_from_long(
-        matrix_df,
-        group="Real reference",
-        domain_order=domain_order,
-    )
-
-    spatialz_matrix = summarized_matrix_from_long(
-        matrix_df,
-        group="SpatialZ",
-        domain_order=domain_order,
-    )
-
-    axis_matrix = summarized_matrix_from_long(
-        matrix_df,
-        group="AXIS",
-        domain_order=domain_order,
-    )
-
-    # ==============================================================
-    # Region definitions
-    # ==============================================================
-
-    region_definitions = [
-        (
-            "All domains",
-            list(domain_order),
-            "all_domains",
+    method_matrices = {
+        "Real reference": summarized_matrix_from_long(
+            matrix_df,
+            group="Real",
+            domain_order=domain_order,
         ),
-        (
-            "Hippocampus",
-            list(cfg.hippocampus_domains),
-            "hippocampus",
+        "SpatialZ": summarized_matrix_from_long(
+            matrix_df,
+            group="SpatialZ",
+            domain_order=domain_order,
         ),
-        (
-            "Cortical layers",
-            list(cfg.cortical_domains),
-            "cortical_layers",
+        "AXIS": summarized_matrix_from_long(
+            matrix_df,
+            group="AXIS",
+            domain_order=domain_order,
         ),
-    ]
+    }
 
-    # ==============================================================
-    # Construct all stacked matrices first
-    #
-    # This allows ONE common color scale to be used across the three
-    # independently saved figures.
-    # ==============================================================
+    cortical_domains = [str(value) for value in cfg.cortical_domains]
+    hippocampus_domains = [str(value) for value in cfg.hippocampus_domains]
+    combined_domains = ordered_unique(cortical_domains + hippocampus_domains)
+    partition_index = len(ordered_unique(cortical_domains))
 
-    stacked_regions = []
-
-    for title, domains, file_tag in region_definitions:
-
-        stacked, _, group_labels = stack_condition_matrices(
-            real_matrix,
-            spatialz_matrix,
-            axis_matrix,
-            domains=domains,
-        )
-
-        stacked_regions.append(
+    plot_records = []
+    for method_label, full_matrix in method_matrices.items():
+        plot_records.append(
             {
-                "title": title,
-                "domains": domains,
-                "file_tag": file_tag,
-                "stacked": stacked,
-                "group_labels": group_labels,
+                "method_label": method_label,
+                "matrix": select_region_matrix(full_matrix, combined_domains),
             }
         )
 
-    # ==============================================================
-    # Shared color normalization across ALL THREE figures
-    # ==============================================================
-
     finite_arrays = []
-
-    for record in stacked_regions:
-
-        values = record[
-            "stacked"
-        ].to_numpy(
-            dtype=float
-        )
-
-        finite = values[
-            np.isfinite(values)
-        ]
-
+    for record in plot_records:
+        values = record["matrix"].to_numpy(dtype=float)
+        finite = values[np.isfinite(values)]
         if finite.size:
-            finite_arrays.append(
-                finite
-            )
+            finite_arrays.append(finite)
 
-    if finite_arrays:
+    vmax = float(np.max(np.concatenate(finite_arrays))) if finite_arrays else 1.0
+    vmax = max(vmax, 1e-6)
+    norm = mpl.colors.PowerNorm(gamma=1.25, vmin=0.0, vmax=vmax)
 
-        finite_values = np.concatenate(
-            finite_arrays
-        )
-
-        vmax = float(
-            np.max(
-                finite_values
-            )
-        )
-
-    else:
-
-        vmax = 1.0
-
-    vmax = max(
-        vmax,
-        1e-6,
-    )
-
-    norm = mpl.colors.PowerNorm(
-        gamma=1.25,
-        vmin=0.0,
-        vmax=vmax,
-    )
-
-    # ==============================================================
-    # Plot each region independently
-    # ==============================================================
+    method_tags = {
+        "Real reference": "real_reference",
+        "SpatialZ": "spatialz",
+        "AXIS": "axis",
+    }
 
     set_pub_style()
+    n_domains = len(combined_domains)
 
-    for record in stacked_regions:
+    for record in plot_records:
+        method_label = record["method_label"]
+        matrix = record["matrix"]
 
-        title = record["title"]
-        domains = record["domains"]
-        file_tag = record["file_tag"]
-        stacked = record["stacked"]
-        group_labels = record["group_labels"]
+        figure_width = max(4.8, min(9.0, 3.8 + 0.56 * n_domains))
+        figure_height = max(4.5, min(8.5, 3.0 + 0.56 * n_domains))
 
-        n_domains = len(
-            domains
-        )
 
-        # ----------------------------------------------------------
-        # Figure dimensions
-        #
-        # Scale the canvas with the number of heatmap cells.
-        # This is particularly important for "All domains", where
-        # there are 3 x n_domains rows.
-        # ----------------------------------------------------------
+        grid_fontsize = 12
+        tick_fontsize = 12
 
-        figure_width = max(
-            3.2,
-            min(
-                9.0,
-                3.2
-                + 0.34 * n_domains,
-            ),
-        )
-
-        figure_height = max(
-            4.8,
-            min(
-                11.0,
-                2.4
-                + 0.25
-                * (3 * n_domains),
-            ),
-        )
-
-        # ----------------------------------------------------------
-        # Numerical annotation size
-        #
-        # Keep substantially larger text than the original code,
-        # while allowing the all-domain matrix to remain legible.
-        # ----------------------------------------------------------
-
-        if n_domains <= 3:
-
-            grid_fontsize = 11.0
-            tick_fontsize = 12.0
-
-        elif n_domains <= 6:
-
-            grid_fontsize = 9.5
-            tick_fontsize = 11.5
-
-        else:
-
-            grid_fontsize = 8.0
-            tick_fontsize = 10.5
-
-        # ----------------------------------------------------------
-        # Explicit layout:
-        #
-        # heatmap | condition-label margin | colorbar
-        #
-        # The middle blank column gives Real reference / SpatialZ /
-        # AXIS enough room without colliding with either the domain
-        # labels or colorbar.
-        # ----------------------------------------------------------
-
-        figure = plt.figure(
-            figsize=(
-                figure_width,
-                figure_height,
-            )
-        )
-
+        figure = plt.figure(figsize=(figure_width, figure_height))
         gs = figure.add_gridspec(
             nrows=1,
             ncols=2,
-            width_ratios=[
-                1.0,
-                0.045,
-            ],
-            left=0.27,
+            width_ratios=[1.0, 0.045],
+            left=0.35,
             right=0.94,
-            bottom=0.12,
+            bottom=0.26,
             top=0.88,
-            wspace=0.12,
+            wspace=0.14,
         )
+        heatmap_ax = figure.add_subplot(gs[0, 0])
+        cbar_ax = figure.add_subplot(gs[0, 1])
 
-        heatmap_ax = figure.add_subplot(
-            gs[0, 0]
-        )
-
-        cbar_ax = figure.add_subplot(
-            gs[0, 1]
-        )
-
-        # ----------------------------------------------------------
-        # Draw heatmap
-        # ----------------------------------------------------------
-
-        draw_condition_stacked_heatmap(
+        draw_condition_heatmap(
             axis=heatmap_ax,
-            stacked_matrix=stacked,
-            group_labels=group_labels,
-            n_domains=n_domains,
-            title=title,
+            matrix=matrix,
+            method_label=method_label,
+            region_title="Cortex + Hippocampus",
             norm=norm,
             cbar_ax=cbar_ax,
             annotate=True,
             grid_fontsize=grid_fontsize,
             tick_fontsize=tick_fontsize,
-            group_fontsize=11.5,
             title_fontsize=14.5,
             axis_fontsize=12.0,
+            partition_index=partition_index,
+            partition_color="#9A9A9A",
         )
-
-
-        # ----------------------------------------------------------
-        # Save independently
-        # ----------------------------------------------------------
 
         save_path = (
             cfg.figure_dir
-            / (
-                "anatomical_neighborhood_heatmap_"
-                f"{file_tag}_average.png"
-            )
+            / f"anatomical_neighborhood_heatmap_cortex_hippocampus_{method_tags[method_label]}_average.png"
         )
+        save_or_show(figure, str(save_path))
 
-        save_or_show(
-            figure,
-            str(save_path),
-        )
 
 # =============================================================================
 # PLOTTING WORKFLOW
@@ -1750,7 +1385,7 @@ def plot_results(
     ensure_directory(cfg.figure_dir)
     domain_order = [str(value) for value in config["domain_order"]]
 
-    print("[Plot 1/2] Anatomical neighborhood component agreement")
+    # print("[Plot 1/2] Anatomical neighborhood component agreement")
     # plot_domain_component_agreement(
     #     agreement_df,
     #     # save_path=None,
@@ -1760,7 +1395,7 @@ def plot_results(
     #     ),
     # )
 
-    print("[Plot 2/2] Average neighborhood heatmaps across all input data")
+    print("[Plot 2/2] Method-specific average neighborhood heatmaps across all input data")
     plot_average_neighborhood_heatmaps(
         matrix_df=matrix_df,
         domain_order=domain_order,
@@ -1793,5 +1428,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

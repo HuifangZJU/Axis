@@ -107,28 +107,28 @@ from spatial_delta_utils import compute_spatial_delta_from_files
 DISEASE_NORMAL_FILES: List[Tuple[str, str, str]] = [
     (
         "2.5m",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_2.500.h5ad",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_102.500.h5ad",
     ),
     (
         "5.7m",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_5.700.h5ad",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_105.700.h5ad",
     ),
     (
         "13.4m",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_13.400.h5ad",
-        "/media/huifang/data/registration/xenium/mouse_brain/"
+        "/media/huifang/data/registration/mouse_brain/"
         "virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/"
         "virtual_Disease_time_113.400.h5ad",
     ),
@@ -144,14 +144,14 @@ DELTA_USE_COMMON_VALID = True
 COORDINATE_DECIMALS = 5
 
 AGE_DISPLAY_LABELS = {
-    "2.5m": r"$\Delta$ 2.5 m",
-    "5.7m": r"$\Delta$ 5.7 m",
-    "13.4m": r"$\Delta$ 13.4 m",
+    "2.5m": r"$\Delta$2.5 m",
+    "5.7m": r"$\Delta$5.7 m",
+    "13.4m": r"$\Delta$13.4 m",
 }
 
 OUTDIR = (
-    "/media/huifang/data/registration/paper_figure/"
-    "Figure6_disease/trend_heatmap_hybrid"
+    "/media/huifang/data/registration/paper_analysis/"
+    "Figure56_mouse/6_trend_heatmap_hybrid"
 )
 
 DOMAIN_KEY = "axis_joint_domain"
@@ -219,7 +219,7 @@ CELL_EDGE_WIDTH = 0.7
 
 # Visually separate the two marker classes in each heatmap panel.
 SHOW_MARKER_CLASS_LABELS = True
-MARKER_CLASS_LABEL_FONTSIZE = 7.5
+MARKER_CLASS_LABEL_FONTSIZE = 12
 
 # Muted publication-style annotation colors. These colors are used only for
 # marker-class labels/side headers, not for the heatmap values themselves.
@@ -262,6 +262,14 @@ AUDIT_CSV = os.path.join(
 )
 ANALYSIS_CONFIG_JSON = os.path.join(
     OUTDIR, "analysis_config.json"
+)
+
+# Saved location-level spatial delta maps for downstream pipeline plotting.
+SAVED_SPATIAL_DELTA_DIR = os.path.join(
+    OUTDIR, "saved_spatial_delta_maps"
+)
+SAVED_SPATIAL_DELTA_MANIFEST_JSON = os.path.join(
+    SAVED_SPATIAL_DELTA_DIR, "saved_spatial_delta_manifest.json"
 )
 
 
@@ -357,6 +365,42 @@ def compute_delta_h5ad(
 
 def get_domain_labels(adata) -> np.ndarray:
     return adata.obs[DOMAIN_KEY].astype(str).to_numpy()
+
+
+def save_spatial_delta_maps(
+    ad_dict,
+    save_dir: str = SAVED_SPATIAL_DELTA_DIR,
+) -> None:
+    """Save the canonical location-level disease-minus-WT delta maps.
+
+    This is intentionally additive only: it does not change any ranking,
+    selection, or plotting logic in the original disease-trend analysis.
+    """
+    ensure_dir(save_dir)
+
+    manifest = {
+        "files": {},
+        "preprocessing": {
+            "library_size_normalize": LIBRARY_SIZE_NORMALIZE,
+            "normalization_target_sum": NORMALIZATION_TARGET_SUM,
+            "log1p_before_analysis": LOG1P_BEFORE_ANALYSIS,
+            "delta_use_common_valid": DELTA_USE_COMMON_VALID,
+            "coordinate_decimals": COORDINATE_DECIMALS,
+            "domain_key": DOMAIN_KEY,
+            "valid_key": VALID_KEY,
+        },
+    }
+
+    for age_label, adata in ad_dict.items():
+        safe_label = str(age_label).replace(" ", "_").replace("/", "-")
+        out_path = os.path.join(save_dir, f"spatial_delta_{safe_label}.h5ad")
+        adata.write_h5ad(out_path)
+        manifest["files"][str(age_label)] = out_path
+        print(f"[SAVE] {out_path}")
+
+    with open(SAVED_SPATIAL_DELTA_MANIFEST_JSON, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    print(f"[SAVE] {SAVED_SPATIAL_DELTA_MANIFEST_JSON}")
 
 
 def extract_gene_matrix(
@@ -1299,6 +1343,7 @@ def draw_heatmap_panel(
     matrix: pd.DataFrame,
     selected: pd.DataFrame,
     domain: str,
+    region: str,
     age_order: Sequence[str],
     coherent_vmax: float,
     heterogeneous_vmax: float,
@@ -1390,11 +1435,12 @@ def draw_heatmap_panel(
         ],
         rotation=0,
         ha="center",
+    fontsize = 10
     )
 
     ax.set_yticks(np.arange(n_rows))
     ax.set_yticklabels(
-        format_gene_labels(selected)
+        format_gene_labels(selected),fontsize=12
     )
 
     for tick_label in ax.get_yticklabels():
@@ -1455,9 +1501,8 @@ def draw_heatmap_panel(
         )
 
     ax.set_title(
-        f"Domain {domain}",
-        fontweight="bold",
-        pad=7,
+        f"{region} | Domain {domain}",
+        pad=7,fontsize=14
     )
     ax.set_xlabel("")
     ax.set_ylabel("")
@@ -1550,201 +1595,7 @@ def build_saved_selection_matrix(
         )
     )
     return matrix, selected
-#
-#
-# def plot_grouped_hybrid_heatmaps(
-#     summary_df: pd.DataFrame,
-#     selected_df: pd.DataFrame,
-#     age_order: Sequence[str],
-#     domain_groups: Sequence[Dict],
-#     save_dir: str,
-# ) -> None:
-#     """
-#     Plot the saved hybrid-selection results only.
-#
-#     The plotting path does not recompute ranking, domain specificity,
-#     or marker selection.
-#     """
-#     set_figure_style()
-#     ensure_dir(save_dir)
-#
-#     matrices = []
-#     selected_per_domain = []
-#     kept_domains = []
-#     group_ranges = []
-#
-#     available_domains = set(
-#         summary_df["domain"].astype(str).unique()
-#     )
-#
-#     panel_index = 0
-#     for group in domain_groups:
-#         group_name = str(group["name"])
-#         group_start = panel_index
-#
-#         for domain in [str(x) for x in group["domains"]]:
-#             if domain not in available_domains:
-#                 continue
-#
-#             matrix, selected = build_saved_selection_matrix(
-#                 summary_df=summary_df,
-#                 selected_df=selected_df,
-#                 group_name=group_name,
-#                 domain=domain,
-#                 age_order=age_order,
-#             )
-#             if matrix.empty:
-#                 continue
-#
-#             matrices.append(matrix)
-#             selected_per_domain.append(selected)
-#             kept_domains.append(domain)
-#             panel_index += 1
-#
-#         if panel_index > group_start:
-#             group_ranges.append(
-#                 (group_name, group_start, panel_index)
-#             )
-#
-#     if not matrices:
-#         print("[WARN] No valid heatmap panels were generated.")
-#         return
-#
-#     coherent_vmax = calculate_marker_class_vmax(
-#         matrices=matrices,
-#         selected_tables=selected_per_domain,
-#         marker_class="Coherent",
-#     )
-#     heterogeneous_vmax = calculate_marker_class_vmax(
-#         matrices=matrices,
-#         selected_tables=selected_per_domain,
-#         marker_class="Heterogeneous",
-#     )
-#
-#     n_domains = len(matrices)
-#     n_slots = max(TOTAL_DOMAIN_SLOTS, n_domains)
-#     figure_width = max(
-#         8.0,
-#         PANEL_WIDTH * n_slots + 1.35,
-#     )
-#
-#     fig = plt.figure(
-#         figsize=(figure_width, PANEL_HEIGHT)
-#     )
-#
-#     grid = fig.add_gridspec(
-#         1,
-#         n_slots + 1,
-#         width_ratios=[1.0] * n_slots + [0.085],
-#         left=0.035,
-#         right=0.97,
-#         top=0.80,
-#         bottom=0.12,
-#         wspace=0.6,
-#     )
-#
-#     axes = [
-#         fig.add_subplot(grid[0, index])
-#         for index in range(n_slots)
-#     ]
-#
-#     cbar_grid = grid[0, -1].subgridspec(
-#         2, 1, hspace=0.48
-#     )
-#     coherent_cbar_ax = fig.add_subplot(cbar_grid[0, 0])
-#     heterogeneous_cbar_ax = fig.add_subplot(cbar_grid[1, 0])
-#
-#     for ax, domain, matrix, selected in zip(
-#         axes[:n_domains],
-#         kept_domains,
-#         matrices,
-#         selected_per_domain,
-#     ):
-#         draw_heatmap_panel(
-#             ax=ax,
-#             matrix=matrix,
-#             selected=selected.drop(
-#                 columns=["group", "domain"],
-#                 errors="ignore",
-#             ),
-#             domain=domain,
-#             age_order=age_order,
-#             coherent_vmax=coherent_vmax,
-#             heterogeneous_vmax=heterogeneous_vmax,
-#         )
-#
-#     for ax in axes[n_domains:]:
-#         ax.axis("off")
-#
-#     coherent_mappable = ScalarMappable(
-#         norm=Normalize(
-#             vmin=-coherent_vmax,
-#             vmax=coherent_vmax,
-#         ),
-#         cmap=HEATMAP_CMAP,
-#     )
-#     heterogeneous_mappable = ScalarMappable(
-#         norm=Normalize(
-#             vmin=-heterogeneous_vmax,
-#             vmax=heterogeneous_vmax,
-#         ),
-#         cmap=HEATMAP_CMAP,
-#     )
-#
-#     coherent_colorbar = fig.colorbar(
-#         coherent_mappable,
-#         cax=coherent_cbar_ax,
-#     )
-#     coherent_colorbar.set_label(
-#         r"Mean disease$-$WT $\Delta$",
-#         rotation=90,
-#         labelpad=8,
-#         fontsize=8.5,
-#     )
-#     coherent_colorbar.ax.tick_params(
-#         labelsize=7.5,
-#         length=2.2,
-#     )
-#     coherent_colorbar.outline.set_visible(False)
-#
-#     heterogeneous_colorbar = fig.colorbar(
-#         heterogeneous_mappable,
-#         cax=heterogeneous_cbar_ax,
-#     )
-#     heterogeneous_colorbar.set_label(
-#         r"Mean disease$-$WT $\Delta$",
-#         rotation=90,
-#         labelpad=8,
-#         fontsize=8.5,
-#     )
-#     heterogeneous_colorbar.ax.tick_params(
-#         labelsize=7.5,
-#         length=2.2,
-#     )
-#     heterogeneous_colorbar.outline.set_visible(False)
-#
-#     for group_name, start_idx, end_idx in group_ranges:
-#         left_box = axes[start_idx].get_position()
-#         right_box = axes[end_idx - 1].get_position()
-#         x_center = 0.5 * (left_box.x0 + right_box.x1)
-#         y_top = max(left_box.y1, right_box.y1)
-#
-#         fig.text(
-#             x_center,
-#             y_top + 0.055,
-#             group_name,
-#             ha="center",
-#             va="bottom",
-#             fontsize=13.5,
-#             fontweight="bold",
-#         )
-#
-#     save_combined_figure(
-#         fig=fig,
-#         save_dir=save_dir,
-#         figure_name="all_regions",
-#     )
-#     plt.close(fig)
+
 
 def plot_individual_domain_hybrid_heatmaps(
     summary_df: pd.DataFrame,
@@ -1957,6 +1808,19 @@ def plot_individual_domain_hybrid_heatmaps(
             cbar_grid[1, 0]
         )
 
+        # Shift both colorbars horizontally.
+        shift_x = -0.1  # positive = right, negative = left
+
+        for cax in [coherent_cbar_ax, heterogeneous_cbar_ax]:
+            pos = cax.get_position()
+
+            cax.set_position([
+                pos.x0 + shift_x,
+                pos.y0,
+                pos.width,
+                pos.height,
+            ])
+
         # --------------------------------------------------------
         # Heatmap
         # --------------------------------------------------------
@@ -1966,6 +1830,7 @@ def plot_individual_domain_hybrid_heatmaps(
             matrix=matrix,
             selected=selection_for_plot,
             domain=domain,
+            region=region_name,
             age_order=age_order,
             coherent_vmax=coherent_vmax,
             heterogeneous_vmax=heterogeneous_vmax,
@@ -1989,10 +1854,10 @@ def plot_individual_domain_hybrid_heatmaps(
         )
 
         coherent_colorbar.set_label(
-            r"Mean disease$-$WT $\Delta$",
+            r"Mean AD$-$WT $\Delta$",
             rotation=90,
             labelpad=7,
-            fontsize=8.5,
+            fontsize=10,
         )
 
         coherent_colorbar.ax.tick_params(
@@ -2022,10 +1887,10 @@ def plot_individual_domain_hybrid_heatmaps(
         )
 
         heterogeneous_colorbar.set_label(
-            r"Mean disease$-$WT $\Delta$",
+            r"Mean AD$-$WT $\Delta$",
             rotation=90,
             labelpad=7,
-            fontsize=8.5,
+            fontsize=10,
         )
 
         heterogeneous_colorbar.ax.tick_params(
@@ -2035,19 +1900,6 @@ def plot_individual_domain_hybrid_heatmaps(
 
         heterogeneous_colorbar.outline.set_visible(
             False
-        )
-
-        # --------------------------------------------------------
-        # Region annotation
-        #
-        # Keep this consistent across every panel.
-        # --------------------------------------------------------
-
-        fig.suptitle(
-            region_name,
-            fontsize=13.5,
-            fontweight="bold",
-            y=0.975,
         )
 
         # --------------------------------------------------------
@@ -2238,6 +2090,10 @@ def evaluate_and_save() -> None:
         "[INFO] Spatial delta definition: "
         "preprocess(disease) - preprocess(normal)"
     )
+
+    # Persist the exact intermediate spatial delta maps used below so the
+    # pipeline figure script can reuse them without recomputation.
+    save_spatial_delta_maps(ad_dict=ad_dict)
 
     all_domains = get_all_domains(ad_dict)
     visualization_domains = get_visualization_domains(

@@ -58,6 +58,7 @@ def infer_axis_bandwidth(observed_axis_positions, min_bandwidth=1e-6):
     diffs = diffs[diffs > 0]
     if diffs.size == 0:
         return 1.0
+
     bw = float(np.median(diffs))/3.0
 
     return max(bw, float(min_bandwidth))
