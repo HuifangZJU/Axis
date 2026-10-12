@@ -599,7 +599,7 @@ AXIS_POSITIONS = {
 # analysis mode uses one fixed reference slice/grid
 ANALYSIS_REFERENCE_ANCHOR_ID = 0
 
-ROOT = "/media/huifang/data/registration/xenium/mouse_brain"
+ROOT = "/media/huifang/data/registration/mouse_brain"
 NET_IN = os.path.join(ROOT, "network_input")
 H5AD_DIR = os.path.join(ROOT, "h5ads/Tg")
 
@@ -647,8 +647,8 @@ for GROUP_ID in [0]:
 
         if MODE=="query":
             ANCHOR_IDS = [0,1, 2]
-            # QUERY_AXIS_VALUES = [8.75]
-            QUERY_AXIS_VALUES = [3.3, 4.1, 4.9, 8.75, 11.8, 14.85]
+            QUERY_AXIS_VALUES = [17.9]
+            # QUERY_AXIS_VALUES = [3.3, 4.1, 4.9, 8.75, 11.8, 14.85,17.9]
 
             GENE_SUBSET = ["Arc","Gfap"]
             # GENE_SUBSET=None

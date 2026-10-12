@@ -1,42 +1,125 @@
+
 import os
-from typing import Sequence, Tuple, Optional
+import argparse
+from dataclasses import dataclass
+from typing import Optional, Sequence, Tuple, List
 
 import numpy as np
 import scanpy as sc
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
-from matplotlib.patches import Rectangle, ConnectionPatch
-from matplotlib.cm import ScalarMappable
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 
 
 # ============================================================
-# Global plotting controls
+# Recycled data I/O from the previous Figure-7a script
+# ============================================================
+REAL_GENE = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_xenium.h5ad"
+REAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_protein.h5ad"
+VIRTUAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/modality_LUAD_2_A/analysis/virtual_protein_1.000.h5ad"
+OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure7_modality/pipeline/"
+
+
+# ============================================================
+# Recycled overall orientation style
 # ============================================================
 SWAP_XY = True
 INVERT_X = True
 INVERT_Y = False
+
 CANVAS_SIZE = 1024.0
+CANVAS_PAD = 36.0
 MAX_PLOT_CELLS = 50000
 RANDOM_SEED = 0
-STACK_OFFSET_X = 100.0
-STACK_OFFSET_Y = -100.0
-BASE_POINT_SIZE = 1.0
-ZOOM_POINT_SIZE = 100.0
-ROI_LINEWIDTH = 1.8
-FRAME_LINEWIDTH = 2
+POINT_SIZE = 1.0
 FIG_DPI = 300
 
+# top-down/slanted view, aligned with the style used in the other pipeline figures
+VIEW_ELEV = 30.0
+VIEW_AZIM = -64.0
+
+# plane / stack controls
+FRAME_LINEWIDTH = 1.0
+FRAME_COLOR_REAL = "0.55"
+FRAME_COLOR_MATCHED = "0.55"
+FRAME_DASHED = (0, (4.0, 2.4))
+
+FIG1_GAP = 1024.0
+
+# Figure 2 has two independent inter-slice gap controls.
+FIG2_GENE_TO_MATCHED_GAP = 520.0
+FIG2_MATCHED_TO_PROJECTION_GAP = 780.0
+
+FIG3_GAP = 520.0
+FIG4_GAP = 520.0
+
+# transparency controls
+FIG1_GENE_ALPHA = 0.88
+FIG1_PROTEIN_ALPHA = 0.88
+
+FIG2_REAL_ALPHA = 0.88
+FIG2_MATCHED_ALPHA = 0.72
+FIG2_PROJECTION_ALPHA = 0.26
+
+FIG3_REAL_ALPHA = 0.88
+FIG3_MATCHED_ALPHA = 0.72
+
+FIG4_REAL_ALPHA = 0.88
+FIG4_MATCHED_ALPHA = 0.72
+
+# matched-slice marker edge control
+FIG2_MATCHED_MARKER_EDGE_COLOR = "0.55"
+FIG2_MATCHED_MARKER_EDGE_WIDTH = 0.02
+
+FIG4_MATCHED_MARKER_EDGE_COLOR = "0.55"
+FIG4_MATCHED_MARKER_EDGE_WIDTH = 0.02
+
+# default feature names
+DEFAULT_GENE_FEATURE = "HLA-A"
+DEFAULT_PROTEIN_FEATURE = "HLA-A"
+
 
 # ============================================================
-# Basic helpers
+# Color palette (recycled style, regenerated for the new layout)
 # ============================================================
+# Spatial gene maps use the standard Matplotlib Reds colormap by default.
+GENE_CMAP = plt.get_cmap("Reds")
 
+# Figure 4 only: reuse the original orange gene palette.
+FIG4_GENE_CMAP = LinearSegmentedColormap.from_list(
+    "axis_gene_orange",
+    ["#ffffff", "#fef0d9", "#fdcc8a", "#fc8d59", "#d7301f"],
+)
+
+# Keep the blue protein palette from the regenerated pipeline.
+PROTEIN_CMAP = LinearSegmentedColormap.from_list(
+    "axis_protein_blue",
+    ["#ffffff", "#eff3ff", "#bdd7e7", "#6baed6", "#2171b5"],
+)
+
+
+@dataclass
+class SliceLayer:
+    name: str
+    coords: np.ndarray
+    values: np.ndarray
+    cmap_kind: str   # "gene" or "protein"
+    alpha: float
+    z: float
+    frame_style: str  # "solid", "dashed", "none"
+    edge_color: Optional[str] = None
+    edge_width: float = 0.0
+    cmap_override: Optional[object] = None
+
+
+# ============================================================
+# Utilities
+# ============================================================
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
 
 
-def save_or_show(fig, save_path: Optional[str] = None, dpi: int = FIG_DPI, show: bool = True):
+def save_or_show(fig, save_path: Optional[str], show: bool, dpi: int = FIG_DPI):
     if save_path is not None:
         outdir = os.path.dirname(os.path.abspath(save_path))
         if outdir:
@@ -49,6 +132,12 @@ def save_or_show(fig, save_path: Optional[str] = None, dpi: int = FIG_DPI, show:
         plt.close(fig)
 
 
+def read_h5ad(path: str):
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    return sc.read_h5ad(path)
+
+
 def get_valid_mask(adata):
     if "valid" in adata.obs.columns:
         return np.asarray(adata.obs["valid"]).astype(bool)
@@ -59,8 +148,7 @@ def maybe_downsample_indices(n: int, max_cells: int = MAX_PLOT_CELLS, seed: int 
     if n <= max_cells:
         return np.arange(n)
     rng = np.random.default_rng(seed)
-    idx = np.sort(rng.choice(n, size=max_cells, replace=False))
-    return idx
+    return np.sort(rng.choice(n, size=max_cells, replace=False))
 
 
 def prepare_coords(
@@ -69,6 +157,7 @@ def prepare_coords(
     valid_only: bool = True,
     swap_xy: bool = SWAP_XY,
     max_cells: int = MAX_PLOT_CELLS,
+    seed: int = RANDOM_SEED,
 ):
     if coord_key not in adata.obsm:
         raise KeyError(f"Coordinate key '{coord_key}' not found in adata.obsm")
@@ -80,17 +169,18 @@ def prepare_coords(
     if swap_xy:
         coords = coords[:, [1, 0]]
 
-    keep_idx = maybe_downsample_indices(coords.shape[0], max_cells=max_cells)
+    keep_idx = maybe_downsample_indices(coords.shape[0], max_cells=max_cells, seed=seed)
     return coords[keep_idx], mask, keep_idx
 
 
-def normalize_coords_to_canvas(coords: np.ndarray, canvas_size: float = CANVAS_SIZE, pad: float = 36.0):
+def normalize_coords_to_canvas(coords: np.ndarray, canvas_size: float = CANVAS_SIZE, pad: float = CANVAS_PAD):
     coords = np.asarray(coords, dtype=np.float32)
     xmin, ymin = coords.min(axis=0)
     xmax, ymax = coords.max(axis=0)
     span_x = max(float(xmax - xmin), 1e-6)
     span_y = max(float(ymax - ymin), 1e-6)
     scale = (canvas_size - 2 * pad) / max(span_x, span_y)
+
     out = coords.copy()
     out[:, 0] = (coords[:, 0] - xmin) * scale + pad
     out[:, 1] = (coords[:, 1] - ymin) * scale + pad
@@ -122,7 +212,7 @@ def extract_feature_vals(
     elif feature in adata.obs.columns:
         vals = np.asarray(adata.obs[feature]).ravel().astype(np.float32)
     else:
-        raise ValueError(f"Feature '{feature}' not found in var_names or obs.")
+        raise ValueError(f"Feature '{feature}' not found in var_names or obs")
 
     if valid_mask is not None:
         vals = vals[valid_mask]
@@ -131,7 +221,7 @@ def extract_feature_vals(
     return np.asarray(vals, dtype=np.float32)
 
 
-def robust_vrange(vals_list, low_pct: float = 1.0, high_pct: float = 99.0):
+def robust_vrange(vals_list: Sequence[np.ndarray], low_pct: float = 1.0, high_pct: float = 99.0):
     arrs = []
     for vals in vals_list:
         vals = np.asarray(vals).ravel()
@@ -148,391 +238,398 @@ def robust_vrange(vals_list, low_pct: float = 1.0, high_pct: float = 99.0):
     return vmin, vmax
 
 
-def apply_axis_style(ax, xlim, ylim, invert_x: bool = INVERT_X, invert_y: bool = INVERT_Y):
-    ax.set_xlim(*xlim)
-    ax.set_ylim(*ylim)
-    ax.set_aspect("equal")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_facecolor("white")
-    if invert_x:
-        ax.invert_xaxis()
-    if invert_y:
-        ax.invert_yaxis()
-    for s in ax.spines.values():
-        s.set_visible(False)
+def choose_cmap(kind: str):
+    if kind == "gene":
+        return GENE_CMAP
+    if kind == "protein":
+        return PROTEIN_CMAP
+    raise ValueError(f"Unknown cmap kind: {kind}")
 
 
-# ============================================================
-# Stack plotting
-# ============================================================
+def values_to_rgba(
+    values: np.ndarray,
+    cmap_kind: str,
+    vmin: float,
+    vmax: float,
+    alpha: float,
+    cmap_override=None,
+):
+    cmap = choose_cmap(cmap_kind) if cmap_override is None else cmap_override
+    norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
+    scaled = np.clip(norm(np.asarray(values, dtype=float)), 0.0, 1.0)
+    rgba = np.asarray(cmap(scaled), dtype=float)
+    rgba[:, 3] = alpha * scaled
+    return rgba
 
-def _make_stack_extent(n_panels: int):
-    xmax = CANVAS_SIZE + STACK_OFFSET_X * (n_panels - 1) + 45
-    ymin = STACK_OFFSET_Y * (n_panels - 1) - 45
-    return (-45, xmax), (CANVAS_SIZE + 45, ymin)
 
-
-def _build_marker_stack_data(adata, markers, coord_key, use_log1p=True, max_cells=MAX_PLOT_CELLS):
+def load_spatial_feature(
+    h5ad_path: str,
+    feature: str,
+    *,
+    coord_key: str = "spatial",
+    seed: int = RANDOM_SEED,
+    max_cells: int = MAX_PLOT_CELLS,
+):
+    adata = read_h5ad(h5ad_path)
     coords, valid_mask, keep_idx = prepare_coords(
         adata,
         coord_key=coord_key,
         valid_only=True,
         swap_xy=SWAP_XY,
         max_cells=max_cells,
+        seed=seed,
     )
-    coords = normalize_coords_to_canvas(coords, canvas_size=CANVAS_SIZE)
-    values = [
-        extract_feature_vals(adata, m, valid_mask=valid_mask, keep_idx=keep_idx, use_log1p=use_log1p)
-        for m in markers
-    ]
+    coords = normalize_coords_to_canvas(coords, canvas_size=CANVAS_SIZE, pad=CANVAS_PAD)
+    values = extract_feature_vals(
+        adata,
+        feature,
+        valid_mask=valid_mask,
+        keep_idx=keep_idx,
+        use_log1p=True,
+    )
     return coords, values
 
 
-def plot_stacked_signal_panels(
-    adata,
-    markers: Sequence[str],
-    title: str,
-    cmap: str,
-    colorbar_label: str,
-    save_path: Optional[str] = None,
-    coord_key: str = "spatial",
-    dashed_frame: bool = False,
-    show: bool = True,
-    point_size: float = BASE_POINT_SIZE,
-    max_cells: int = MAX_PLOT_CELLS,
-):
-    coords, values = _build_marker_stack_data(
-        adata=adata,
-        markers=markers,
-        coord_key=coord_key,
-        use_log1p=True,
-        max_cells=max_cells,
+# ============================================================
+# 3D drawing helpers
+# ============================================================
+def draw_plane_frame(ax, z: float, frame_style: str):
+    if frame_style == "none":
+        return
+
+    xs = [0.0, CANVAS_SIZE, CANVAS_SIZE, 0.0, 0.0]
+    ys = [0.0, 0.0, CANVAS_SIZE, CANVAS_SIZE, 0.0]
+    kwargs = dict(color=FRAME_COLOR_REAL, linewidth=FRAME_LINEWIDTH, alpha=0.85, zorder=1)
+    if frame_style == "dashed":
+        kwargs["linestyle"] = FRAME_DASHED
+        kwargs["color"] = FRAME_COLOR_MATCHED
+    ax.plot(xs, ys, [z] * len(xs), **kwargs)
+
+
+def style_3d_axis(ax, z_positions: Sequence[float], elev: float = VIEW_ELEV, azim: float = VIEW_AZIM):
+    x_pad = 18.0
+    y_pad = 18.0
+    z_positions = np.asarray(z_positions, dtype=float)
+    zmin = float(np.min(z_positions))
+    zmax = float(np.max(z_positions))
+    zspan = max(zmax - zmin, 1.0)
+
+    ax.set_xlim(-x_pad, CANVAS_SIZE + x_pad)
+    ax.set_ylim(-y_pad, CANVAS_SIZE + y_pad)
+    ax.set_zlim(zmin - 0.18 * zspan, zmax + 0.12 * zspan)
+
+    if INVERT_X:
+        ax.invert_xaxis()
+    if INVERT_Y:
+        ax.invert_yaxis()
+
+    ax.view_init(elev=float(elev), azim=float(azim))
+    try:
+        ax.set_proj_type("ortho")
+    except Exception:
+        pass
+
+    try:
+        ax.set_box_aspect((1.0, 1.0, max(0.55, zspan / CANVAS_SIZE * 1.1)))
+    except Exception:
+        pass
+
+    ax.set_axis_off()
+    ax.grid(False)
+
+
+def draw_slice(ax, layer: SliceLayer, vmin: float, vmax: float):
+    rgba = values_to_rgba(
+        layer.values,
+        layer.cmap_kind,
+        vmin,
+        vmax,
+        layer.alpha,
+        cmap_override=layer.cmap_override,
     )
-    vmin, vmax = robust_vrange(values, 1, 99)
-    norm = Normalize(vmin=vmin, vmax=vmax)
+    edgecolors = layer.edge_color if layer.edge_color is not None else "none"
+    linewidths = layer.edge_width if layer.edge_color is not None else 0.0
 
-    fig, ax = plt.subplots(1, 1, figsize=(6.9, 6.3), facecolor="white")
-    xlim, ylim = _make_stack_extent(len(markers))
-
-    # draw from back to front so the front panels fully cover the overlap region
-    for draw_rank, i in enumerate(range(len(markers) - 1, -1, -1)):
-        marker = markers[i]
-        vals = values[i]
-        dx = STACK_OFFSET_X * i
-        dy = STACK_OFFSET_Y * i
-        shifted = coords + np.array([dx, dy], dtype=np.float32)
-        zbase = 10 + draw_rank * 3
-
-        # opaque white panel background: prevents seeing the rear panel through overlap
-        ax.add_patch(
-            Rectangle(
-                (dx, dy), CANVAS_SIZE, CANVAS_SIZE,
-                facecolor="white",
-                edgecolor="none",
-                linewidth=0,
-                zorder=zbase,
-            )
-        )
-
-        rgba = plt.get_cmap(cmap)(norm(vals))
-        vmax_panel = max(float(np.nanmax(vals)), 1e-6)
-        rgba[:, -1] = np.clip(vals / vmax_panel, 0.05, 1.0)
-
-        ax.scatter(
-            shifted[:, 0], shifted[:, 1],
-            c=rgba, s=point_size, linewidths=0, rasterized=True, zorder=zbase + 1,
-        )
-        ax.add_patch(
-            Rectangle(
-                (dx, dy), CANVAS_SIZE, CANVAS_SIZE,
-                fill=False,
-                edgecolor="0.25",
-                linewidth=FRAME_LINEWIDTH,
-                linestyle="--" if dashed_frame else "-",
-                zorder=zbase + 2,
-            )
-        )
-        # ax.text(
-        #     dx + 18, dy + 32,
-        #     marker,
-        #     fontsize=10.5,
-        #     fontweight="bold",
-        #     ha="left", va="bottom",
-        #     bbox=dict(facecolor="white", edgecolor="none", alpha=0.96, pad=0.5),
-        #     zorder=zbase + 3,
-        # )
-
-    apply_axis_style(ax, xlim=xlim, ylim=ylim)
-    # ax.set_title(title, fontsize=14, pad=10)
-
-    # sm = ScalarMappable(norm=norm, cmap=cmap)
-    # sm.set_array([])
-    # cbar = fig.colorbar(sm, ax=ax, fraction=0.045, pad=0.02)
-    # cbar.set_label(colorbar_label, fontsize=9)
-    # cbar.ax.tick_params(labelsize=8)
-
-    save_or_show(fig, save_path=save_path, show=show)
+    ax.scatter(
+        layer.coords[:, 0],
+        layer.coords[:, 1],
+        np.full(layer.coords.shape[0], float(layer.z)),
+        c=rgba,
+        s=POINT_SIZE,
+        edgecolors=edgecolors,
+        linewidths=linewidths,
+        depthshade=False,
+        rasterized=True,
+        zorder=3,
+    )
+    draw_plane_frame(ax, layer.z, layer.frame_style)
 
 
-# ============================================================
-# Overlay callout plotting
-# ============================================================
+def compute_ranges(layers: Sequence[SliceLayer]):
+    gene_vals = [x.values for x in layers if x.cmap_kind == "gene"]
+    prot_vals = [x.values for x in layers if x.cmap_kind == "protein"]
+    vr = {}
+    if gene_vals:
+        vr["gene"] = robust_vrange(gene_vals, low_pct=1.0, high_pct=99.0)
+    if prot_vals:
+        vr["protein"] = robust_vrange(prot_vals, low_pct=1.0, high_pct=99.0)
+    return vr
 
-def plot_location_overlay_with_side_callout(
-    ad_gene,
-    ad_other,
+
+def render_stack(
+    layers: Sequence[SliceLayer],
     title: str,
     save_path: Optional[str],
-    gene_coord_key: str = "spatial",
-    other_coord_key: str = "spatial",
-    gene_label: str = "Gene cells",
-    other_label: str = "Protein cells",
-    gene_color: str = "#B2182B",
-    other_color: str = "#2166AC",
-    gene_marker: str = "o",
-    other_marker: str = "^",
-    roi_bbox: Optional[Tuple[float, float, float, float]] = None,
-    show: bool = True,
-    max_cells: int = MAX_PLOT_CELLS,
+    show: bool,
+    figsize: Tuple[float, float] = (5.0, 5.4),
 ):
-    coords_gene, _, _ = prepare_coords(
-        ad_gene, coord_key=gene_coord_key, valid_only=True, swap_xy=SWAP_XY, max_cells=max_cells
-    )
-    coords_other, _, _ = prepare_coords(
-        ad_other, coord_key=other_coord_key, valid_only=True, swap_xy=SWAP_XY, max_cells=max_cells
-    )
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
 
-    coords_gene = normalize_coords_to_canvas(coords_gene, canvas_size=CANVAS_SIZE)
-    coords_other = normalize_coords_to_canvas(coords_other, canvas_size=CANVAS_SIZE)
+    vranges = compute_ranges(layers)
+    for layer in layers:
+        vmin, vmax = vranges[layer.cmap_kind]
+        draw_slice(ax, layer, vmin=vmin, vmax=vmax)
 
-    if roi_bbox is None:
-        roi_bbox = (430, 610, 430, 610)
-    rx0, rx1, ry0, ry1 = roi_bbox
-
-    fig = plt.figure(figsize=(13, 7.6), facecolor="white")
-    gs = fig.add_gridspec(1, 2, width_ratios=[0.8, 1], wspace=-0.01)
-    ax_main = fig.add_subplot(gs[0, 0])
-    ax_zoom = fig.add_subplot(gs[0, 1])
-
-    # main panel
-    ax_main.scatter(
-        coords_gene[:, 0], coords_gene[:, 1], s=1.5, c=gene_color,
-        marker=gene_marker, alpha=0.66, linewidths=0, rasterized=True
-    )
-    ax_main.scatter(
-        coords_other[:, 0], coords_other[:, 1], s=2, c=other_color,
-        marker=other_marker, alpha=0.66, linewidths=0, rasterized=True
-    )
-    ax_main.add_patch(
-        Rectangle((0, 0), CANVAS_SIZE, CANVAS_SIZE, fill=False, edgecolor="0.25", linewidth=1.4)
-    )
-    ax_main.add_patch(
-        Rectangle((rx0, ry0), rx1 - rx0, ry1 - ry0, fill=False,
-                  edgecolor="black", linewidth=ROI_LINEWIDTH, linestyle="--")
-    )
-    apply_axis_style(ax_main, xlim=(-20, CANVAS_SIZE + 20), ylim=(CANVAS_SIZE + 20, -20))
-    # ax_main.set_title(title, fontsize=13.5, pad=10)
-    # ax_main.text(
-    #     0.98, 0.985, "Full layout",
-    #     transform=ax_main.transAxes,
-    #     ha="right", va="top",
-    #     fontsize=11.5, fontweight="bold",
-    #     bbox=dict(facecolor="white", edgecolor="none", alpha=0.92, pad=0.4),
-    # )
-
-    # zoom panel on right
-    gmask = (
-        (coords_gene[:, 0] >= rx0) & (coords_gene[:, 0] <= rx1) &
-        (coords_gene[:, 1] >= ry0) & (coords_gene[:, 1] <= ry1)
-    )
-    pmask = (
-        (coords_other[:, 0] >= rx0) & (coords_other[:, 0] <= rx1) &
-        (coords_other[:, 1] >= ry0) & (coords_other[:, 1] <= ry1)
-    )
-    ax_zoom.scatter(
-        coords_gene[gmask, 0], coords_gene[gmask, 1], s=ZOOM_POINT_SIZE, c=gene_color,
-        marker=gene_marker, alpha=0.82, linewidths=0, label=gene_label, rasterized=True
-    )
-    ax_zoom.scatter(
-        coords_other[pmask, 0], coords_other[pmask, 1], s=ZOOM_POINT_SIZE + 4, c=other_color,
-        marker=other_marker, alpha=0.82, linewidths=0, label=other_label, rasterized=True
-    )
-    ax_zoom.add_patch(
-        Rectangle((rx0, ry0), rx1 - rx0, ry1 - ry0, fill=False, edgecolor="0.25", linewidth=1.4)
-    )
-    apply_axis_style(ax_zoom, xlim=(rx0 - 10, rx1 + 10), ylim=(ry1 + 10, ry0 - 10))
-    # ax_zoom.set_title("Callout: same-cell spatial correspondence", fontsize=12, pad=28)
-    ax_zoom.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.94),
-        ncol=2,
-        frameon=False,
-        fontsize=16,
-        markerscale=1.0,
-        handletextpad=0.5,
-        columnspacing=1.2,
-        borderaxespad=0.0,
-    )
-
-    # connectors: connect the right two ROI corners in the main panel
-    # to the left two corners of the zoom-panel bounding box
-    # X-axis is inverted:
-    # visual right corners of ROI -> visual left corners of zoom panel
-
-    fig.add_artist(
-        ConnectionPatch(
-            xyA=(rx0, ry0), coordsA=ax_main.transData,
-            xyB=(rx1, ry0), coordsB=ax_zoom.transData,
-            color="0.35", lw=1.1,
-        )
-    )
-
-    fig.add_artist(
-        ConnectionPatch(
-            xyA=(rx0, ry1), coordsA=ax_main.transData,
-            xyB=(rx1, ry1), coordsB=ax_zoom.transData,
-            color="0.35", lw=1.1,
-        )
-    )
-    save_or_show(fig, save_path=save_path, show=show)
+    style_3d_axis(ax, [x.z for x in layers], elev=VIEW_ELEV, azim=VIEW_AZIM)
+    # ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+    save_or_show(fig, save_path=save_path, show=show, dpi=FIG_DPI)
 
 
 # ============================================================
-# Main wrapper
+# Figure builders
 # ============================================================
+def build_figure1(gene_feature: str, protein_feature: str, outdir: str, show: bool):
+    gene_coords, gene_vals = load_spatial_feature(REAL_GENE, gene_feature, seed=1)
+    prot_coords, prot_vals = load_spatial_feature(REAL_PROTEIN, protein_feature, seed=2)
 
-def generate_cross_modality_pipeline_figures(
-    real_gene_path: str,
-    real_protein_path: str,
-    virtual_protein_path: str,
-    gene_markers: Sequence[str],
-    protein_markers: Sequence[str],
-    outdir: str,
-    roi_bbox: Optional[Tuple[float, float, float, float]] = None,
-    gene_coord_key: str = "spatial",
-    real_protein_coord_key: str = "spatial",
-    virtual_protein_coord_key: str = "spatial",
-    show: bool = True,
-):
-    ensure_dir(outdir)
+    layers = [
+        SliceLayer(
+            name="Measured gene",
+            coords=gene_coords,
+            values=gene_vals,
+            cmap_kind="gene",
+            alpha=FIG1_GENE_ALPHA,
+            z=FIG1_GAP,
+            frame_style="solid",
+        ),
+        SliceLayer(
+            name="Measured protein",
+            coords=prot_coords,
+            values=prot_vals,
+            cmap_kind="protein",
+            alpha=FIG1_PROTEIN_ALPHA,
+            z=0.0,
+            frame_style="solid",
+        ),
+    ]
 
-    ad_gene = sc.read_h5ad(real_gene_path)
-    ad_real_protein = sc.read_h5ad(real_protein_path)
-    ad_virtual_protein = sc.read_h5ad(virtual_protein_path)
-    #
-    plot_stacked_signal_panels(
-        adata=ad_gene,
-        markers=gene_markers,
-        title="Figure 1. Measured gene tissue",
-        cmap="Reds",
-        colorbar_label="log1p gene signal",
-        save_path=os.path.join(outdir, "figure1_real_gene_stack.png"),
-        coord_key=gene_coord_key,
-        dashed_frame=False,
+    render_stack(
+        layers,
+        title="Measured spatial gene and protein",
+        save_path=os.path.join(outdir, f"figure1_measured_gene_protein_{gene_feature}_{protein_feature}.png"),
         show=show,
+        figsize=(3, 6),
     )
 
-    plot_stacked_signal_panels(
-        adata=ad_real_protein,
-        markers=protein_markers,
-        title="Figure 2. Measured protein tissue",
-        cmap="Blues",
-        colorbar_label="log1p protein signal",
-        save_path=os.path.join(outdir, "figure2_real_protein_stack.png"),
-        coord_key=real_protein_coord_key,
-        dashed_frame=False,
+
+def build_figure2(gene_feature: str, protein_feature: str, outdir: str, show: bool):
+    gene_coords, gene_vals = load_spatial_feature(REAL_GENE, gene_feature, seed=3)
+    virt_coords, virt_vals = load_spatial_feature(VIRTUAL_PROTEIN, protein_feature, seed=4)
+    prot_coords, prot_vals = load_spatial_feature(REAL_PROTEIN, protein_feature, seed=5)
+
+    # Figure-2 layout has two independently controlled gaps:
+    # measured gene -> matched virtual protein -> measured protein projection.
+    z_projection = 0.0
+    z_matched = z_projection + float(FIG2_MATCHED_TO_PROJECTION_GAP)
+    z_gene = z_matched + float(FIG2_GENE_TO_MATCHED_GAP)
+
+    layers = [
+        SliceLayer(
+            name="Measured gene",
+            coords=gene_coords,
+            values=gene_vals,
+            cmap_kind="gene",
+            alpha=FIG2_REAL_ALPHA,
+            z=z_gene,
+            frame_style="solid",
+        ),
+        SliceLayer(
+            name="Matched virtual protein",
+            coords=virt_coords,
+            values=virt_vals,
+            cmap_kind="protein",
+            alpha=FIG2_MATCHED_ALPHA,
+            z=z_matched,
+            frame_style="dashed",
+            edge_color=FIG2_MATCHED_MARKER_EDGE_COLOR,
+            edge_width=FIG2_MATCHED_MARKER_EDGE_WIDTH,
+        ),
+        SliceLayer(
+            name="Measured protein",
+            coords=prot_coords,
+            values=prot_vals,
+            cmap_kind="protein",
+            alpha=FIG2_PROJECTION_ALPHA,
+            z=z_projection,
+            frame_style="none",
+        ),
+    ]
+
+    render_stack(
+        layers,
+        title="Gene → matched virtual protein → measured protein",
+        save_path=os.path.join(outdir, f"figure2_gene_virtualprotein_measuredprotein_{gene_feature}_{protein_feature}.png"),
         show=show,
+        figsize=(3, 6),
     )
 
-    plot_location_overlay_with_side_callout(
-        ad_gene=ad_gene,
-        ad_other=ad_real_protein,
-        title="Figure 3. Measured gene and protein cell layouts",
-        save_path=os.path.join(outdir, "figure3_real_gene_real_protein_overlay.png"),
-        gene_coord_key=gene_coord_key,
-        other_coord_key=real_protein_coord_key,
-        gene_label="Gene cells",
-        other_label="Protein cells",
-        gene_color="#B2182B",
-        other_color="#2166AC",
-        gene_marker="o",
-        other_marker="^",
-        roi_bbox=roi_bbox,
+
+def build_figure3(gene_feature: str, protein_feature: str, outdir: str, show: bool):
+    gene_coords, gene_vals = load_spatial_feature(REAL_GENE, gene_feature, seed=6)
+    virt_coords, virt_vals = load_spatial_feature(VIRTUAL_PROTEIN, protein_feature, seed=7)
+
+    layers = [
+        SliceLayer(
+            name="Measured gene",
+            coords=gene_coords,
+            values=gene_vals,
+            cmap_kind="gene",
+            alpha=FIG3_REAL_ALPHA,
+            z=FIG3_GAP,
+            frame_style="solid",
+        ),
+        SliceLayer(
+            name="Matched virtual protein",
+            coords=virt_coords,
+            values=virt_vals,
+            cmap_kind="protein",
+            alpha=FIG3_MATCHED_ALPHA,
+            z=0.0,
+            frame_style="dashed",
+            edge_color=None,
+            edge_width=0.0,
+        ),
+    ]
+
+    render_stack(
+        layers,
+        title="Measured gene and matched virtual protein",
+        save_path=os.path.join(outdir, f"figure3_gene_virtualprotein_noedge_{gene_feature}_{protein_feature}.png"),
         show=show,
+        figsize=(3, 6),
     )
 
-    plot_stacked_signal_panels(
-        adata=ad_gene,
-        markers=gene_markers,
-        title="Figure 4. Measured gene tissue",
-        cmap="Reds",
-        colorbar_label="log1p gene signal",
-        save_path=os.path.join(outdir, "figure4_real_gene_stack_for_virtual.png"),
-        coord_key=gene_coord_key,
-        dashed_frame=False,
+
+def build_figure4(gene_feature: str, protein_feature: str, outdir: str, show: bool):
+    gene_coords, gene_vals = load_spatial_feature(REAL_GENE, gene_feature, seed=8)
+    virt_coords, virt_vals = load_spatial_feature(VIRTUAL_PROTEIN, protein_feature, seed=9)
+
+    layers = [
+        SliceLayer(
+            name="Measured gene",
+            coords=gene_coords,
+            values=gene_vals,
+            cmap_kind="gene",
+            alpha=FIG4_REAL_ALPHA,
+            z=FIG4_GAP,
+            frame_style="solid",
+            cmap_override=FIG4_GENE_CMAP,
+        ),
+        SliceLayer(
+            name="Matched virtual protein",
+            coords=virt_coords,
+            values=virt_vals,
+            cmap_kind="protein",
+            alpha=FIG4_MATCHED_ALPHA,
+            z=0.0,
+            frame_style="dashed",
+            edge_color=FIG4_MATCHED_MARKER_EDGE_COLOR,
+            edge_width=FIG4_MATCHED_MARKER_EDGE_WIDTH,
+        ),
+    ]
+
+    render_stack(
+        layers,
+        title="Measured gene and matched virtual protein",
+        save_path=os.path.join(outdir, f"figure4_gene_virtualprotein_edge_{gene_feature}_{protein_feature}.png"),
         show=show,
+        figsize=(3.0, 6),
     )
 
-    plot_stacked_signal_panels(
-        adata=ad_virtual_protein,
-        markers=protein_markers,
-        title="Figure 5. Gene-aligned virtual protein tissue",
-        cmap="Blues",
-        colorbar_label="log1p protein signal",
-        save_path=os.path.join(outdir, "figure5_virtual_protein_stack.png"),
-        coord_key=virtual_protein_coord_key,
-        dashed_frame=True,
-        show=show,
-    )
 
-    plot_location_overlay_with_side_callout(
-        ad_gene=ad_gene,
-        ad_other=ad_virtual_protein,
-        title="Figure 6. Gene and virtual-protein cell layouts",
-        save_path=os.path.join(outdir, "figure6_real_gene_virtual_protein_overlay.png"),
-        gene_coord_key=gene_coord_key,
-        other_coord_key=virtual_protein_coord_key,
-        gene_label="Gene cells",
-        other_label="Virtual protein cells",
-        gene_color="#B2182B",
-        other_color="#2166AC",
-        gene_marker="o",
-        other_marker="^",
-        roi_bbox=roi_bbox,
-        show=show,
+# ============================================================
+# Main
+# ============================================================
+def main():
+    parser = argparse.ArgumentParser(
+        description="Regenerated Figure-7a cross-modality pipeline."
     )
+    parser.add_argument("--real-gene", type=str, default=REAL_GENE)
+    parser.add_argument("--real-protein", type=str, default=REAL_PROTEIN)
+    parser.add_argument("--virtual-protein", type=str, default=VIRTUAL_PROTEIN)
+    parser.add_argument("--outdir", type=str, default=OUTDIR)
+    parser.add_argument("--gene-feature", type=str, default=DEFAULT_GENE_FEATURE)
+    parser.add_argument("--protein-feature", type=str, default=DEFAULT_PROTEIN_FEATURE)
+    parser.add_argument("--which", type=str, default="all", choices=["all", "1", "2", "3", "4"])
+    parser.add_argument("--show", action="store_true")
+    parser.add_argument("--fig1-gap", type=float, default=FIG1_GAP)
+    parser.add_argument(
+        "--fig2-gene-to-matched-gap",
+        type=float,
+        default=FIG2_GENE_TO_MATCHED_GAP,
+    )
+    parser.add_argument(
+        "--fig2-matched-to-projection-gap",
+        type=float,
+        default=FIG2_MATCHED_TO_PROJECTION_GAP,
+    )
+    parser.add_argument("--fig3-gap", type=float, default=FIG3_GAP)
+    parser.add_argument("--fig4-gap", type=float, default=FIG4_GAP)
+    parser.add_argument("--view-elev", type=float, default=VIEW_ELEV)
+    parser.add_argument("--view-azim", type=float, default=VIEW_AZIM)
+    parser.add_argument("--max-plot-cells", type=int, default=MAX_PLOT_CELLS)
+    parser.add_argument("--point-size", type=float, default=POINT_SIZE)
+    parser.add_argument("--random-seed", type=int, default=RANDOM_SEED)
+    args = parser.parse_args()
 
-    return {
-        "figure1": os.path.join(outdir, "figure1_real_gene_stack.png"),
-        "figure2": os.path.join(outdir, "figure2_real_protein_stack.png"),
-        "figure3": os.path.join(outdir, "figure3_real_gene_real_protein_overlay.png"),
-        "figure4": os.path.join(outdir, "figure4_real_gene_stack_for_virtual.png"),
-        "figure5": os.path.join(outdir, "figure5_virtual_protein_stack.png"),
-        "figure6": os.path.join(outdir, "figure6_real_gene_virtual_protein_overlay.png"),
-    }
+    # keep the original dir names but allow CLI override
+    globals()["REAL_GENE"] = args.real_gene
+    globals()["REAL_PROTEIN"] = args.real_protein
+    globals()["VIRTUAL_PROTEIN"] = args.virtual_protein
+    globals()["OUTDIR"] = args.outdir
+
+    globals()["FIG1_GAP"] = float(args.fig1_gap)
+    globals()["FIG2_GENE_TO_MATCHED_GAP"] = float(args.fig2_gene_to_matched_gap)
+    globals()["FIG2_MATCHED_TO_PROJECTION_GAP"] = float(args.fig2_matched_to_projection_gap)
+    globals()["FIG3_GAP"] = float(args.fig3_gap)
+    globals()["FIG4_GAP"] = float(args.fig4_gap)
+    globals()["VIEW_ELEV"] = float(args.view_elev)
+    globals()["VIEW_AZIM"] = float(args.view_azim)
+    globals()["MAX_PLOT_CELLS"] = int(args.max_plot_cells)
+    globals()["POINT_SIZE"] = float(args.point_size)
+    globals()["RANDOM_SEED"] = int(args.random_seed)
+
+    ensure_dir(OUTDIR)
+
+    print(f"[INFO] REAL_GENE = {REAL_GENE}")
+    print(f"[INFO] REAL_PROTEIN = {REAL_PROTEIN}")
+    print(f"[INFO] VIRTUAL_PROTEIN = {VIRTUAL_PROTEIN}")
+    print(f"[INFO] OUTDIR = {OUTDIR}")
+    print(f"[INFO] gene feature = {args.gene_feature}")
+    print(f"[INFO] protein feature = {args.protein_feature}")
+
+    if args.which in ("all", "1"):
+        build_figure1(args.gene_feature, args.protein_feature, OUTDIR, show=args.show)
+    if args.which in ("all", "2"):
+        build_figure2(args.gene_feature, args.protein_feature, OUTDIR, show=args.show)
+    if args.which in ("all", "3"):
+        build_figure3(args.gene_feature, args.protein_feature, OUTDIR, show=args.show)
+    if args.which in ("all", "4"):
+        build_figure4(args.gene_feature, args.protein_feature, OUTDIR, show=args.show)
+
+    print(f"[DONE] Figure-7a regenerated pipeline written/displayed from: {OUTDIR}")
 
 
 if __name__ == "__main__":
-    REAL_GENE = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_xenium.h5ad"
-    REAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/h5ad/LUAD_2_A_protein.h5ad"
-    VIRTUAL_PROTEIN = "/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/modality_LUAD_2_A/analysis/virtual_protein_1.000.h5ad"
-    OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure7_modality/pipeline/"
-
-    GENE_MARKERS = ["HLA-A", "MKI67","HLA-DPB1"]
-    PROTEIN_MARKERS = ["HLA-A", "Ki67","HLA-DPB1"]
-    ROI_BBOX = (600, 630, 600, 630)
-
-    generate_cross_modality_pipeline_figures(
-        real_gene_path=REAL_GENE,
-        real_protein_path=REAL_PROTEIN,
-        virtual_protein_path=VIRTUAL_PROTEIN,
-        gene_markers=GENE_MARKERS,
-        protein_markers=PROTEIN_MARKERS,
-        outdir=OUTDIR,
-        roi_bbox=ROI_BBOX,
-        gene_coord_key="spatial",
-        real_protein_coord_key="spatial",
-        virtual_protein_coord_key="spatial",
-        show=True,
-    )
+    main()

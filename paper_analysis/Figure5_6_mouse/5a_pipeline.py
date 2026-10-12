@@ -16,6 +16,7 @@ Core visual design
 - The 3D spatial maps can be rotated with --view-elev / --view-azim without
   tilting the timeline.
 - Real slices use solid frames; virtual slices use dashed frames.
+- In Figure 3, virtual gene/domain points use subtle gray marker edges.
 
 Figures
 -------
@@ -55,21 +56,21 @@ VIRTUAL_DIR = os.path.join(
     "query",
 )
 
-OUTDIR = "/media/huifang/data/registration/paper_figure/Figure5_mouse_time/pipeline_3d_left_to_right"
+OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure56_mouse/5a/"
 
 GROUP_ID = 0
 
 REAL_SLICE_SPECS = [
-    {"age": 2.5, "label": "2.5m", "sample_id": 0},
-    {"age": 5.7, "label": "5.7m", "sample_id": 1},
-    {"age": 17.9, "label": "17.9m", "sample_id": 2},
+    {"age": 2.5, "label": "2.5", "sample_id": 0},
+    {"age": 5.7, "label": "5.7", "sample_id": 1},
+    {"age": 17.9, "label": "17.9", "sample_id": 2},
 ]
 
 VIRTUAL_SLICE_SPECS = [
-    {"age": 4.1, "label": "4.1m", "query_value": 4.100},
-    {"age": 8.25, "label": "8.25m", "query_value": 8.250},
-    {"age": 11.8, "label": "11.8m", "query_value": 11.800},
-    {"age": 14.85, "label": "14.85m", "query_value": 14.850},
+    {"age": 4.1, "label": "4.1", "query_value": 4.100},
+    {"age": 8.25, "label": "8.25", "query_value": 8.250},
+    {"age": 11.8, "label": "11.8", "query_value": 11.800},
+    {"age": 14.85, "label": "14.85", "query_value": 14.850},
 ]
 
 GENE_NAME = "Gfap"
@@ -82,7 +83,7 @@ VIRTUAL_COORD_KEY = "spatial"
 # PLOTTING CONFIG
 # ============================================================
 FIG_DPI = 400
-FIGURE_MODE = "show"  # "save", "show", "both"
+FIGURE_MODE = "both"  # "save", "show", "both"
 SHOW_BLOCK = True
 
 # Final display orientation of loaded spatial coordinates.
@@ -94,19 +95,19 @@ INVERT_Y = False
 FIXED_BOX = (0.0, 1024.0, 0.0, 1024.0)
 
 # Mirrored geometry: gene on left, horizontally mirrored domains on right.
-MIRROR_GAP = 30.0
-MIRROR_CENTER_FOLD = 50.0
+MIRROR_GAP = -20.0
+MIRROR_CENTER_FOLD = 0.0
 
 # Time is now the WORLD-X coordinate.
 # Older ages move farther to the right.
 TIME_SCALE_PER_MONTH = 95.0
 
 # Uniform visual scaling of the spatial Y/Z planes relative to temporal X.
-SPATIAL_DISPLAY_SCALE = 0.5
+SPATIAL_DISPLAY_SCALE = 0.3
 
 # 3D point appearance.
-POINT_SIZE_GENE = 1.0
-POINT_SIZE_DOMAIN = 1.0
+POINT_SIZE_GENE = 0.5
+POINT_SIZE_DOMAIN = 0.5
 MAX_POINTS_PER_SLICE = 25000
 
 # Figure 2 virtual-query support. The support is shown as a full 256 x 256
@@ -121,14 +122,19 @@ REAL_ALPHA = 0.72
 VIRTUAL_ALPHA = 0.72
 DOMAIN_ALPHA = 0.62
 
+# Figure 3 only: virtual gene/domain points receive a subtle marker boundary,
+# matching the population-pipeline convention.
+FIG3_VIRTUAL_MARKER_EDGE_COLOR = "0.55"
+FIG3_VIRTUAL_MARKER_EDGE_WIDTH = 0.02
+
 REAL_FRAME_COLOR = "#9A9A9A"
 VIRTUAL_FRAME_COLOR = "#9A9A9A"
 REAL_LABEL_COLOR = "#1F1F1F"
 VIRTUAL_LABEL_COLOR = "#8D8D8D"
 BACKGROUND_GRAY = "#D0D0D0"
 
-SOLID_LW = 1.4
-DASHED_LW = 1.4
+SOLID_LW = 0.7
+DASHED_LW = 0.7
 DASHED_STYLE = (0, (4.0, 2.4))
 
 # Screen-space horizontal timeline styling.
@@ -142,7 +148,7 @@ TIMELINE_CLEARANCE_FIG = 0.010
 TIMELINE_MIN_Y_FIG = 0.535
 TIMELINE_MAX_Y_FIG = 0.905
 TIMELINE_X_PAD_FIG = 0.020
-TIMELINE_LABEL_OFFSET_FIG = 0.016
+TIMELINE_LABEL_OFFSET_FIG = 0.01
 TIMELINE_LABEL_SECOND_TIER_FIG = 0.036
 
 # Suspension / hanger styling.
@@ -154,7 +160,7 @@ HANGER_BOTTOM_GAP_FIG = 0.004
 HANGER_ANCHOR_SIZE = 3.8
 
 # Camera applies ONLY to the spatial maps.
-VIEW_ELEV = 10.0
+VIEW_ELEV = 5.0
 VIEW_AZIM = -50.0
 VIEW_ROLL = 0.0
 
@@ -516,7 +522,7 @@ def draw_plane_frame_3d(
         linewidth=SOLID_LW if is_real else DASHED_LW,
         linestyle="-" if is_real else DASHED_STYLE,
         alpha=0.96,
-        zorder=20,
+        zorder=1,
     )
 
 
@@ -534,7 +540,7 @@ def draw_mirror_seam_3d(ax, time_x: float, is_real: bool) -> None:
         linewidth=0.8,
         linestyle="-" if is_real else DASHED_STYLE,
         alpha=0.90,
-        zorder=19,
+        zorder=1,
     )
 
 
@@ -688,15 +694,16 @@ def draw_horizontal_time_scaffold(
         min(line_end + 0.008, 0.965),
         timeline_y + 0.001,
         title_label,
-        fontsize=14.5,
-        fontweight="bold",
+        fontsize=10,
+        # fontweight="bold",
         color=TIMELINE_COLOR,
         ha="left",
         va="center",
         zorder=205,
     )
 
-    use_two_tiers = len(records) >= 5
+    # use_two_tiers = len(records) >= 5
+    use_two_tiers = False
 
     for i, (record, xmark, y_anchor) in enumerate(zip(records, marker_x, anchor_y)):
         color = REAL_LABEL_COLOR if record.is_real else VIRTUAL_LABEL_COLOR
@@ -766,8 +773,8 @@ def draw_horizontal_time_scaffold(
             xmark,
             timeline_y + label_dy,
             record.label,
-            fontsize=11.8 if use_two_tiers else 13.0,
-            fontweight="bold",
+            fontsize=10,
+            # fontweight="bold",
             color=color,
             ha="center",
             va="bottom",
@@ -819,6 +826,8 @@ def plot_mirrored_layer_3d(
     time_x: float,
     vmax: float,
     seed: int,
+    *,
+    virtual_marker_edges: bool = False,
 ) -> None:
     gene_xy, domain_xy, keep_mask = mirrored_half_coords(record)
 
@@ -845,6 +854,18 @@ def plot_mirrored_layer_3d(
 
     alpha_factor = REAL_ALPHA if record.is_real else VIRTUAL_ALPHA
 
+    use_virtual_edges = bool(virtual_marker_edges and not record.is_real)
+    marker_edgecolor = (
+        FIG3_VIRTUAL_MARKER_EDGE_COLOR
+        if use_virtual_edges
+        else "none"
+    )
+    marker_edgewidth = (
+        FIG3_VIRTUAL_MARKER_EDGE_WIDTH
+        if use_virtual_edges
+        else 0.0
+    )
+
     gene_colors = gene_facecolors(values, vmax=vmax, alpha_factor=alpha_factor)
     ax.scatter(
         np.full(len(gene_xy), float(time_x)),
@@ -852,7 +873,8 @@ def plot_mirrored_layer_3d(
         gene_xy[:, 1],
         c=gene_colors,
         s=POINT_SIZE_GENE,
-        linewidths=0,
+        edgecolors=marker_edgecolor,
+        linewidths=marker_edgewidth,
         depthshade=False,
         rasterized=True,
         zorder=2,
@@ -866,7 +888,8 @@ def plot_mirrored_layer_3d(
         c=domain_colors,
         s=POINT_SIZE_DOMAIN,
         alpha=DOMAIN_ALPHA if record.is_real else DOMAIN_ALPHA * 0.95,
-        linewidths=0,
+        edgecolors=marker_edgecolor,
+        linewidths=marker_edgewidth,
         depthshade=False,
         rasterized=True,
         zorder=2,
@@ -948,8 +971,8 @@ def plot_virtual_support_layer_3d(
     left_extent, right_extent = get_mirrored_half_extents()
 
     # Draw a complete square raster for each original 1024x1024 map.
-    draw_grid_raster_lines_3d(ax, time_x, left_extent)
-    draw_grid_raster_lines_3d(ax, time_x, right_extent)
+    # draw_grid_raster_lines_3d(ax, time_x, left_extent)
+    # draw_grid_raster_lines_3d(ax, time_x, right_extent)
 
     # Draw two dashed square bounding boxes, one for each mirrored half, so the
     # viewer reads them as two square support lattices rather than a single
@@ -966,6 +989,10 @@ def plot_virtual_support_layer_3d(
         right_extent,
         is_real=False,
     )
+
+
+
+
 
 # ============================================================
 # FIGURE 1
@@ -1017,7 +1044,7 @@ def plot_figure1_real_gene_stack(
         "Observed spatial omics through time",
         pad=18,
         fontsize=15,
-        fontweight="bold",
+        # fontweight="bold",
     )
 
     # Must be last: projection uses final camera and axes geometry.
@@ -1066,6 +1093,7 @@ def plot_figure2_real_mirrored_stack(
     vmax = shared_gene_vmax(real_ordered)
     youngest_age = min(r.age for r in ordered)
     time_positions = [age_to_time_x(r.age, youngest_age) for r in ordered]
+    real_positions = [age_to_time_x(r.age, youngest_age) for r in real_ordered]
 
     for i, (record, time_x) in enumerate(zip(ordered, time_positions)):
         if record.is_real:
@@ -1089,89 +1117,13 @@ def plot_figure2_real_mirrored_stack(
         time_positions,
     )
 
-    scalar_mappable = ScalarMappable(
-        norm=Normalize(vmin=0.0, vmax=vmax),
-        cmap="Reds",
-    )
-    scalar_mappable.set_array([])
-    colorbar = fig.colorbar(
-        scalar_mappable,
-        ax=ax,
-        fraction=0.028,
-        pad=0.02,
-        shrink=0.68,
-    )
-    colorbar.set_label(f"log1p {GENE_NAME} expression", fontsize=10)
-    colorbar.ax.tick_params(labelsize=9)
-
-    # First legend explains measured versus query-support planes.
-    state_handles = [
-        Line2D(
-            [0], [0],
-            color=REAL_FRAME_COLOR,
-            linewidth=1.6,
-            linestyle="-",
-            label="Measured tissue",
-        ),
-        Line2D(
-            [0], [0],
-            color=VIRTUAL_SUPPORT_GRID_COLOR,
-            linewidth=1.2,
-            alpha=0.9,
-            linestyle='-',
-            label="Virtual-query raster support (256×256)",
-        ),
-    ]
-    state_legend = ax.legend(
-        handles=state_handles,
-        loc="upper left",
-        bbox_to_anchor=(0.98, 1.02),
-        frameon=False,
-        fontsize=8.8,
-    )
-    ax.add_artist(state_legend)
-
-    domain_handles = [
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="",
-            markerfacecolor=LABEL_TO_COLOR[d],
-            markeredgecolor="none",
-            markersize=6.2,
-            label=f"Domain {d}",
-        )
-        for d in ALL_LABELS
-    ]
-    ax.legend(
-        handles=domain_handles,
-        loc="upper left",
-        bbox_to_anchor=(0.98, 0.88),
-        frameon=False,
-        fontsize=8.3,
-        ncol=2,
-        title="Spatial domains",
-        title_fontsize=9.5,
-        handletextpad=0.4,
-        columnspacing=0.9,
-    )
-
-    ax.set_title(
-        "Observed tissues and spatial support for virtual generation",
-        pad=18,
-        fontsize=15,
-        fontweight="bold",
-    )
-
-    # Include both measured and query ages on the common horizontal scaffold.
     draw_horizontal_time_scaffold(
         fig,
         ax,
-        ordered,
-        time_positions,
+        real_ordered,
+        real_positions,
         get_mirrored_extent(),
-        title_label="Age",
+        title_label=" Age\n(months)",
     )
 
     finalize_figure(
@@ -1206,6 +1158,7 @@ def plot_figure3_all_mirrored_stack(
             time_x,
             vmax=vmax,
             seed=300 + i,
+            virtual_marker_edges=True,
         )
 
     style_3d_axis(
@@ -1214,88 +1167,13 @@ def plot_figure3_all_mirrored_stack(
         time_positions,
     )
 
-    scalar_mappable = ScalarMappable(
-        norm=Normalize(vmin=0.0, vmax=vmax),
-        cmap="Reds",
-    )
-    scalar_mappable.set_array([])
-    colorbar = fig.colorbar(
-        scalar_mappable,
-        ax=ax,
-        fraction=0.028,
-        pad=0.02,
-        shrink=0.68,
-    )
-    colorbar.set_label(f"log1p {GENE_NAME} expression", fontsize=10)
-    colorbar.ax.tick_params(labelsize=9)
-
-    frame_handles = [
-        Line2D(
-            [0], [0],
-            color=REAL_FRAME_COLOR,
-            linewidth=1.6,
-            linestyle="-",
-            label="Real slice",
-        ),
-        Line2D(
-            [0], [0],
-            color=VIRTUAL_FRAME_COLOR,
-            linewidth=1.6,
-            linestyle=DASHED_STYLE,
-            label="Virtual slice",
-        ),
-    ]
-
-    domain_handles = [
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            linestyle="",
-            markerfacecolor=LABEL_TO_COLOR[d],
-            markeredgecolor="none",
-            markersize=6.2,
-            label=f"Domain {d}",
-        )
-        for d in ALL_LABELS
-    ]
-
-    frame_legend = ax.legend(
-        handles=frame_handles,
-        loc="upper left",
-        bbox_to_anchor=(0.98, 1.02),
-        frameon=False,
-        fontsize=9.0,
-    )
-    ax.add_artist(frame_legend)
-
-    ax.legend(
-        handles=domain_handles,
-        loc="upper left",
-        bbox_to_anchor=(0.98, 0.90),
-        frameon=False,
-        fontsize=8.4,
-        ncol=2,
-        title="Spatial domains",
-        title_fontsize=9.5,
-        handletextpad=0.4,
-        columnspacing=0.9,
-    )
-
-    ax.set_title(
-        "Real and virtual tissues along the time axis",
-        pad=18,
-        fontsize=15,
-        fontweight="bold",
-    )
-
     draw_horizontal_time_scaffold(
         fig,
         ax,
         ordered,
         time_positions,
         get_mirrored_extent(),
-        title_label="Age",
+        title_label=" Age\n(months)",
     )
 
     finalize_figure(
@@ -1313,7 +1191,7 @@ def run_all() -> None:
     real_records, virtual_records = load_all_slices()
     all_records = sorted(real_records + virtual_records, key=lambda r: r.age)
 
-    plot_figure1_real_gene_stack(real_records, OUTDIR)
+    # plot_figure1_real_gene_stack(real_records, OUTDIR)
     plot_figure2_real_mirrored_stack(real_records, virtual_records, OUTDIR)
     plot_figure3_all_mirrored_stack(all_records, OUTDIR)
 
@@ -1433,3 +1311,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

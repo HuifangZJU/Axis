@@ -4,20 +4,22 @@
 """
 Combined 3D vertical pipeline figures for AD-vs-WT disease analysis.
 
-This revision simplifies the previous script by:
-1. removing unnecessary path-construction / alternate-coordinate controls,
-2. using distinct colormaps for AD and WT state maps,
-3. merging AD/WT views into paired subplot figures, and
-4. keeping virtual states consistently dashed wherever they appear.
+Figure 1
+    Original observed AD and WT age states.
 
-Final outputs
--------------
-Figure 1  AD raw states + WT raw states.
-Figure 2  AD common-frame states + WT common-frame validation states.
-Figure 3  AD common-frame virtual-generation states + WT common-frame
-          virtual-generation states.
-Figure 4  AD matched states + spatial AD-WT delta + WT matched states
-          in a shared 1 x 3 age-aligned layout.
+Figure 2
+    Experimental sampling design using ORIGINAL observed slices:
+    AD = 2.5m, 5.7m, 17.9m; WT = 2.5m, 13.4m.
+    AD 13.4m remains unmeasured and WT 5.7m remains held out.
+
+Figure 3
+    Shared-frame reconstruction with generated AD 13.4m and WT 5.7m states.
+
+Figure 4
+    Spatially matched AD | Δ(AD-WT) | WT comparison.
+
+Figure 5
+    Single-age AD | Δ | WT view retained from the current script.
 """
 
 import argparse
@@ -29,9 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scanpy as sc
 import scipy.sparse as sp
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize, TwoSlopeNorm
-from matplotlib.lines import Line2D
+from matplotlib.colors import TwoSlopeNorm
 
 
 # ============================================================
@@ -42,8 +42,7 @@ COORD_KEY = "spatial"
 VALID_KEY = "valid"
 
 OUTDIR = (
-    "/media/huifang/data/registration/paper_figure/"
-    "Figure6_disease/pipeline_3d_vertical"
+    "/media/huifang/data/registration/paper_analysis/Figure56_mouse/6a/"
 )
 
 # ------------------------------------------------------------
@@ -52,19 +51,19 @@ OUTDIR = (
 AD_RAW_SPECS = [
     {
         "age": 2.5,
-        "label": "2.5m",
+        "label": "2.5",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_0.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_0_validation.npz",
     },
     {
         "age": 5.7,
-        "label": "5.7m",
+        "label": "5.7",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_1.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_1_validation.npz",
     },
     {
         "age": 17.9,
-        "label": "17.9m",
+        "label": "17.9",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_2.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_2_validation.npz",
     },
@@ -73,19 +72,19 @@ AD_RAW_SPECS = [
 WT_RAW_SPECS = [
     {
         "age": 2.5,
-        "label": "2.5m",
+        "label": "2.5",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_3.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_3_validation.npz",
     },
     {
         "age": 5.7,
-        "label": "5.7m",
+        "label": "5.7",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_4.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_4_validation.npz",
     },
     {
         "age": 13.4,
-        "label": "13.4m",
+        "label": "13.4",
         "h5ad_path": "/media/huifang/data/registration/mouse_brain/h5ads/0_5.h5ad",
         "coord_path": "/media/huifang/data/registration/mouse_brain/network_input/0_5_validation.npz",
     },
@@ -97,64 +96,64 @@ COMMON_FRAME_ROOT = (
 )
 
 AD_COMMON_FRAME: Dict[str, dict] = {
-    "2.5m": {
+    "2.5": {
         "age": 2.5,
-        "label": "2.5m",
+        "label": "2.5",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_2.500.h5ad"),
     },
-    "5.7m": {
+    "5.7": {
         "age": 5.7,
-        "label": "5.7m",
+        "label": "5.7",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_5.700.h5ad"),
     },
-    "13.4m": {
+    "13.4": {
         "age": 13.4,
-        "label": "13.4m",
+        "label": "13.4",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_13.400.h5ad"),
     },
-    "17.9m": {
+    "17.9": {
         "age": 17.9,
-        "label": "17.9m",
+        "label": "17.9",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_17.900.h5ad"),
     },
 }
 
 WT_COMMON_FRAME: Dict[str, dict] = {
-    "2.5m": {
+    "2.5": {
         "age": 2.5,
-        "label": "2.5m",
+        "label": "2.5",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_102.500.h5ad"),
     },
-    "5.7m": {
+    "5.7": {
         "age": 5.7,
-        "label": "5.7m",
+        "label": "5.7",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_105.700.h5ad"),
     },
-    "13.4m": {
+    "13.4": {
         "age": 13.4,
-        "label": "13.4m",
+        "label": "13.4",
         "h5ad_path": os.path.join(COMMON_FRAME_ROOT, "virtual_Disease_time_113.400.h5ad"),
     },
 }
 
 DELTA_DIR = (
     "/media/huifang/data/registration/paper_analysis/"
-    "Figure56_mouse/6_trend_heatmap_hybrid/saved_spatial_delta_maps"
+    "Figure56_mouse/6_g/saved_spatial_delta_maps"
 )
 DELTA_SPECS: Dict[str, dict] = {
-    "2.5m": {
+    "2.5": {
         "age": 2.5,
-        "label": "2.5m",
+        "label": "2.5",
         "h5ad_path": os.path.join(DELTA_DIR, "spatial_delta_2.5m.h5ad"),
     },
-    "5.7m": {
+    "5.7": {
         "age": 5.7,
-        "label": "5.7m",
+        "label": "5.7",
         "h5ad_path": os.path.join(DELTA_DIR, "spatial_delta_5.7m.h5ad"),
     },
-    "13.4m": {
+    "13.4": {
         "age": 13.4,
-        "label": "13.4m",
+        "label": "13.4",
         "h5ad_path": os.path.join(DELTA_DIR, "spatial_delta_13.4m.h5ad"),
     },
 }
@@ -164,7 +163,7 @@ DELTA_SPECS: Dict[str, dict] = {
 # PLOTTING CONFIGURATION
 # ============================================================
 FIG_DPI = 400
-FIGURE_MODE = "show"  # save / show / both
+FIGURE_MODE = "save"  # save / show / both
 SHOW_BLOCK = True
 
 FIXED_BOX = (0.0, 1024.0, 0.0, 1024.0)
@@ -183,11 +182,26 @@ DELTA_INVERT_Y = False
 STACK_GAP = 300.0
 SPATIAL_DISPLAY_SCALE = 0.70
 
-POINT_SIZE_STATE = 1.2
-POINT_SIZE_DELTA = 1.4
+POINT_SIZE_STATE = 1
+POINT_SIZE_DELTA = 1
 MAX_POINTS_PER_PLANE = 30000
-STATE_ALPHA = 0.6
-DELTA_ALPHA = 0.76
+STATE_ALPHA = 0.9
+DELTA_ALPHA = 0.96
+
+# Figure 3 only: subtle boundaries on newly generated states
+# (AD 13.4m and WT 5.7m).
+FIG3_VIRTUAL_MARKER_EDGE_COLOR = "0.55"
+FIG3_VIRTUAL_MARKER_EDGE_WIDTH = 0.02
+
+# General multi-series layout control.
+# Matplotlib wspace: fraction of the average subplot width.
+# Applied to Figures 1-3 (AD/WT pair) and Figures 4-5 (AD/Delta/WT triptych).
+SERIES_GAP = 0
+
+# Easy title-position controls for all 3D panels.
+PANEL_TITLE_Y = 1.00
+PANEL_TITLE_PAD = 10.0
+SUPTITLE_Y = 0.98
 
 # Colormaps.
 AD_STATE_CMAP = "Reds"
@@ -217,6 +231,14 @@ WT_VIEW_ELEV = 25.0
 WT_VIEW_AZIM = -120.0
 DELTA_VIEW_ELEV = 25.0
 DELTA_VIEW_AZIM = -60.0
+
+#single figure5 view
+# AD_VIEW_ELEV = 45.0
+# AD_VIEW_AZIM = -60.0
+# WT_VIEW_ELEV = 45.0
+# WT_VIEW_AZIM = -60.0
+# DELTA_VIEW_ELEV = 45.0
+# DELTA_VIEW_AZIM = -60.0
 
 
 # ============================================================
@@ -599,17 +621,18 @@ def draw_time_axis(
     )
 
     dx = -30.0 if side == "left" else +30.0
+    title_dx = 120.0 if side == "left" else -120.0
     ha = "right" if side == "left" else "left"
     ax.text(
-        x0 + dx, y0 - 25.0, z_top, title_label,
-        fontsize=15.5, fontweight="bold", color=TIME_AXIS_COLOR,
+        x0 + title_dx, y0 - 25.0, z_top+40, title_label,
+        fontsize=18, color=TIME_AXIS_COLOR,
         ha=ha, va="bottom",
     )
 
     for record, z in zip(records, zs):
         ax.text(
             x0 + dx, y0 - 14.0, float(z), record.label,
-            fontsize=12.3, fontweight="bold",
+            fontsize=18,
             color=VIRTUAL_LABEL_COLOR if record.is_virtual else REAL_LABEL_COLOR,
             ha=ha, va="center", zorder=60,
         )
@@ -643,8 +666,8 @@ def draw_time_axis(
                 y0 - 14.0,
                 z,
                 str(label),
-                fontsize=12.3,
-                fontweight="bold",
+                fontsize=18,
+                # fontweight="bold",
                 color=REAL_LABEL_COLOR,
                 ha=ha,
                 va="center",
@@ -657,7 +680,7 @@ def draw_time_axis(
                 y0 + 50.0,
                 z,
                 "Held out",
-                fontsize=10.5,
+                fontsize=18,
                 fontstyle="italic",
                 fontweight="bold",
                 color=VIRTUAL_LABEL_COLOR,
@@ -697,8 +720,8 @@ def draw_time_axis(
                 y0 - 14.0,
                 z,
                 str(label),
-                fontsize=12.3,
-                fontweight="bold",
+                fontsize=18,
+                # fontweight="bold",
                 color=VIRTUAL_LABEL_COLOR,
                 ha=ha,
                 va="center",
@@ -706,19 +729,19 @@ def draw_time_axis(
             )
 
             # Missing-state annotation mirrors the Held out annotation style.
-            # ax.text(
-            #     x0 - 2*opposite_dx,
-            #     y0 - 270.0,
-            #     z,
-            #     "(Unmeasured)",
-            #     fontsize=10.5,
-            #     fontstyle="italic",
-            #     fontweight="bold",
-            #     color=VIRTUAL_LABEL_COLOR,
-            #     ha=opposite_ha,
-            #     va="center",
-            #     zorder=61,
-            # )
+            ax.text(
+                x0 + 2*opposite_dx,
+                y0 +120,
+                z,
+                "Unmeasured",
+                fontsize=18,
+                fontstyle="italic",
+                fontweight="bold",
+                color=VIRTUAL_LABEL_COLOR,
+                ha=opposite_ha,
+                va="center",
+                zorder=61,
+            )
 
 
 def style_3d_axis(
@@ -734,8 +757,8 @@ def style_3d_axis(
     ref_zs = zs if reference_z_positions is None else np.asarray(reference_z_positions, dtype=float)
     z_span = max(float(np.ptp(ref_zs)), 1.0)
 
-    x_pad = 70.0
-    y_pad = 70.0
+    x_pad = 200.0
+    y_pad = 200.0
     z_pad_low = 0.12 * z_span
     z_pad_high = 0.10 * z_span
 
@@ -762,15 +785,39 @@ def style_3d_axis(
     ax.set_proj_type("ortho")
     ax.set_box_aspect(tuple(display_span))
     ax.set_axis_off()
+    # ax.margins(x=0, y=0, z=0)
 
-
-def plot_state_plane(ax, record: SliceRecord, z_value: float, vmax: float, seed: int, cmap_name: str) -> None:
+def plot_state_plane(
+    ax,
+    record: SliceRecord,
+    z_value: float,
+    vmax: float,
+    seed: int,
+    cmap_name: str,
+    *,
+    virtual_marker_edges: bool = False,
+) -> None:
     idx = sample_indices(len(record.coords), MAX_POINTS_PER_PLANE, seed)
     coords = record.coords[idx]
     values = record.values[idx]
     colors = state_facecolors(values, vmax, cmap_name)
 
-    ax.scatter(coords[:, 0], coords[:, 1], np.full(len(coords), float(z_value)), c=colors, s=POINT_SIZE_STATE, linewidths=0, depthshade=False, rasterized=True, zorder=3)
+    use_edges = bool(virtual_marker_edges and record.is_virtual)
+    edgecolor = FIG3_VIRTUAL_MARKER_EDGE_COLOR if use_edges else "none"
+    edgewidth = FIG3_VIRTUAL_MARKER_EDGE_WIDTH if use_edges else 0.0
+
+    ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        np.full(len(coords), float(z_value)),
+        c=colors,
+        s=POINT_SIZE_STATE,
+        edgecolors=edgecolor,
+        linewidths=edgewidth,
+        depthshade=False,
+        rasterized=True,
+        zorder=3,
+    )
     draw_plane_frame(ax, z_value, is_virtual=record.is_virtual)
 
 
@@ -802,14 +849,27 @@ def render_stack_on_axis(
     held_out_timepoints: Optional[Sequence[Tuple[float, str]]] = None,
     placeholder_timepoints: Optional[Sequence[Tuple[float, str]]] = None,
     show_time_axis: bool = True,
-):
-    """Render one stacked 3D panel on a supplied shared vertical scaffold."""
+    virtual_marker_edges: bool = False,
+    title_y: Optional[float] = None,
+    title_pad: Optional[float] = None,
+) -> None:
+    """Render one stacked 3D panel on a supplied vertical scaffold."""
+    if title_y is None:
+        title_y = PANEL_TITLE_Y
+    if title_pad is None:
+        title_pad = PANEL_TITLE_PAD
     if not records:
         ax.set_axis_off()
-        ax.set_title(f"{title}\n(missing input)", fontsize=12.5, pad=8)
-        return None
+        ax.set_title(
+            f"{title}\n(missing input)",
+            fontsize=12.5,
+            y=title_y,
+            pad=title_pad,
+        )
+        return
 
     ordered = sorted(records, key=lambda r: r.age)
+
     if z_positions is None:
         z_positions = stack_positions(len(ordered))
     z_positions = np.asarray(z_positions, dtype=float)
@@ -829,34 +889,25 @@ def render_stack_on_axis(
         cmap_name = AD_STATE_CMAP if state_cmap is None else state_cmap
         for i, (record, z) in enumerate(zip(ordered, z_positions)):
             plot_state_plane(
-                ax, record, float(z), vmax, seed=100 + i, cmap_name=cmap_name
+                ax,
+                record,
+                float(z),
+                vmax,
+                seed=100 + i,
+                cmap_name=cmap_name,
+                virtual_marker_edges=virtual_marker_edges,
             )
-        mappable = ScalarMappable(
-            norm=Normalize(vmin=0.0, vmax=vmax), cmap=cmap_name
-        )
-        colorbar_label = f"log1p {GENE_NAME} expression"
     elif mode == "delta":
         vmax = robust_symmetric_vmax([r.values for r in ordered], q=99.0)
         for i, (record, z) in enumerate(zip(ordered, z_positions)):
             plot_delta_plane(ax, record, float(z), vmax, seed=200 + i)
-        mappable = ScalarMappable(
-            norm=TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax),
-            cmap=DELTA_CMAP,
-        )
-        colorbar_label = f"{GENE_NAME} spatial delta (AD−WT)"
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-    # Optional empty states can be shown as dashed placeholder planes.
-    # ``held_out_timepoints`` are withheld observations (e.g. WT 5.7m), while
-    # ``placeholder_timepoints`` are unmeasured states (e.g. AD 13.4m).
-    if placeholder_timepoints:
-        for z_placeholder, _label in placeholder_timepoints:
-            draw_plane_frame(ax, float(z_placeholder), is_virtual=True)
-
-    if held_out_timepoints:
-        for z_hold, _label in held_out_timepoints:
-            draw_plane_frame(ax, float(z_hold), is_virtual=True)
+    # Empty/withheld experiment-setting states are represented by dashed frames.
+    for timepoints in (placeholder_timepoints, held_out_timepoints):
+        for z_value, _label in timepoints or []:
+            draw_plane_frame(ax, float(z_value), is_virtual=True)
 
     if show_time_axis:
         draw_time_axis(
@@ -864,7 +915,7 @@ def render_stack_on_axis(
             ordered,
             z_positions,
             side=axis_side,
-            title_label="Age",
+            title_label="   Age  \n(months)",
             axis_reference_z=reference_z_positions,
             held_out_timepoints=held_out_timepoints,
             placeholder_timepoints=placeholder_timepoints,
@@ -877,26 +928,14 @@ def render_stack_on_axis(
         view_azim=view_azim,
         reference_z_positions=reference_z_positions,
     )
-    ax.set_title(title, pad=10, fontsize=13.5, fontweight="bold")
+    # ax.set_title(
+    #     title,
+    #     y=title_y,
+    #     pad=title_pad,
+    #     fontsize=13.5,
+    #     fontweight="bold",
+    # )
 
-    mappable.set_array([])
-    return {
-        "mappable": mappable,
-        "colorbar_label": colorbar_label,
-        "has_virtual": (
-            any(r.is_virtual for r in ordered)
-            or bool(held_out_timepoints)
-            or bool(placeholder_timepoints)
-        ),
-    }
-
-
-def add_virtual_legend(ax) -> None:
-    handles = [
-        Line2D([0], [0], color=REAL_FRAME_COLOR, linewidth=1.5, linestyle="-", label="Observed / retained state"),
-        Line2D([0], [0], color=VIRTUAL_FRAME_COLOR, linewidth=1.5, linestyle=DASHED_STYLE, label="Virtual state"),
-    ]
-    ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.98, 0.98), frameon=False, fontsize=8.8)
 
 
 def plot_paired_state_figure(
@@ -918,14 +957,9 @@ def plot_paired_state_figure(
     right_held_out_ages: Optional[Sequence[float]] = None,
     left_placeholder_ages: Optional[Sequence[float]] = None,
     right_placeholder_ages: Optional[Sequence[float]] = None,
+    virtual_marker_edges: bool = False,
 ) -> None:
-    """
-    Plot AD/WT panels on one shared age-aware schematic z scaffold.
-
-    The union of ages in the two panels determines the shared positions. This
-    aligns identical ages and separates different ages while preserving equal
-    schematic spacing between progression stages.
-    """
+    """Plot AD/WT panels on one shared age-aware schematic scaffold."""
     set_style()
     fig = plt.figure(figsize=(15.5, 8.3))
     ax_left = fig.add_subplot(1, 2, 1, projection="3d")
@@ -936,47 +970,29 @@ def plot_paired_state_figure(
         right_records,
         reference_ages=reference_ages,
     )
-
-    # Convert requested held-out ages to their exact shared-scaffold z values.
     age_to_z = {
         round(float(age), 6): float(z)
         for age, z in zip(shared_ages, shared_z)
     }
 
-    def _held_out_points(ages: Optional[Sequence[float]]):
+    def age_points(ages: Optional[Sequence[float]]) -> List[Tuple[float, str]]:
         points = []
         for age in ages or []:
             key = round(float(age), 6)
             if key not in age_to_z:
                 raise ValueError(
-                    f"Held-out age {age:g}m is not present in shared scaffold "
+                    f"Age {age:g} is not present in shared scaffold "
                     f"{shared_ages.tolist()}"
                 )
-            points.append((age_to_z[key], f"{float(age):g}m"))
+            points.append((age_to_z[key], f"{float(age):g}"))
         return points
 
-    left_held_out_points = _held_out_points(left_held_out_ages)
-    right_held_out_points = _held_out_points(right_held_out_ages)
-    left_placeholder_points = _held_out_points(left_placeholder_ages)
-    right_placeholder_points = _held_out_points(right_placeholder_ages)
+    left_held_out = age_points(left_held_out_ages)
+    right_held_out = age_points(right_held_out_ages)
+    left_placeholder = age_points(left_placeholder_ages)
+    right_placeholder = age_points(right_placeholder_ages)
 
-    print(
-        "[INFO] Shared paired-age scaffold: "
-        + ", ".join(
-            f"{age:g}m -> z={z:g}"
-            for age, z in zip(shared_ages, shared_z)
-        )
-    )
-    print(
-        "[INFO] Left map positions: "
-        + ", ".join(f"{r.age:g}m:{z:g}" for r, z in zip(left_records, left_z))
-    )
-    print(
-        "[INFO] Right map positions: "
-        + ", ".join(f"{r.age:g}m:{z:g}" for r, z in zip(right_records, right_z))
-    )
-
-    left_meta = render_stack_on_axis(
+    render_stack_on_axis(
         ax_left,
         left_records,
         mode="state",
@@ -987,10 +1003,11 @@ def plot_paired_state_figure(
         state_cmap=left_cmap,
         z_positions=left_z,
         reference_z_positions=shared_z,
-        held_out_timepoints=left_held_out_points,
-        placeholder_timepoints=left_placeholder_points,
+        held_out_timepoints=left_held_out,
+        placeholder_timepoints=left_placeholder,
+        virtual_marker_edges=virtual_marker_edges,
     )
-    right_meta = render_stack_on_axis(
+    render_stack_on_axis(
         ax_right,
         right_records,
         mode="state",
@@ -1001,53 +1018,23 @@ def plot_paired_state_figure(
         state_cmap=right_cmap,
         z_positions=right_z,
         reference_z_positions=shared_z,
-        held_out_timepoints=right_held_out_points,
-        placeholder_timepoints=right_placeholder_points,
+        held_out_timepoints=right_held_out,
+        placeholder_timepoints=right_placeholder,
+        virtual_marker_edges=virtual_marker_edges,
     )
 
-    if left_meta is not None:
-        cb1 = fig.colorbar(
-            left_meta["mappable"], ax=ax_left, fraction=0.030, pad=0.02, shrink=0.68
-        )
-        cb1.set_label(left_meta["colorbar_label"], fontsize=10)
-        cb1.ax.tick_params(labelsize=9)
-        if left_meta["has_virtual"]:
-            add_virtual_legend(ax_left)
+    fig.subplots_adjust(wspace=SERIES_GAP)
 
-    if right_meta is not None:
-        cb2 = fig.colorbar(
-            right_meta["mappable"], ax=ax_right, fraction=0.030, pad=0.02, shrink=0.68
-        )
-        cb2.set_label(right_meta["colorbar_label"], fontsize=10)
-        cb2.ax.tick_params(labelsize=9)
-        if right_meta["has_virtual"]:
-            add_virtual_legend(ax_right)
-
-    if suptitle:
-        fig.suptitle(suptitle, fontsize=16, fontweight="bold", y=0.98)
-    finalize_figure(fig, os.path.join(OUTDIR, save_name))
-
-
-def plot_single_delta_figure(records: Sequence[SliceRecord], *, title: str, save_name: str) -> None:
-    set_style()
-    fig = plt.figure(figsize=(8.2, 8.4))
-    ax = fig.add_subplot(111, projection="3d")
-
-    meta = render_stack_on_axis(
-        ax,
-        records,
-        mode="delta",
-        axis_side="left",
-        view_elev=DELTA_VIEW_ELEV,
-        view_azim=DELTA_VIEW_AZIM,
-        title=title,
-    )
-    if meta is not None:
-        cb = fig.colorbar(meta["mappable"], ax=ax, fraction=0.030, pad=0.02, shrink=0.68)
-        cb.set_label(meta["colorbar_label"], fontsize=10)
-        cb.ax.tick_params(labelsize=9)
+    # if suptitle:
+    #     fig.suptitle(
+    #         suptitle,
+    #         fontsize=16,
+    #         fontweight="bold",
+    #         y=SUPTITLE_Y,
+    #     )
 
     finalize_figure(fig, os.path.join(OUTDIR, save_name))
+
 
 
 # ============================================================
@@ -1080,39 +1067,56 @@ def build_figure1(gene: str) -> None:
 
 
 def build_figure2(gene: str) -> None:
-    ad_specs = [AD_COMMON_FRAME[k].copy() for k in ("2.5m", "5.7m", "17.9m")]
-    wt_specs = [WT_COMMON_FRAME[k].copy() for k in ("2.5m", "13.4m")]
-    for spec in ad_specs:
-        spec["is_virtual"] = False
-    for spec in wt_specs:
-        spec["is_virtual"] = False
+    """
+    Experimental sampling design.
 
+    Known states use the ORIGINAL observed slices:
+      AD: 2.5m, 5.7m, 17.9m
+      WT: 2.5m, 13.4m
+
+    AD 13.4m remains explicitly unmeasured; WT 5.7m remains held out.
+    """
+    ad_specs = [
+        spec.copy()
+        for spec in AD_RAW_SPECS
+        if spec["label"] in {"2.5", "5.7", "17.9"}
+    ]
+    wt_specs = [
+        spec.copy()
+        for spec in WT_RAW_SPECS
+        if spec["label"] in {"2.5", "13.4"}
+    ]
 
     ad_records = load_sequence(
-        ad_specs, load_common_record, gene, "Figure 2 AD",
-        invert_x=AD_INVERT_X, invert_y=AD_INVERT_Y,
+        ad_specs,
+        load_raw_record,
+        gene,
+        "Figure 2 AD observed",
+        invert_x=AD_INVERT_X,
+        invert_y=AD_INVERT_Y,
     )
     wt_records = load_sequence(
-        wt_specs, load_common_record, gene, "Figure 2 WT",
-        invert_x=WT_INVERT_X, invert_y=WT_INVERT_Y,
+        wt_specs,
+        load_raw_record,
+        gene,
+        "Figure 2 WT observed",
+        invert_x=WT_INVERT_X,
+        invert_y=WT_INVERT_Y,
     )
 
-    # The paired plotter automatically builds the shared age scaffold from
-    # 2.5, 5.7, 13.4, and 17.9m. Thus the withheld WT 5.7m position remains
-    # empty, WT 13.4m occupies its own stage, and AD 17.9m is lower still.
     plot_paired_state_figure(
         left_records=ad_records,
         right_records=wt_records,
-        left_title="AD age-matched states in a shared spatial frame",
-        right_title="WT common-frame states (5.7m withheld)",
+        left_title="AD observed states",
+        right_title="WT observed states",
         left_axis_side="left",
         right_axis_side="right",
         left_cmap=AD_STATE_CMAP,
         right_cmap=WT_STATE_CMAP,
         left_view=(AD_VIEW_ELEV, AD_VIEW_AZIM),
         right_view=(WT_VIEW_ELEV, WT_VIEW_AZIM),
-        save_name=f"figure2_common_frame_AD_WT_{gene}.png",
-        suptitle="Age-matched paired states in a shared spatial frame",
+        save_name=f"figure2_experimental_setting_AD_WT_{gene}.png",
+        suptitle="Experimental sampling design",
         reference_ages=(2.5, 5.7, 13.4, 17.9),
         left_placeholder_ages=(13.4,),
         right_held_out_ages=(5.7,),
@@ -1120,12 +1124,12 @@ def build_figure2(gene: str) -> None:
 
 
 def build_figure3(gene: str) -> None:
-    ad_specs = [AD_COMMON_FRAME[k].copy() for k in ("2.5m", "5.7m", "13.4m", "17.9m")]
-    wt_specs = [WT_COMMON_FRAME[k].copy() for k in ("2.5m", "5.7m", "13.4m")]
+    ad_specs = [AD_COMMON_FRAME[k].copy() for k in ("2.5", "5.7", "13.4", "17.9")]
+    wt_specs = [WT_COMMON_FRAME[k].copy() for k in ("2.5", "5.7", "13.4")]
     for spec in ad_specs:
-        spec["is_virtual"] = spec["label"] == "13.4m"
+        spec["is_virtual"] = spec["label"] == "13.4"
     for spec in wt_specs:
-        spec["is_virtual"] = spec["label"] == "5.7m"
+        spec["is_virtual"] = spec["label"] == "5.7"
 
 
 
@@ -1150,6 +1154,7 @@ def build_figure3(gene: str) -> None:
         right_view=(WT_VIEW_ELEV, WT_VIEW_AZIM),
         save_name=f"figure3_virtual_generation_AD_WT_{gene}.png",
         suptitle="Common-frame reconstruction and missing-age virtual generation",
+        virtual_marker_edges=True,
     )
 
 
@@ -1164,15 +1169,15 @@ def build_figure4(gene: str) -> None:
     2.5m, 5.7m, and 13.4m. The center delta panel intentionally does not draw
     a time axis; its map planes are aligned to the AD/WT age positions.
     """
-    ad_specs = [AD_COMMON_FRAME[k].copy() for k in ("2.5m", "5.7m", "13.4m")]
-    wt_specs = [WT_COMMON_FRAME[k].copy() for k in ("2.5m", "5.7m", "13.4m")]
-    delta_specs = [DELTA_SPECS[k].copy() for k in ("2.5m", "5.7m", "13.4m")]
+    ad_specs = [AD_COMMON_FRAME[k].copy() for k in ("2.5", "5.7", "13.4")]
+    wt_specs = [WT_COMMON_FRAME[k].copy() for k in ("2.5", "5.7", "13.4")]
+    delta_specs = [DELTA_SPECS[k].copy() for k in ("2.5", "5.7", "13.4")]
 
     # Preserve the generated-state convention from the previous Figure 4.
     for spec in ad_specs:
-        spec["is_virtual"] = spec["label"] == "13.4m"
+        spec["is_virtual"] = spec["label"] == "13.4"
     for spec in wt_specs:
-        spec["is_virtual"] = spec["label"] == "5.7m"
+        spec["is_virtual"] = spec["label"] == "5.7"
 
     ad_records = load_sequence(
         ad_specs,
@@ -1224,7 +1229,7 @@ def build_figure4(gene: str) -> None:
     print(
         "[INFO] Figure 4 shared AD/Delta/WT scaffold: "
         + ", ".join(
-            f"{age:g}m -> z={z:g}"
+            f"{age:g} -> z={z:g}"
             for age, z in zip(shared_ages, shared_z)
         )
     )
@@ -1235,7 +1240,7 @@ def build_figure4(gene: str) -> None:
     ax_delta = fig.add_subplot(1, 3, 2, projection="3d")
     ax_wt = fig.add_subplot(1, 3, 3, projection="3d")
 
-    ad_meta = render_stack_on_axis(
+    render_stack_on_axis(
         ax_ad,
         ad_records,
         mode="state",
@@ -1249,20 +1254,20 @@ def build_figure4(gene: str) -> None:
         show_time_axis=True,
     )
 
-    delta_meta = render_stack_on_axis(
+    render_stack_on_axis(
         ax_delta,
         delta_records,
         mode="delta",
         axis_side="left",  # ignored because show_time_axis=False
         view_elev=DELTA_VIEW_ELEV,
         view_azim=DELTA_VIEW_AZIM,
-        title="Spatial AD−WT delta",
+        title=r"Spatial $\Delta$ (AD$-$WT)",
         z_positions=delta_z,
         reference_z_positions=shared_z,
         show_time_axis=False,
     )
 
-    wt_meta = render_stack_on_axis(
+    render_stack_on_axis(
         ax_wt,
         wt_records,
         mode="state",
@@ -1276,68 +1281,359 @@ def build_figure4(gene: str) -> None:
         show_time_axis=True,
     )
 
-    # Keep one color scale for each data type/panel, as in the previous
-    # separate Figure 4 and Figure 5.
-    if ad_meta is not None:
-        cb_ad = fig.colorbar(
-            ad_meta["mappable"],
-            ax=ax_ad,
-            fraction=0.028,
-            pad=0.015,
-            shrink=0.66,
-        )
-        cb_ad.set_label(ad_meta["colorbar_label"], fontsize=9.5)
-        cb_ad.ax.tick_params(labelsize=8.5)
-        if ad_meta["has_virtual"]:
-            add_virtual_legend(ax_ad)
-
-    if delta_meta is not None:
-        cb_delta = fig.colorbar(
-            delta_meta["mappable"],
-            ax=ax_delta,
-            fraction=0.028,
-            pad=0.015,
-            shrink=0.66,
-        )
-        cb_delta.set_label(delta_meta["colorbar_label"], fontsize=9.5)
-        cb_delta.ax.tick_params(labelsize=8.5)
-
-    if wt_meta is not None:
-        cb_wt = fig.colorbar(
-            wt_meta["mappable"],
-            ax=ax_wt,
-            fraction=0.028,
-            pad=0.015,
-            shrink=0.66,
-        )
-        cb_wt.set_label(wt_meta["colorbar_label"], fontsize=9.5)
-        cb_wt.ax.tick_params(labelsize=8.5)
-        if wt_meta["has_virtual"]:
-            add_virtual_legend(ax_wt)
-
-    fig.suptitle(
-        "Age-matched AD–WT spatial comparison",
-        fontsize=16,
-        fontweight="bold",
-        y=0.98,
-    )
+    fig.subplots_adjust(wspace=SERIES_GAP)
+    #
+    # fig.suptitle(
+    #     "Age-matched AD–WT spatial comparison",
+    #     fontsize=16,
+    #     fontweight="bold",
+    #     y=SUPTITLE_Y,
+    # )
 
     finalize_figure(
         fig,
         os.path.join(OUTDIR, f"figure4_AD_Delta_WT_{gene}.png"),
     )
 
+def build_figure5(gene: str) -> None:
+    """
+    Figure 5
+    --------
+    Show only the 2.5-month AD / AD-WT delta / WT states using the
+    same spatial rendering, camera angles, color scales, and 1 x 3
+    organization as Figure 4.
 
+    No textual annotation is shown:
+        - no panel titles
+        - no age/time axis
+        - no colorbars
+        - no legends
+        - no suptitle
+        - no axis labels/ticks
+
+    Important
+    ---------
+    Although only the 2.5m planes are displayed, the color normalization
+    is calculated from the same 2.5m / 5.7m / 13.4m datasets used by
+    Figure 4. This keeps the colors directly comparable between Figures
+    4 and 5.
+    """
+
+    # ========================================================
+    # Load the SAME records used by Figure 4
+    #
+    # We need all three ages for identical color normalization,
+    # even though only 2.5m will actually be plotted.
+    # ========================================================
+
+    ad_specs = [
+        AD_COMMON_FRAME[k].copy()
+        for k in (
+            "2.5",
+            "5.7",
+            "13.",
+        )
+    ]
+
+    wt_specs = [
+        WT_COMMON_FRAME[k].copy()
+        for k in (
+            "2.5",
+            "5.7",
+            "13.4",
+        )
+    ]
+
+    delta_specs = [
+        DELTA_SPECS[k].copy()
+        for k in (
+            "2.5",
+            "5.7",
+            "13.4",
+        )
+    ]
+
+    # Same virtual-state convention as Figure 4.
+    for spec in ad_specs:
+        spec["is_virtual"] = (
+            spec["label"] == "13.4"
+        )
+
+    for spec in wt_specs:
+        spec["is_virtual"] = (
+            spec["label"] == "5.7"
+        )
+
+    # ========================================================
+    # Load data
+    # ========================================================
+
+    ad_all = load_sequence(
+        ad_specs,
+        load_common_record,
+        gene,
+        "Figure 5 AD",
+        invert_x=AD_INVERT_X,
+        invert_y=AD_INVERT_Y,
+    )
+
+    delta_all = load_sequence(
+        delta_specs,
+        load_delta_record,
+        gene,
+        "Figure 5 Delta",
+        invert_x=DELTA_INVERT_X,
+        invert_y=DELTA_INVERT_Y,
+    )
+
+    wt_all = load_sequence(
+        wt_specs,
+        load_common_record,
+        gene,
+        "Figure 5 WT",
+        invert_x=WT_INVERT_X,
+        invert_y=WT_INVERT_Y,
+    )
+
+    if (
+        not ad_all
+        or not delta_all
+        or not wt_all
+    ):
+        print(
+            "[SKIP] Figure 5: one or more "
+            "AD/Delta/WT inputs are missing."
+        )
+        return
+
+    # ========================================================
+    # Find the 2.5m records
+    # ========================================================
+
+    def get_record_at_age(
+        records: Sequence[SliceRecord],
+        target_age: float,
+    ) -> SliceRecord:
+
+        for record in records:
+
+            if np.isclose(
+                float(record.age),
+                float(target_age),
+            ):
+                return record
+
+        raise ValueError(
+            f"No record found at age "
+            f"{target_age:g}m."
+        )
+
+    ad_25 = get_record_at_age(
+        ad_all,
+        5.7,
+    )
+
+    delta_25 = get_record_at_age(
+        delta_all,
+        5.7,
+    )
+
+    wt_25 = get_record_at_age(
+        wt_all,
+        5.7,
+    )
+
+    # ========================================================
+    # IMPORTANT:
+    # same normalization as Figure 4
+    # ========================================================
+
+    ad_vmax = robust_positive_vmax(
+        [
+            record.values
+            for record in ad_all
+        ],
+        q=99.0,
+    )
+
+    wt_vmax = robust_positive_vmax(
+        [
+            record.values
+            for record in wt_all
+        ],
+        q=99.0,
+    )
+
+    delta_vmax = robust_symmetric_vmax(
+        [
+            record.values
+            for record in delta_all
+        ],
+        q=99.0,
+    )
+
+    # ========================================================
+    # Use the SAME z scaffold as Figure 4
+    #
+    # Figure 4:
+    #     2.5m  -> z = 0
+    #     5.7m  -> z = -STACK_GAP
+    #     13.4m -> z = -2 * STACK_GAP
+    #
+    # Only the top 2.5m plane will actually be drawn here.
+    #
+    # Keeping the full reference scaffold preserves the same
+    # 3D scale / camera appearance as Figure 4.
+    # ========================================================
+
+    shared_ages = np.asarray(
+        [
+            2.5,
+            5.7,
+            13.4,
+        ],
+        dtype=float,
+    )
+
+    shared_z = stack_positions(
+        len(shared_ages)
+    )
+
+    z_25 = float(
+        shared_z[0]
+    )
+
+    # ========================================================
+    # Create the SAME 1 x 3 organization as Figure 4
+    # ========================================================
+
+    set_style()
+
+    fig = plt.figure(
+        figsize=(
+            21.5,
+            8.4,
+        )
+    )
+
+    ax_ad = fig.add_subplot(
+        1,
+        3,
+        1,
+        projection="3d",
+    )
+
+    ax_delta = fig.add_subplot(
+        1,
+        3,
+        2,
+        projection="3d",
+    )
+
+    ax_wt = fig.add_subplot(
+        1,
+        3,
+        3,
+        projection="3d",
+    )
+
+    # ========================================================
+    # AD 2.5m
+    # ========================================================
+
+    plot_state_plane(
+        ax_ad,
+        ad_25,
+        z_value=z_25,
+        vmax=ad_vmax,
+        seed=501,
+        cmap_name=AD_STATE_CMAP,
+    )
+
+    # Same camera / geometry as Figure 4.
+    style_3d_axis(
+        ax_ad,
+        [z_25],
+        view_elev=AD_VIEW_ELEV,
+        view_azim=AD_VIEW_AZIM,
+        reference_z_positions=shared_z,
+    )
+
+    # ========================================================
+    # AD-WT delta 2.5m
+    # ========================================================
+
+    plot_delta_plane(
+        ax_delta,
+        delta_25,
+        z_value=z_25,
+        vmax=delta_vmax,
+        seed=502,
+    )
+
+    style_3d_axis(
+        ax_delta,
+        [z_25],
+        view_elev=DELTA_VIEW_ELEV,
+        view_azim=DELTA_VIEW_AZIM,
+        reference_z_positions=shared_z,
+    )
+
+    # ========================================================
+    # WT 2.5m
+    # ========================================================
+
+    plot_state_plane(
+        ax_wt,
+        wt_25,
+        z_value=z_25,
+        vmax=wt_vmax,
+        seed=503,
+        cmap_name=WT_STATE_CMAP,
+    )
+
+    style_3d_axis(
+        ax_wt,
+        [z_25],
+        view_elev=WT_VIEW_ELEV,
+        view_azim=WT_VIEW_AZIM,
+        reference_z_positions=shared_z,
+    )
+
+    # No titles, time axes, colorbars, legends, labels, or ticks in Figure 5.
+
+    fig.subplots_adjust(
+        left=0.01,
+        right=0.99,
+        bottom=0.01,
+        top=0.99,
+        wspace=SERIES_GAP,
+        hspace=0.00,
+    )
+
+    finalize_figure(
+        fig,
+        os.path.join(
+            OUTDIR,
+            f"figure5_2p5m_AD_Delta_WT_{gene}_no_text.png",
+        ),
+    )
 # ============================================================
 # RUN
 # ============================================================
 def run_all(gene: str) -> None:
     ensure_dir(OUTDIR)
-    # build_figure1(gene)
+    build_figure1(gene)
     build_figure2(gene)
-    # build_figure3(gene)
+    build_figure3(gene)
     build_figure4(gene)
-    print(f"[DONE] Combined disease-analysis pipeline figures written/displayed from: {OUTDIR}")
+    # New single-age view
+    build_figure5(gene)
+
+    print(
+        f"[DONE] Combined disease-analysis pipeline "
+        f"figures written/displayed from: {OUTDIR}"
+    )
 
 
 def main() -> None:
@@ -1346,6 +1642,10 @@ def main() -> None:
     parser.add_argument("--gene", default=GENE_NAME)
     parser.add_argument("--stack-gap", type=float, default=STACK_GAP)
     parser.add_argument("--spatial-display-scale", type=float, default=SPATIAL_DISPLAY_SCALE)
+    parser.add_argument("--series-gap", type=float, default=SERIES_GAP)
+    parser.add_argument("--panel-title-y", type=float, default=PANEL_TITLE_Y)
+    parser.add_argument("--panel-title-pad", type=float, default=PANEL_TITLE_PAD)
+    parser.add_argument("--suptitle-y", type=float, default=SUPTITLE_Y)
     parser.add_argument("--ad-view-elev", type=float, default=AD_VIEW_ELEV)
     parser.add_argument("--ad-view-azim", type=float, default=AD_VIEW_AZIM)
     parser.add_argument("--wt-view-elev", type=float, default=WT_VIEW_ELEV)
@@ -1362,6 +1662,10 @@ def main() -> None:
     globals()["GENE_NAME"] = str(args.gene)
     globals()["STACK_GAP"] = float(args.stack_gap)
     globals()["SPATIAL_DISPLAY_SCALE"] = float(args.spatial_display_scale)
+    globals()["SERIES_GAP"] = float(args.series_gap)
+    globals()["PANEL_TITLE_Y"] = float(args.panel_title_y)
+    globals()["PANEL_TITLE_PAD"] = float(args.panel_title_pad)
+    globals()["SUPTITLE_Y"] = float(args.suptitle_y)
     globals()["AD_VIEW_ELEV"] = float(args.ad_view_elev)
     globals()["AD_VIEW_AZIM"] = float(args.ad_view_azim)
     globals()["WT_VIEW_ELEV"] = float(args.wt_view_elev)
@@ -1377,6 +1681,10 @@ def main() -> None:
     print(f"[INFO] GENE_NAME = {GENE_NAME}")
     print(f"[INFO] AD colormap = {AD_STATE_CMAP}")
     print(f"[INFO] WT colormap = {WT_STATE_CMAP}")
+    print(f"[INFO] SERIES_GAP = {SERIES_GAP}")
+    print(f"[INFO] PANEL_TITLE_Y = {PANEL_TITLE_Y}")
+    print(f"[INFO] PANEL_TITLE_PAD = {PANEL_TITLE_PAD}")
+    print(f"[INFO] SUPTITLE_Y = {SUPTITLE_Y}")
     print(f"[INFO] AD camera = elev {AD_VIEW_ELEV}, azim {AD_VIEW_AZIM}")
     print(f"[INFO] WT camera = elev {WT_VIEW_ELEV}, azim {WT_VIEW_AZIM}")
     print(f"[INFO] Delta camera = elev {DELTA_VIEW_ELEV}, azim {DELTA_VIEW_AZIM}")
@@ -1388,3 +1696,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

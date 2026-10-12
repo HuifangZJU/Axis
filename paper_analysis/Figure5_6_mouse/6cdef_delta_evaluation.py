@@ -23,8 +23,8 @@ Spatial delta map
 -----------------
 The lower-left per-domain panel is intentionally different: it uses the unified
 location-wise spatial delta from spatial_delta_utils on the aligned virtual
-disease/normal pair. The full virtual delta tissue is plotted, as in the disease
-pipeline figure, while the requested domain is visually emphasized.
+disease/normal pair. Only the requested domain is plotted in the per-domain spatial panel,
+using the same location-wise virtual disease-minus-normal delta.
 
 Validity handling
 -----------------
@@ -59,10 +59,10 @@ Figures
 
 Per-domain detail layout
 ------------------------
-- upper left: all-gene real-delta vs virtual-delta scatter
-- lower left: full location-level virtual disease-minus-normal delta map for
-  the representative marker gene, with the selected domain emphasized
-- right: ranked real/virtual domain-level delta heatmap
+- upper left: all-gene measured vs virtual AD-WT contrast scatter
+- lower left: target-domain-only location-level virtual disease-minus-normal
+  delta map for the representative marker gene
+- right: ranked measured/virtual domain-level AD-WT contrast heatmap
 
 Run
 ---
@@ -103,12 +103,12 @@ import math
 # ============================================================
 
 
-REAL_NORMAL_PATH = "/media/huifang/data/registration/xenium/mouse_brain/h5ads/0_4.h5ad"
-REAL_DISEASE_PATH = "/media/huifang/data/registration/xenium/mouse_brain/h5ads/0_1.h5ad"
-VIRTUAL_NORMAL_PATH = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_105.700.h5ad"
-VIRTUAL_DISEASE_PATH = "/media/huifang/data/registration/xenium/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_5.700.h5ad"
+REAL_NORMAL_PATH = "/media/huifang/data/registration/mouse_brain/h5ads/0_4.h5ad"
+REAL_DISEASE_PATH = "/media/huifang/data/registration/mouse_brain/h5ads/0_1.h5ad"
+VIRTUAL_NORMAL_PATH = "/media/huifang/data/registration/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_105.700.h5ad"
+VIRTUAL_DISEASE_PATH = "/media/huifang/data/registration/mouse_brain/virtual_tissue/Disease_time_grid256_spatial1.0/virtual_cf/virtual_Disease_time_5.700.h5ad"
 
-OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure56_mouse/6_delta_fidelity"
+OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure56_mouse/6_cdef"
 
 # Saved evaluation object required by the per-domain spatial plots.
 VIRTUAL_SPATIAL_DELTA_PATH = os.path.join(OUTDIR, "virtual_spatial_delta.h5ad")
@@ -140,6 +140,17 @@ SPATIAL_DELTA_OTHER_ALPHA_SCALE = 0.38
 SPATIAL_DELTA_ALPHA_MIN = 0.08
 SPATIAL_DELTA_ALPHA_MAX = 0.95
 
+# Per-domain spatial-map display.
+# The target domain is centered in a square data window. Smaller domains
+# receive larger scatter markers so their location-level structure remains
+# visible after zooming.
+SPATIAL_DELTA_DOMAIN_PADDING_FRACTION = 0.08
+SPATIAL_DELTA_POINT_SCALE_MAX = 6.0
+
+# Pixel-style rendering for the per-domain spatial delta map.
+# Coordinates are assumed to be regularized on an approximately even grid.
+SPATIAL_DELTA_PIXEL_MIN_STEP = 1.0e-6
+
 SELECTED_DOMAINS: Optional[List[str]] = None
 MIN_SPOTS_PER_DOMAIN = 20
 
@@ -150,7 +161,33 @@ MIN_GLOBAL_DETECTION_FRAC = 0.01
 MARKER_GENES: Optional[List[str]] = ['Gfap','Arc','Mbp','Slc17a7']
 AUTO_PLOT_GENE_N = 12
 TOP_LABEL_GENES = 10
-TOP_HEATMAP_GENES = 20
+TOP_HEATMAP_GENES = 10
+
+# ------------------------------------------------------------
+# Region-level detail analysis (Figure 6e/f style panels only)
+# Summary boxplot and selected-gene dotplot stay domain-level.
+# ------------------------------------------------------------
+REGION_DOMAINS = {
+    "Cortex": ["1", "4", "6", "9", "10"],
+    "Hippocampus": ["8", "11"],
+    "Thalamus": ["0"],
+    "Hypothalamus": ["3"],
+}
+REGION_ORDER = ["Cortex", "Hippocampus", "Thalamus", "Hypothalamus"]
+
+# Regional heatmaps: show the top 10 genes ranked by absolute AD-WT delta
+# using the configured ranking source (default: virtual).
+REGION_TOP_HEATMAP_GENES = 10
+
+# Fixed representative genes for region-level spatial maps.
+# Other regions fall back to their top-ranked gene.
+REGION_SPATIAL_MARKER_GENES = {
+    "Cortex": "Gfap",
+    "Hippocampus": "Arc",
+    "Thalamus":"Slc17a6"
+    # "Thalamus":"Ntng1"
+
+}
 
 # Per-domain top-gene ranking source.
 #
@@ -222,11 +259,11 @@ METRIC_ORDER = [
 ]
 
 METRIC_DISPLAY = {
-    "pearson_r": "Pearson",
-    "spearman_r": "Spearman",
-    "cosine": "Cosine",
-    "sign_accuracy": "Sign accuracy",
-    "auroc_high_abs_delta": "AUROC high |Δ|",
+    "pearson_r": r"Pearson $r$",
+    "spearman_r": r"Spearman $\rho$",
+    "cosine": "Cosine similarity",
+    "sign_accuracy": "Sign agreement",
+    "auroc_high_abs_delta": "AUROC (large |Δ|)",
 }
 
 
@@ -243,7 +280,7 @@ def set_style():
         "xtick.labelsize": 10,
         "ytick.labelsize": 10,
         "legend.fontsize": 9,
-        "legend.title_fontsize": 10,
+        "legend.title_fontsize": 6,
         "axes.spines.top": False,
         "axes.spines.right": False,
         "grid.alpha": 0.16,
@@ -783,28 +820,6 @@ def build_metric_long_df(metric_df: pd.DataFrame) -> pd.DataFrame:
 # PLOTS: SUMMARY
 # ============================================================
 
-def plot_metric_heatmap(metric_df: pd.DataFrame, save_path=None):
-    set_style()
-
-    cols = METRIC_ORDER
-    heat_df = metric_df.set_index("domain")[cols].copy()
-
-    fig, ax = plt.subplots(figsize=(10.2, 0.55 * max(4, heat_df.shape[0]) + 1.8))
-    sns.heatmap(
-        heat_df,
-        cmap="vlag",
-        center=0 if np.nanmin(heat_df[["pearson_r", "spearman_r"]].values) < 0 else None,
-        linewidths=0.2,
-        linecolor="white",
-        annot=True,
-        fmt=".2f",
-        cbar_kws={"label": "Metric value"},
-        ax=ax,
-    )
-    ax.set_title("Domain-level real-delta vs virtual-delta agreement summary")
-    ax.set_xlabel("")
-    ax.set_ylabel("Domain")
-    save_or_show(fig, save_path)
 
 def plot_metric_boxplot_all(
     metric_df: pd.DataFrame,
@@ -923,7 +938,7 @@ def plot_metric_boxplot_all(
     )
 
     ax.set_title(
-        "Domain-wise gene delta comparison",
+        "Agreement of AD-WT contrasts",
         fontsize=24,
         pad=16,
     )
@@ -932,7 +947,7 @@ def plot_metric_boxplot_all(
     ax.set_ylim([0,1.05])
 
     ax.set_ylabel(
-        "Metric value",
+        "Agreement score",
         fontsize=18,
         labelpad=10,
     )
@@ -1046,16 +1061,16 @@ def plot_all_domain_scatter(delta_df: pd.DataFrame, save_path=None):
     spear = safe_corr(x, y, spearmanr)
     ax.text(
         0.03, 0.97,
-        f"Pearson = {pear:.2f}\nSpearman = {spear:.2f}",
+        f"Pearson r = {pear:.2f}\nSpearman ρ = {spear:.2f}",
         transform=ax.transAxes,
         va="top", ha="left",
         fontsize=10,
         bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.85, edgecolor="0.8"),
     )
 
-    ax.set_title("All domains: real delta vs virtual delta")
-    ax.set_xlabel("Real delta")
-    ax.set_ylabel("Virtual delta")
+    ax.set_title("Measured vs virtual AD-WT contrasts across domains")
+    ax.set_xlabel("Measured AD-WT contrast")
+    ax.set_ylabel("Virtual AD-WT contrast")
     save_or_show(fig, save_path)
 
 
@@ -1081,15 +1096,15 @@ def plot_selected_gene_domain_panel(delta_df: pd.DataFrame, plot_genes: Sequence
         dfg = dfg.sort_values("domain")
 
         x = np.arange(len(dfg))
-        ax.plot(x, dfg["real_delta"], color=PALETTE["real"], lw=2.0, marker="o", label="Real delta")
-        ax.plot(x, dfg["virtual_delta"], color=PALETTE["virtual"], lw=2.0, marker="o", label="Virtual delta")
+        ax.plot(x, dfg["real_delta"], color=PALETTE["real"], lw=2.0, marker="o", label="Measured AD-WT contrast")
+        ax.plot(x, dfg["virtual_delta"], color=PALETTE["virtual"], lw=2.0, marker="o", label="Virtual AD-WT contrast")
 
         ax.axhline(0, color="black", lw=0.8, alpha=0.7)
         ax.set_title(gene)
         ax.set_xticks(x)
         ax.set_xticklabels(dfg["domain"].tolist(), rotation=35, ha="right")
         ax.set_xlabel("Domain")
-        ax.set_ylabel("Delta")
+        ax.set_ylabel("AD-WT contrast")
 
         lo, hi = compute_full_ylim([dfg["real_delta"].values, dfg["virtual_delta"].values], pad_frac=0.08)
         ax.set_ylim(lo, hi)
@@ -1098,11 +1113,11 @@ def plot_selected_gene_domain_panel(delta_df: pd.DataFrame, plot_genes: Sequence
         ax.axis("off")
 
     handles = [
-        plt.Line2D([0], [0], color=PALETTE["real"], lw=2, marker="o", label="Real delta"),
-        plt.Line2D([0], [0], color=PALETTE["virtual"], lw=2, marker="o", label="Virtual delta"),
+        plt.Line2D([0], [0], color=PALETTE["real"], lw=2, marker="o", label="Measured AD-WT contrast"),
+        plt.Line2D([0], [0], color=PALETTE["virtual"], lw=2, marker="o", label="Virtual AD-WT contrast"),
     ]
     fig.legend(handles=handles, frameon=False, loc="upper right")
-    fig.suptitle("Selected genes across domains: real vs virtual delta", y=0.995, fontsize=16)
+    fig.suptitle("Selected-gene agreement across domains", y=0.995, fontsize=16)
     fig.tight_layout()
     save_or_show(fig, save_path)
 
@@ -1227,19 +1242,44 @@ def plot_selected_gene_domain_dotplot(
             )
 
         # correlation across domains for this gene
+        # Keep the title clean (gene name only) and annotate Pearson r
+        # inside the panel, close to and aligned with the y=x diagonal.
         if len(x) >= 3 and np.std(x) > 0 and np.std(y) > 0:
             r = pearsonr(x, y)[0]
-            title = f"{gene} | r = {r:.2f}"
-        else:
-            title = gene
 
-        ax.set_title(title, fontsize=22, pad=10)
-        ax.set_xlabel("Real delta", fontsize=18)
-        ax.set_ylabel("Virtual delta", fontsize=18)
+            ax.text(
+                0.5,
+                0.8,
+                f"r = {r:.2f}",
+                transform=ax.transAxes,
+                fontsize=16,
+                color="0.30",
+                weight="bold",
+                # rotation=45,
+                # rotation_mode="anchor",
+                ha="left",
+                va="bottom",
+                zorder=5,
+                bbox=dict(
+                    boxstyle="round,pad=0.16",
+                    facecolor="white",
+                    edgecolor="none",
+                    alpha=0.78,
+                ),
+            )
+
+        ax.set_title(gene, fontstyle="italic",fontsize=22, pad=10)
+        ax.set_xlabel("Measured AD-WT contrast", fontsize=18)
+        ax.set_ylabel("Virtual AD-WT contrast", fontsize=18)
         ax.set_xlim(lo, hi)
         ax.set_ylim(lo, hi)
         ax.set_aspect("equal", adjustable="box")
         ax.tick_params(axis="both", labelsize=18)
+    fig.suptitle(
+        "Marker-level agreement across domains",
+        fontsize=24,
+        y=1.01,
+    )
 
     # turn off unused axes
     for ax in axes[len(plot_genes):]:
@@ -1750,6 +1790,161 @@ def build_virtual_marker_location_fraction_table(
 
 
 
+
+def infer_regularized_pixel_step(
+    coords: np.ndarray,
+    min_step: float = SPATIAL_DELTA_PIXEL_MIN_STEP,
+) -> float:
+    """
+    Infer the pixel spacing from approximately regularized spatial coordinates.
+    """
+
+    coords = np.asarray(
+        coords,
+        dtype=float,
+    )
+
+    step_candidates = []
+
+    for axis in range(2):
+        unique_vals = np.unique(
+            np.round(
+                coords[:, axis],
+                decimals=6,
+            )
+        )
+
+        if unique_vals.size < 2:
+            continue
+
+        diffs = np.diff(
+            np.sort(unique_vals)
+        )
+
+        diffs = diffs[
+            diffs > float(min_step)
+        ]
+
+        if diffs.size:
+            step_candidates.append(
+                float(
+                    np.median(diffs)
+                )
+            )
+
+    if not step_candidates:
+        return 1.0
+
+    return max(
+        float(np.median(step_candidates)),
+        float(min_step),
+    )
+
+
+def render_centered_domain_delta_rgba(
+    coords: np.ndarray,
+    colors: np.ndarray,
+    x_center: float,
+    y_center: float,
+    target_side: float,
+    pixel_step: float,
+):
+    """
+    Rasterize the selected domain into a square RGBA image centered on the
+    requested target-domain view.
+    """
+
+    coords = np.asarray(
+        coords,
+        dtype=float,
+    )
+
+    colors = np.asarray(
+        colors,
+        dtype=float,
+    )
+
+    outer_side = max(
+        float(target_side),
+        float(pixel_step),
+    )
+
+    n_pixels = max(
+        2,
+        int(
+            np.ceil(
+                outer_side / float(pixel_step)
+            )
+        ),
+    )
+
+    # Use an exact square extent so the target domain is centered and the
+    # pixel image aligns with a regular grid.
+    outer_side = n_pixels * float(pixel_step)
+
+    x_left = float(x_center) - 0.5 * outer_side
+    x_right = float(x_center) + 0.5 * outer_side
+    y_low = float(y_center) - 0.5 * outer_side
+    y_high = float(y_center) + 0.5 * outer_side
+
+    rgba = np.zeros(
+        (
+            n_pixels,
+            n_pixels,
+            4,
+        ),
+        dtype=float,
+    )
+
+    counts = np.zeros(
+        (
+            n_pixels,
+            n_pixels,
+        ),
+        dtype=np.int32,
+    )
+
+    ix = np.floor(
+        (coords[:, 0] - x_left) / float(pixel_step)
+    ).astype(int)
+
+    iy = np.floor(
+        (coords[:, 1] - y_low) / float(pixel_step)
+    ).astype(int)
+
+    valid = (
+        (ix >= 0)
+        & (ix < n_pixels)
+        & (iy >= 0)
+        & (iy < n_pixels)
+    )
+
+    ix = ix[valid]
+    iy = iy[valid]
+    valid_colors = colors[valid]
+
+    for px, py, rgba_val in zip(
+        ix,
+        iy,
+        valid_colors,
+    ):
+        rgba[py, px] += rgba_val
+        counts[py, px] += 1
+
+    filled = counts > 0
+    if np.any(filled):
+        rgba[filled] /= counts[filled, None]
+
+    extent = (
+        x_left,
+        x_right,
+        y_low,
+        y_high,
+    )
+
+    return rgba, extent
+
+
 def plot_virtual_domain_delta_map(
     ax,
     ad_virtual_delta,
@@ -1764,9 +1959,11 @@ def plot_virtual_domain_delta_map(
     """
     Plot the location-wise virtual disease-minus-normal spatial delta.
 
-    No separate colorbar is created. The spatial map uses the same colormap
-    and normalization as the domain-level heatmap, so the heatmap colorbar
-    serves as the shared delta legend for both panels.
+    The selected domain is rendered as a pixel-style image because the
+    coordinates are already pixel-regularized. No separate colorbar is
+    created. The spatial map uses the same colormap and normalization as the
+    domain-level heatmap, so the heatmap colorbar serves as the shared delta
+    legend for both panels.
     """
 
     # ------------------------------------------------------------
@@ -1814,11 +2011,6 @@ def plot_virtual_domain_delta_map(
         & vis_mask
     )
 
-    other_mask = (
-        vis_mask
-        & ~domain_mask
-    )
-
     if not np.any(domain_mask):
         raise ValueError(
             f"No virtual delta locations found for domain {domain}."
@@ -1828,27 +2020,50 @@ def plot_virtual_domain_delta_map(
         domain_mask
     ]
 
+    domain_coords = coords[
+        domain_mask,
+        :2,
+    ]
+
     cmap = plt.get_cmap(
         cmap_name
     )
 
     # ------------------------------------------------------------
-    # Whole-brain context
+    # Centered target-domain-only view
+    #
+    # Keep a square spatial window, center the selected domain inside it,
+    # and render the result as a regularized pixel image.
     # ------------------------------------------------------------
-    if np.any(other_mask):
-        ax.scatter(
-            coords[other_mask, 0],
-            coords[other_mask, 1],
-            s=max(
-                0.8,
-                point_size * 0.72,
-            ),
-            color="#D5D5D5",
-            alpha=0.28,
-            linewidths=0,
-            rasterized=True,
-            zorder=1,
+    x_min = float(np.min(domain_coords[:, 0]))
+    x_max = float(np.max(domain_coords[:, 0]))
+    y_min = float(np.min(domain_coords[:, 1]))
+    y_max = float(np.max(domain_coords[:, 1]))
+
+    x_center = 0.5 * (x_min + x_max)
+    y_center = 0.5 * (y_min + y_max)
+
+    x_span = max(x_max - x_min, 1e-8)
+    y_span = max(y_max - y_min, 1e-8)
+
+
+    target_side = max(
+        x_span,
+        y_span,
+    )
+    target_side = max(target_side,500)
+
+
+    target_side *= (
+        1.0
+        + 2.0 * float(
+            SPATIAL_DELTA_DOMAIN_PADDING_FRACTION
         )
+    )
+
+    pixel_step = infer_regularized_pixel_step(
+        domain_coords
+    )
 
     # ------------------------------------------------------------
     # Selected domain
@@ -1897,31 +2112,40 @@ def plot_virtual_domain_delta_map(
         * strength
     )
 
-    ax.scatter(
-        coords[domain_mask, 0],
-        coords[domain_mask, 1],
-        c=colors,
-        s=point_size * 1.15,
-        linewidths=0,
-        rasterized=True,
+    rgba_image, image_extent = render_centered_domain_delta_rgba(
+        coords=domain_coords,
+        colors=colors,
+        x_center=x_center,
+        y_center=y_center,
+        target_side=target_side,
+        pixel_step=pixel_step,
+    )
+
+    ax.imshow(
+        rgba_image,
+        origin="lower",
+        extent=image_extent,
+        interpolation="nearest",
         zorder=3,
     )
 
     # ------------------------------------------------------------
     # Spatial formatting
+    #
+    # Use the SAME square coordinate span on x and y and place the
+    # selected domain centroid at the center of the map.
     # ------------------------------------------------------------
-    vis_coords = coords[
-        vis_mask
-    ]
+    x_left, x_right, y_low, y_high = image_extent
 
     ax.set_xlim(
-        float(np.min(vis_coords[:, 0])),
-        float(np.max(vis_coords[:, 0])),
+        x_left,
+        x_right,
     )
 
+    # Preserve the current spatial orientation while centering the domain.
     ax.set_ylim(
-        float(np.max(vis_coords[:, 1])),
-        float(np.min(vis_coords[:, 1])),
+        y_high,
+        y_low,
     )
 
     ax.set_aspect(
@@ -1932,7 +2156,7 @@ def plot_virtual_domain_delta_map(
     ax.set_anchor("C")
 
     ax.set_title(
-        f"{display_gene_name(gene)} | Spatial Δ in domain {domain}",
+        f"{display_gene_name(gene)} | AD-WT expression change | Domain {domain}",
         fontsize=12.5,
         pad=6,
     )
@@ -1981,7 +2205,7 @@ def compute_domain_spatial_pattern_summary(
             "active_fraction": np.nan,
             "dominant_direction": "NA",
             "dominant_share_active": np.nan,
-            "pattern_style": "Spatially heterogeneous",
+            "pattern_style": "Spatially divergent",
         }
 
     positive_fraction = float(np.mean(values > 0))
@@ -2005,9 +2229,9 @@ def compute_domain_spatial_pattern_summary(
         np.isfinite(dominant_share_active)
         and dominant_share_active >= float(SPATIAL_PATTERN_DOMINANCE_THRESHOLD)
     ):
-        pattern_style = f"Spatially coherent {dominant_direction}"
+        pattern_style = f"Spatially concordant {dominant_direction}"
     else:
-        pattern_style = "Spatially heterogeneous"
+        pattern_style = "Spatially divergent"
 
     return {
         "n_locations": n,
@@ -2036,8 +2260,12 @@ def prepare_domain_visual_payload(
 
     source_col = f"{rank_mode}_delta"
     comparison_col = f"{comparison_mode}_delta"
-    source_display = rank_mode.capitalize()
-    comparison_display = comparison_mode.capitalize()
+    display_name = {
+        "real": "Measured",
+        "virtual": "Virtual",
+    }
+    source_display = display_name[rank_mode]
+    comparison_display = display_name[comparison_mode]
 
     ranked_df, _, heat_genes = select_top_genes_for_domain(
         dfd=dfd,
@@ -2059,7 +2287,7 @@ def prepare_domain_visual_payload(
         .set_index("gene")[heat_columns]
         .loc[heat_genes]
     )
-    heat_df.columns = [f"{source_display} delta", f"{comparison_display} delta"]
+    heat_df.columns = [source_display, comparison_display]
     heat_df.index = [display_gene_name(gene) for gene in heat_df.index]
 
     spatial_labels = get_domain_labels(ad_virt_delta, DOMAIN_KEY)
@@ -2095,7 +2323,7 @@ def prepare_domain_visual_payload(
         "rep_gene_display": display_gene_name(rep_gene),
         "rank_notation": rank_notation,
         "shared_norm": shared_norm,
-        "shared_cmap": sns.color_palette("vlag", as_cmap=True),
+        "shared_cmap": sns.color_palette("coolwarm", as_cmap=True),
         "pattern_summary": compute_domain_spatial_pattern_summary(
             ad_virtual_delta=ad_virt_delta,
             domain=domain,
@@ -2104,6 +2332,19 @@ def prepare_domain_visual_payload(
         ),
     }
 
+
+
+def domain_display_name(domain: str) -> str:
+    """Return the anatomical-region label used in Figure 6e/f titles."""
+    region_by_domain = {
+        "1": "Cortex",
+        "3": "Hypothalamus",
+        "11": "Hippocampus",
+    }
+    region = region_by_domain.get(str(domain))
+    if region is None:
+        return f"Domain {domain}"
+    return f"{region} | Domain {domain}"
 
 
 def plot_one_domain_heatmap(
@@ -2141,35 +2382,16 @@ def plot_one_domain_heatmap(
         linewidths=0.4,
         linecolor="white",
         cbar=True,
-        cbar_kws={"label": "log1p gene delta", "fraction": 0.085, "pad": 0.05},
+        cbar_kws={"label": "Mean expression change (log1p)", "fraction": 0.085, "pad": 0.05},
     )
-    if domain == "1":
-        ax.set_title(
-            f"Cortex | Domain {domain}",
-            fontsize=12.5,
-            pad=8,
-        )
-    elif domain == "3":
-        ax.set_title(
-            f"Hypothalamus | Domain {domain}",
-            fontsize=12.5,
-            pad=8,
-        )
-    elif domain == "11":
-        ax.set_title(
-            f"Hippocampus | Domain {domain}",
-            fontsize=12.5,
-            pad=8,
-        )
-    else:
-        ax.set_title(
-            f"Domain {domain}",
-            fontsize=12.5,
-            pad=8,
-        )
+    ax.set_title(
+        domain_display_name(domain),
+        fontsize=12.5,
+        pad=8,
+    )
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.tick_params(axis="y", labelsize=9, pad=1)
+    ax.tick_params(axis="y", labelsize=12, pad=1)
     ax.tick_params(axis="x", labelsize=10.5, rotation=0,pad=-2)
     for tick_label in ax.get_yticklabels():
         tick_label.set_fontstyle("italic")
@@ -2218,7 +2440,9 @@ def plot_one_domain_spatialmap(
     rep_gene_display = payload["rep_gene_display"]
     summary = payload["pattern_summary"]
 
-    fig, ax = plt.subplots(figsize=(6.3, 6.6))
+    # Square figure canvas; surrounding title/annotation/colorbar layout
+    # remains unchanged.
+    fig, ax = plt.subplots(figsize=(6.6, 6.6))
     # Reserve a narrow strip on the right for the centered colorbar.
     fig.subplots_adjust(left=0.06, right=0.84, top=0.92, bottom=0.06)
 
@@ -2232,10 +2456,11 @@ def plot_one_domain_spatialmap(
     )
 
     ax.set_title(
-        f"Domain {domain} | {rep_gene_display} | {summary['pattern_style']}",
-        fontsize=16,
+        f"{domain_display_name(domain)} | $\it{{{rep_gene_display}}}$\n",
+        # f"{summary['pattern_style']}",
+        fontsize=18,
         pad=10,
-        x=0.55
+        x=0.55,
     )
 
     # ------------------------------------------------------------
@@ -2264,10 +2489,10 @@ def plot_one_domain_spatialmap(
     ax.text(
         x_text,
         y_increase,
-        f"Increase: {100.0 * summary['positive_fraction']:.1f}%",
+        f"Higher in AD: {100.0 * summary['positive_fraction']:.1f}%",
         transform=ax.transAxes,
         color="black",
-        fontsize=12.5,
+        fontsize=15,
         va="top",
         ha="left",
         zorder=20,
@@ -2287,10 +2512,10 @@ def plot_one_domain_spatialmap(
     ax.text(
         x_text,
         y_decrease,
-        f"Decrease: {100.0 * summary['negative_fraction']:.1f}%",
+        f"Lower in AD: {100.0 * summary['negative_fraction']:.1f}%",
         transform=ax.transAxes,
         color="black",
-        fontsize=12.5,
+        fontsize=15,
         va="top",
         ha="left",
         zorder=20,
@@ -2306,9 +2531,9 @@ def plot_one_domain_spatialmap(
     sm.set_array([])
 
     # [left, bottom, width, height] in figure coordinates.
-    cax = fig.add_axes([0.875, 0.34, 0.025, 0.30])
+    cax = fig.add_axes([0.875, 0.24, 0.025, 0.50])
     cbar = fig.colorbar(sm, cax=cax)
-    cbar.set_label("log1p gene delta", fontsize=11.5)
+    cbar.set_label("AD-WT expression change (log1p)", fontsize=13)
     cbar.ax.tick_params(labelsize=10.5)
 
     save_or_show(fig, save_path)
@@ -2352,6 +2577,506 @@ def plot_all_domain_details(
             rank_mode=rank_mode,
             use_absolute=use_absolute,
         )
+
+
+# ============================================================
+# REGION-LEVEL DETAIL ANALYSIS
+# ============================================================
+
+def build_region_delta_table_from_domain_table(
+    delta_df: pd.DataFrame,
+    region_domains: Dict[str, Sequence[str]] = REGION_DOMAINS,
+) -> pd.DataFrame:
+    """Pool constituent domains into anatomical regions using spot-count weights."""
+    required = {
+        "domain", "gene",
+        "real_disease_mean", "real_disease_n",
+        "real_normal_mean", "real_normal_n",
+        "virtual_disease_mean", "virtual_disease_n",
+        "virtual_normal_mean", "virtual_normal_n",
+    }
+    missing = sorted(required.difference(delta_df.columns))
+    if missing:
+        raise KeyError(f"Missing columns required for region aggregation: {missing}")
+
+    d = delta_df.copy()
+    d["domain"] = d["domain"].astype(str)
+    d["gene"] = d["gene"].astype(str)
+
+    mean_count_pairs = [
+        ("real_disease_mean", "real_disease_n"),
+        ("real_normal_mean", "real_normal_n"),
+        ("virtual_disease_mean", "virtual_disease_n"),
+        ("virtual_normal_mean", "virtual_normal_n"),
+    ]
+
+    rows = []
+    for region in REGION_ORDER:
+        domains = [str(x) for x in region_domains[region]]
+        sub = d[d["domain"].isin(domains)].copy()
+        if sub.empty:
+            continue
+
+        for gene, g in sub.groupby("gene", sort=False):
+            row = {"region": region, "gene": str(gene)}
+            valid_region = True
+            for mean_col, n_col in mean_count_pairs:
+                means = pd.to_numeric(g[mean_col], errors="coerce").to_numpy(dtype=float)
+                counts = pd.to_numeric(g[n_col], errors="coerce").to_numpy(dtype=float)
+                good = np.isfinite(means) & np.isfinite(counts) & (counts > 0)
+                total_n = float(np.sum(counts[good]))
+                if total_n <= 0:
+                    valid_region = False
+                    break
+                row[mean_col] = float(np.sum(means[good] * counts[good]) / total_n)
+                row[n_col] = int(round(total_n))
+            if valid_region:
+                rows.append(row)
+
+    region_df = pd.DataFrame(rows)
+    if region_df.empty:
+        raise ValueError("No region-level AD-WT contrast rows could be constructed.")
+
+    region_df["real_delta"] = region_df["real_disease_mean"] - region_df["real_normal_mean"]
+    region_df["virtual_delta"] = region_df["virtual_disease_mean"] - region_df["virtual_normal_mean"]
+    region_df["abs_error"] = np.abs(region_df["real_delta"] - region_df["virtual_delta"])
+    region_df["sq_error"] = (region_df["real_delta"] - region_df["virtual_delta"]) ** 2
+    region_df["abs_real_delta"] = np.abs(region_df["real_delta"])
+    region_df["abs_virtual_delta"] = np.abs(region_df["virtual_delta"])
+    region_df["informative_gene"] = region_df["abs_real_delta"] >= REAL_EFFECT_ABS_MIN
+    return region_df
+
+
+def build_region_location_fraction_table(
+    domain_fraction_df: pd.DataFrame,
+    region_domains: Dict[str, Sequence[str]] = REGION_DOMAINS,
+) -> pd.DataFrame:
+    """Pool domain direction fractions over each region using location counts."""
+    required = {
+        "domain", "gene", "positive_fraction", "negative_fraction",
+        "nonzero_fraction", "n_fraction_locations",
+    }
+    missing = sorted(required.difference(domain_fraction_df.columns))
+    if missing:
+        raise KeyError(f"Missing columns required for region fraction aggregation: {missing}")
+
+    d = domain_fraction_df.copy()
+    d["domain"] = d["domain"].astype(str)
+    d["gene"] = d["gene"].astype(str)
+    rows = []
+
+    for region in REGION_ORDER:
+        domains = [str(x) for x in region_domains[region]]
+        sub = d[d["domain"].isin(domains)].copy()
+        if sub.empty:
+            continue
+        for gene, g in sub.groupby("gene", sort=False):
+            counts = pd.to_numeric(g["n_fraction_locations"], errors="coerce").to_numpy(dtype=float)
+            good_count = np.isfinite(counts) & (counts > 0)
+            total_n = float(np.sum(counts[good_count]))
+            if total_n <= 0:
+                continue
+            row = {"region": region, "gene": str(gene), "n_fraction_locations": int(round(total_n))}
+            for col in ["positive_fraction", "negative_fraction", "nonzero_fraction"]:
+                vals = pd.to_numeric(g[col], errors="coerce").to_numpy(dtype=float)
+                good = np.isfinite(vals) & np.isfinite(counts) & (counts > 0)
+                denom = float(np.sum(counts[good]))
+                row[col] = float(np.sum(vals[good] * counts[good]) / denom) if denom > 0 else np.nan
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def rank_genes_for_region(
+    dfr: pd.DataFrame,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    min_direction_fraction: float = MIN_MARKER_DIRECTION_FRACTION,
+) -> pd.DataFrame:
+    """Rank eligible genes within one region while preserving the existing support filter."""
+    rank_mode = validate_top_gene_rank_mode(rank_mode)
+    source_col = f"{rank_mode}_delta"
+    ranked = dfr.copy()
+    ranked["rank_source"] = rank_mode
+    ranked["rank_delta"] = pd.to_numeric(ranked[source_col], errors="coerce")
+    ranked["rank_score"] = np.abs(ranked["rank_delta"])
+    ranked = ranked[np.isfinite(ranked["rank_delta"])].copy()
+
+    ranked["positive_fraction"] = np.nan
+    ranked["negative_fraction"] = np.nan
+    ranked["nonzero_fraction"] = np.nan
+    ranked["n_fraction_locations"] = np.nan
+    ranked["marker_direction_fraction"] = np.nan
+    ranked["passes_marker_fraction"] = True
+
+    if USE_MARKER_LOCATION_FRACTION_FILTER and location_fraction_df is not None and not location_fraction_df.empty:
+        regions_here = ranked["region"].astype(str).unique().tolist()
+        if len(regions_here) != 1:
+            raise ValueError("rank_genes_for_region expects exactly one region.")
+        region = regions_here[0]
+        frac = location_fraction_df[
+            location_fraction_df["region"].astype(str) == str(region)
+        ][["gene", "positive_fraction", "negative_fraction", "nonzero_fraction", "n_fraction_locations"]].copy()
+
+        ranked = ranked.drop(
+            columns=["positive_fraction", "negative_fraction", "nonzero_fraction", "n_fraction_locations"]
+        ).merge(frac, on="gene", how="left")
+
+        virtual_delta = pd.to_numeric(ranked["virtual_delta"], errors="coerce").to_numpy(dtype=float)
+        positive_fraction = pd.to_numeric(ranked["positive_fraction"], errors="coerce").to_numpy(dtype=float)
+        negative_fraction = pd.to_numeric(ranked["negative_fraction"], errors="coerce").to_numpy(dtype=float)
+        nonzero_fraction = pd.to_numeric(ranked["nonzero_fraction"], errors="coerce").to_numpy(dtype=float)
+        direction_fraction = np.where(
+            virtual_delta > 0,
+            positive_fraction,
+            np.where(virtual_delta < 0, negative_fraction, nonzero_fraction),
+        )
+        ranked["marker_direction_fraction"] = direction_fraction
+        ranked["passes_marker_fraction"] = (
+            np.isfinite(direction_fraction)
+            & (direction_fraction >= float(min_direction_fraction))
+        )
+        ranked = ranked[ranked["passes_marker_fraction"]].copy()
+
+    return ranked.sort_values(
+        ["rank_score", "gene"], ascending=[False, True], kind="mergesort"
+    ).reset_index(drop=True)
+
+
+def select_top_genes_for_region(
+    dfr: pd.DataFrame,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    n_heat: int = REGION_TOP_HEATMAP_GENES,
+):
+    """Select the top regional genes from the existing absolute-delta ranking."""
+    ranked = rank_genes_for_region(
+        dfr=dfr,
+        rank_mode=rank_mode,
+        location_fraction_df=location_fraction_df,
+        min_direction_fraction=MIN_MARKER_DIRECTION_FRACTION,
+    )
+    selected = ranked.head(int(n_heat)).copy().reset_index(drop=True)
+    return ranked, selected
+
+
+def compute_region_spatial_pattern_summary(
+    ad_virtual_delta,
+    region: str,
+    gene: str,
+    domain_key: str = DOMAIN_KEY,
+):
+    """Summarize higher/lower-in-AD fractions over all domains in one region."""
+    labels = get_domain_labels(ad_virtual_delta, domain_key).astype(str)
+    values = extract_delta_gene_vector(ad_virtual_delta, gene)
+    if FILTER_VALID_FOR_VISUALIZATION and "_delta_common_valid" in ad_virtual_delta.obs.columns:
+        vis_mask = ad_virtual_delta.obs["_delta_common_valid"].to_numpy(dtype=bool)
+    else:
+        vis_mask = np.ones(ad_virtual_delta.n_obs, dtype=bool)
+
+    domains = np.asarray(REGION_DOMAINS[region], dtype=str)
+    mask = vis_mask & np.isin(labels, domains) & np.isfinite(values)
+    values = values[mask]
+    n = int(values.size)
+    if n == 0:
+        return {
+            "n_locations": 0, "positive_fraction": np.nan, "negative_fraction": np.nan,
+            "zero_fraction": np.nan, "active_fraction": np.nan, "dominant_direction": "NA",
+            "dominant_share_active": np.nan, "pattern_style": "Spatially divergent",
+        }
+
+    positive_fraction = float(np.mean(values > 0))
+    negative_fraction = float(np.mean(values < 0))
+    zero_fraction = float(np.mean(values == 0))
+    active_fraction = positive_fraction + negative_fraction
+    if positive_fraction >= negative_fraction:
+        dominant_direction, dominant_share = "increase", positive_fraction
+    else:
+        dominant_direction, dominant_share = "decrease", negative_fraction
+    dominant_share_active = float(dominant_share / active_fraction) if active_fraction > 0 else np.nan
+    if np.isfinite(dominant_share_active) and dominant_share_active >= float(SPATIAL_PATTERN_DOMINANCE_THRESHOLD):
+        pattern_style = f"Spatially concordant {dominant_direction}"
+    else:
+        pattern_style = "Spatially divergent"
+    return {
+        "n_locations": n,
+        "positive_fraction": positive_fraction,
+        "negative_fraction": negative_fraction,
+        "zero_fraction": zero_fraction,
+        "active_fraction": active_fraction,
+        "dominant_direction": dominant_direction,
+        "dominant_share_active": dominant_share_active,
+        "pattern_style": pattern_style,
+    }
+
+
+def plot_virtual_region_delta_map(
+    ax,
+    ad_virtual_delta,
+    region: str,
+    gene: str,
+    norm: Normalize,
+    cmap_name: str = "RdBu_r",
+    spatial_key: str = "spatial",
+    domain_key: str = DOMAIN_KEY,
+):
+    """Plot the location-wise virtual AD-WT delta over a merged anatomical region."""
+    coords = np.asarray(ad_virtual_delta.obsm[spatial_key], dtype=np.float32)[:, :2]
+    labels = get_domain_labels(ad_virtual_delta, domain_key).astype(str)
+    delta_values = extract_delta_gene_vector(ad_virtual_delta, gene)
+
+    if FILTER_VALID_FOR_VISUALIZATION and "_delta_common_valid" in ad_virtual_delta.obs.columns:
+        vis_mask = ad_virtual_delta.obs["_delta_common_valid"].to_numpy(dtype=bool)
+    else:
+        vis_mask = np.ones(ad_virtual_delta.n_obs, dtype=bool)
+    vis_mask &= np.isfinite(delta_values)
+    vis_mask &= np.all(np.isfinite(coords), axis=1)
+
+    domains = np.asarray(REGION_DOMAINS[region], dtype=str)
+    region_mask = np.isin(labels, domains) & vis_mask
+    if not np.any(region_mask):
+        raise ValueError(f"No virtual delta locations found for region {region}.")
+
+    region_values = delta_values[region_mask]
+    region_coords = coords[region_mask, :2]
+    cmap = plt.get_cmap(cmap_name)
+
+    x_min, x_max = float(np.min(region_coords[:, 0])), float(np.max(region_coords[:, 0]))
+    y_min, y_max = float(np.min(region_coords[:, 1])), float(np.max(region_coords[:, 1]))
+    x_center, y_center = 0.5 * (x_min + x_max), 0.5 * (y_min + y_max)
+    x_span, y_span = max(x_max - x_min, 1e-8), max(y_max - y_min, 1e-8)
+    target_side = max(max(x_span, y_span), 500)
+    target_side *= 1.0 + 2.0 * float(SPATIAL_DELTA_DOMAIN_PADDING_FRACTION)
+    pixel_step = infer_regularized_pixel_step(region_coords)
+
+    colors = cmap(norm(region_values))
+    finite_values = region_values[np.isfinite(region_values)]
+    local_vmax = float(np.percentile(np.abs(finite_values), SPATIAL_DELTA_VMAX_PERCENTILE)) if finite_values.size else 1.0
+    if not np.isfinite(local_vmax) or local_vmax <= 0:
+        local_vmax = 1.0
+    strength = np.clip(np.abs(region_values) / local_vmax, 0.0, 1.0)
+    colors[:, 3] = SPATIAL_DELTA_ALPHA_MIN + (SPATIAL_DELTA_ALPHA_MAX - SPATIAL_DELTA_ALPHA_MIN) * strength
+
+    rgba_image, image_extent = render_centered_domain_delta_rgba(
+        coords=region_coords,
+        colors=colors,
+        x_center=x_center,
+        y_center=y_center,
+        target_side=target_side,
+        pixel_step=pixel_step,
+    )
+    ax.imshow(rgba_image, origin="lower", extent=image_extent, interpolation="nearest", zorder=3)
+    x_left, x_right, y_low, y_high = image_extent
+    ax.set_xlim(x_left, x_right)
+    ax.set_ylim(y_high, y_low)
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_anchor("C")
+    ax.axis("off")
+
+
+def prepare_region_visual_payload(
+    dfr: pd.DataFrame,
+    region: str,
+    ad_virt_delta,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+):
+    """Prepare top-5 positive/top-5 negative heatmap and region spatial map."""
+    rank_mode = validate_top_gene_rank_mode(rank_mode)
+    comparison_mode = "real" if rank_mode == "virtual" else "virtual"
+    source_col = f"{rank_mode}_delta"
+    comparison_col = f"{comparison_mode}_delta"
+    display_name = {"real": "Measured", "virtual": "Virtual"}
+
+    ranked_df, selected_df = select_top_genes_for_region(
+        dfr=dfr,
+        rank_mode=rank_mode,
+        location_fraction_df=location_fraction_df,
+        n_heat=REGION_TOP_HEATMAP_GENES,
+    )
+    if selected_df.empty:
+        return None
+
+    heat_genes = selected_df["gene"].astype(str).tolist()
+
+    preferred_gene = REGION_SPATIAL_MARKER_GENES.get(region)
+    if (
+        preferred_gene is not None
+        and preferred_gene in dfr["gene"].astype(str).values
+        and preferred_gene in ad_virt_delta.var_names
+    ):
+        rep_gene = str(preferred_gene)
+    else:
+        rep_gene = str(selected_df.iloc[0]["gene"])
+
+    heat_df = selected_df.set_index("gene")[[source_col, comparison_col]].loc[heat_genes].copy()
+    heat_df.columns = [display_name[rank_mode], display_name[comparison_mode]]
+    heat_df.index = [display_gene_name(g) for g in heat_df.index]
+
+    spatial_labels = get_domain_labels(ad_virt_delta, DOMAIN_KEY).astype(str)
+    spatial_values_all = extract_delta_gene_vector(ad_virt_delta, rep_gene)
+    if FILTER_VALID_FOR_VISUALIZATION and "_delta_common_valid" in ad_virt_delta.obs.columns:
+        spatial_valid = ad_virt_delta.obs["_delta_common_valid"].to_numpy(dtype=bool)
+    else:
+        spatial_valid = np.ones(ad_virt_delta.n_obs, dtype=bool)
+    spatial_mask = spatial_valid & np.isin(spatial_labels, np.asarray(REGION_DOMAINS[region], dtype=str)) & np.isfinite(spatial_values_all)
+    spatial_values = spatial_values_all[spatial_mask]
+
+    heat_values = heat_df.to_numpy(dtype=float)
+    finite_heat = heat_values[np.isfinite(heat_values)]
+    heat_vmax = float(np.max(np.abs(finite_heat))) if finite_heat.size else 0.0
+    finite_spatial = spatial_values[np.isfinite(spatial_values)]
+    spatial_vmax = float(np.percentile(np.abs(finite_spatial), SPATIAL_DELTA_VMAX_PERCENTILE)) if finite_spatial.size else 0.0
+    vmax = max(heat_vmax, spatial_vmax, 1e-6)
+
+    return {
+        "ranked_df": ranked_df,
+        "selected_df": selected_df,
+        "heat_df": heat_df,
+        "rep_gene": rep_gene,
+        "rep_gene_display": display_gene_name(rep_gene),
+        "shared_norm": Normalize(vmin=-vmax, vmax=vmax, clip=True),
+        "shared_cmap": sns.color_palette("coolwarm", as_cmap=True),
+        "pattern_summary": compute_region_spatial_pattern_summary(ad_virt_delta, region, rep_gene),
+    }
+
+
+def plot_one_region_heatmap(
+    dfr: pd.DataFrame,
+    region: str,
+    ad_virt_delta,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    save_path=None,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+):
+    """Region heatmap with unchanged figure geometry."""
+    set_style()
+    payload = prepare_region_visual_payload(dfr, region, ad_virt_delta, location_fraction_df, rank_mode)
+    if payload is None:
+        return
+    heat_df = payload["heat_df"]
+    rep_gene_display = payload["rep_gene_display"]
+
+    fig, ax = plt.subplots(figsize=(3.7, 4))
+    sns.heatmap(
+        heat_df,
+        ax=ax,
+        cmap=payload["shared_cmap"],
+        # norm=payload["shared_norm"],
+        linewidths=0.4,
+        linecolor="white",
+        cbar=True,
+        cbar_kws={"label": "Mean expression change (log1p)", "fraction": 0.05, "pad": 0.05},
+    )
+    cbar = ax.collections[0].colorbar
+    cbar.set_label("Mean expression change (log1p)", fontsize=9)  # label text size
+    cbar.ax.tick_params(labelsize=8)
+
+
+    ax.set_title(region +"\nTop AD-WT contrast genes", fontsize=11, pad=8)
+    # ax.set_title(region , fontsize=12.5, pad=4)
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.tick_params(axis="y", labelsize=11, pad=1)
+    ax.tick_params(axis="x", labelsize=11, rotation=0, pad=-2)
+    for tick_label in ax.get_yticklabels():
+        tick_label.set_fontstyle("italic")
+
+    # if rep_gene_display in heat_df.index:
+    #     rep_idx = list(heat_df.index).index(rep_gene_display)
+    #     ax.add_patch(plt.Rectangle((0, rep_idx), len(heat_df.columns), 1, fill=False, edgecolor="black", linewidth=1.5, clip_on=False))
+    fig.tight_layout()
+    save_or_show(fig, save_path)
+
+
+def plot_one_region_spatialmap(
+    dfr: pd.DataFrame,
+    region: str,
+    ad_virt_delta,
+    location_fraction_df: Optional[pd.DataFrame] = None,
+    save_path=None,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+):
+    """Region spatial map with unchanged square layout and annotation positions."""
+    set_style()
+    payload = prepare_region_visual_payload(dfr, region, ad_virt_delta, location_fraction_df, rank_mode)
+    if payload is None:
+        return
+
+    rep_gene = payload["rep_gene"]
+    rep_gene_display = payload["rep_gene_display"]
+    summary = payload["pattern_summary"]
+
+    fig, ax = plt.subplots(figsize=(6.6, 6.6))
+    fig.subplots_adjust(left=0.06, right=0.84, top=0.92, bottom=0.06)
+    plot_virtual_region_delta_map(
+        ax=ax,
+        ad_virtual_delta=ad_virt_delta,
+        region=region,
+        gene=rep_gene,
+        norm=payload["shared_norm"],
+        cmap_name=payload["shared_cmap"],
+    )
+
+    # Region only; domain information intentionally removed.
+    ax.set_title(
+        f"{region} | $\it{{{rep_gene_display}}}$",
+        fontsize=20,
+        pad=10,
+        x=0.55,
+    )
+
+    increase_color = "#c53b3b"
+    decrease_color = "#3b6fb6"
+    x_dot, x_text = 0.025, 0.060
+    y_increase, y_decrease = 0.97, 0.92
+
+    ax.text(x_dot, y_increase, "●", transform=ax.transAxes, color=increase_color, fontsize=15, va="top", ha="left", zorder=20)
+    ax.text(x_text, y_increase, f"Higher in AD: {100.0 * summary['positive_fraction']:.1f}%", transform=ax.transAxes, color="black", fontsize=15, va="top", ha="left", zorder=20)
+    ax.text(x_dot, y_decrease, "●", transform=ax.transAxes, color=decrease_color, fontsize=15, va="top", ha="left", zorder=20)
+    ax.text(x_text, y_decrease, f"Lower in AD: {100.0 * summary['negative_fraction']:.1f}%", transform=ax.transAxes, color="black", fontsize=15, va="top", ha="left", zorder=20)
+
+    sm = ScalarMappable(norm=payload["shared_norm"], cmap=plt.get_cmap(payload["shared_cmap"]))
+    sm.set_array([])
+    cax = fig.add_axes([0.875, 0.24, 0.025, 0.50])
+    cbar = fig.colorbar(sm, cax=cax)
+    cbar.set_label("AD-WT expression change (log1p)", fontsize=13)
+    cbar.ax.tick_params(labelsize=10.5)
+    save_or_show(fig, save_path)
+
+
+def plot_all_region_details(
+    region_delta_df: pd.DataFrame,
+    ad_virt_delta,
+    region_fraction_df: Optional[pd.DataFrame],
+    save_dir: str,
+    rank_mode: str = TOP_GENE_RANK_MODE,
+):
+    """Generate four region heatmaps and four region spatial maps."""
+    ensure_outdir(save_dir)
+    rank_mode = validate_top_gene_rank_mode(rank_mode)
+    for region in REGION_ORDER:
+        dfr = region_delta_df[region_delta_df["region"] == region].copy()
+        if dfr.empty:
+            print(f"[WARN] No region-level rows for {region}; skipped.")
+            continue
+        safe_region = region.lower().replace(" ", "_")
+        plot_one_region_heatmap(
+            dfr=dfr,
+            region=region,
+            ad_virt_delta=ad_virt_delta,
+            location_fraction_df=region_fraction_df,
+            save_path=os.path.join(save_dir, f"{safe_region}_heatmap_ranked.png"),
+            rank_mode=rank_mode,
+        )
+        plot_one_region_spatialmap(
+            dfr=dfr,
+            region=region,
+            ad_virt_delta=ad_virt_delta,
+            location_fraction_df=region_fraction_df,
+            save_path=os.path.join(save_dir, f"{safe_region}_spatialmap.png"),
+            rank_mode=rank_mode,
+        )
+
 
 def load_coords_npz(net_in: str, group_id: int, sample_id: int) -> np.ndarray:
     f = os.path.join(net_in, f"{group_id}_{sample_id}_validation.npz")
@@ -2448,12 +3173,12 @@ def evaluate_and_save():
     ad_real_d = read_h5ad(REAL_DISEASE_PATH)
 
     real_n_coor = load_coords_npz(
-        "/media/huifang/data/registration/xenium/mouse_brain/network_input/",
+        "/media/huifang/data/registration/mouse_brain/network_input/",
         0,
         4,
     )
     real_d_coor = load_coords_npz(
-        "/media/huifang/data/registration/xenium/mouse_brain/network_input/",
+        "/media/huifang/data/registration/mouse_brain/network_input/",
         0,
         1,
     )
@@ -2728,12 +3453,12 @@ def plot_precalculated_results():
         figdir
     )
 
-    per_domain_dir = os.path.join(
+    per_region_dir = os.path.join(
         figdir,
-        "per_domain",
+        "per_region",
     )
     ensure_outdir(
-        per_domain_dir
+        per_region_dir
     )
 
     (
@@ -2761,35 +3486,41 @@ def plot_precalculated_results():
     # --------------------------------------------------------
     # Summary plots
     # --------------------------------------------------------
-    # plot_metric_boxplot_all(
-    #     metric_df,
-    #     save_path=os.path.join(
-    #         figdir,
-    #         "domain_metric_boxplot_all.png",
-    #     ),
-    # )
-    # # #
-    # plot_selected_gene_domain_dotplot(
-    #     delta_df=delta_df,
-    #     plot_genes=plot_genes,
-    #     domain_order=domain_order,
-    #     save_path=os.path.join(
-    #         figdir,
-    #         "selected_gene_domain_dotplot.png",
-    #     ),
-    # )
+    plot_metric_boxplot_all(
+        metric_df,
+        save_path=os.path.join(
+            figdir,
+            "domain_metric_boxplot_all.png",
+        ),
+    )
+    # #
+    plot_selected_gene_domain_dotplot(
+        delta_df=delta_df,
+        plot_genes=plot_genes,
+        domain_order=domain_order,
+        save_path=os.path.join(
+            figdir,
+            "selected_gene_domain_dotplot.png",
+        ),
+    )
 
     # --------------------------------------------------------
-    # Per-domain detail plots
+    # Region-level detail plots only.
+    # The summary boxplot and selected-gene dotplot above remain unchanged.
     # --------------------------------------------------------
-    plot_all_domain_details(
-        delta_df,
-        metric_df,
+    region_delta_df = build_region_delta_table_from_domain_table(
+        delta_df
+    )
+    region_fraction_df = build_region_location_fraction_table(
+        marker_location_fraction_df
+    )
+
+    plot_all_region_details(
+        region_delta_df=region_delta_df,
         ad_virt_delta=ad_virt_delta,
-        location_fraction_df=marker_location_fraction_df,
-        save_dir=per_domain_dir,
+        region_fraction_df=region_fraction_df,
+        save_dir=per_region_dir,
         rank_mode=TOP_GENE_RANK_MODE,
-        use_absolute=TOP_GENE_RANK_USE_ABS,
     )
 
     print(
@@ -2806,7 +3537,7 @@ def main():
     parser.add_argument(
         "--mode",
         choices=("eval", "plot", "all"),
-        default="plot",
+        default="all",
         help=(
             "eval: calculate and save numerical results only; "
             "plot: load saved results and plot only; "
@@ -2824,3 +3555,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+

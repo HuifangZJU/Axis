@@ -16,7 +16,7 @@ Design
    - full proteins with top marker genes
    - marker protein correlation map
    - marker proteins with top marker genes
-5. Dotplot gene and protein annotations are italicized.
+5. Dotplot gene symbols are italicized; protein-marker names are roman.\n6. Statistical significance is encoded by dot outlines and both significant and\n   non-significant symbols are shown in the legend.
 
 Expected input RDS columns
 --------------------------
@@ -466,14 +466,20 @@ def dotplot_on_axis(
         alpha=0.98,
     )
 
-    ax.set_xticks(np.arange(len(marker_order)))
-    ax.set_xticklabels(marker_order, rotation=45, ha="right", fontsize=9)
-    ax.set_yticks(np.arange(len(gene_order)))
-    ax.set_yticklabels(y_display_order, fontsize=8)
 
-    # Italicize displayed protein and gene annotations.
+    # Protein markers on x-axis.
+    ax.set_xticks(np.arange(len(marker_order)))
+    ax.set_xticklabels(marker_order, rotation=45, ha="right", fontsize=12)
+
+    # Genes on y-axis.
+    # y_map was constructed from y_display_order, so use exactly the same
+    # ordering here to keep labels aligned with the plotted dots.
+    ax.set_yticks(np.arange(len(y_display_order)))
+    ax.set_yticklabels(y_display_order, fontsize=10)
+
+    # Gene symbols are italicized; protein-marker names remain roman.
     for tick_label in ax.get_xticklabels():
-        tick_label.set_fontstyle("italic")
+        tick_label.set_fontstyle("normal")
     for tick_label in ax.get_yticklabels():
         tick_label.set_fontstyle("italic")
 
@@ -481,9 +487,9 @@ def dotplot_on_axis(
     ax.set_ylim(-0.5, len(gene_order) - 0.5)
     ax.set_axisbelow(True)
     ax.grid(which="major", axis="both", linestyle=":", alpha=0.16)
-    ax.set_xlabel("Protein markers",weight="bold")
-    ax.set_ylabel("Gene markers",weight="bold")
-    ax.set_title(title, pad=8)
+    ax.set_xlabel("Protein markers", weight="bold")
+    ax.set_ylabel("Associated genes", weight="bold")
+    ax.set_title(title, pad=15)
     return sc
 
 def plot_dotplot_only(
@@ -514,53 +520,86 @@ def plot_dotplot_only(
         fraction=0.05,
         pad=0.06,
     )
-    cbar.set_label("logFC")
+    cbar.set_label("Gene-protein association (logFC)", fontsize=11)
 
     # Move colorbar downward.
     cbar_pos = cbar.ax.get_position()
     cbar.ax.set_position([
-        cbar_pos.x0,
-        cbar_pos.y0 - 0.1,  # larger value -> move farther down
+        0.9,
+        cbar_pos.y0 - 0.18,  # larger value -> move farther down
         cbar_pos.width,
         cbar_pos.height,
     ])
 
+    # ------------------------------------------------------------
+    # Clear, publication-style legends.
+    #
+    # Dot area encodes average gene expression.  The reference sizes are
+    # still anchored to the 20th, 50th, and 80th percentiles of AveExpr,
+    # but the figure uses clean categorical labels rather than dataset-
+    # specific numerical values such as 4.1.
+    # ------------------------------------------------------------
     ref = np.nanpercentile(df_plot["AveExpr"], [20, 50, 80])
     ref_sizes = map_sizes(ref, smin=24, smax=220)
 
-    handles = [
+    size_labels = ["Low", "Medium", "High"]
+    size_handles = [
         ax.scatter(
-            [], [],
+            [],
+            [],
             s=ref_sizes[i],
             c="gray",
-            alpha=0.7,
-            label=f"AveExpr≈{ref[i]:.2g}",
+            alpha=0.72,
+            linewidths=0,
+            label=size_labels[i],
         )
-        for i in range(len(ref))
+        for i in range(len(ref_sizes))
     ]
 
-    handles.append(
-        ax.scatter(
-            [], [],
-            s=78,
-            facecolors="white",
-            edgecolors="black",
-            linewidths=0.7,
-            label=f"adj.P.Val≤{sig_outline_fdr:g}",
-        )
+    size_legend = ax.legend(
+        handles=size_handles,
+        title="Average\n gene \nexpression",
+        loc="upper left",
+        bbox_to_anchor=(1.06, 0.99),
+        frameon=False,
+        labelspacing=1.0,
+        handletextpad=1.0,
+        borderaxespad=0.0,
+    )
+    ax.add_artist(size_legend)
+
+    # Significance is encoded by the dot outline:
+    #   black outline -> adjusted P <= threshold
+    #   no outline    -> adjusted P > threshold
+    # Use a neutral gray fill in the legend so the legend explains only the
+    # outline encoding and does not compete with the logFC color scale.
+    significance_handle = ax.scatter(
+        [],
+        [],
+        s=78,
+        facecolors="0.75",
+        edgecolors="black",
+        linewidths=0.8,
+        label=rf"Adjusted $P$ ≤ {sig_outline_fdr:g}",
+    )
+
+    nonsignificance_handle = ax.scatter(
+        [],
+        [],
+        s=78,
+        facecolors="0.75",
+        edgecolors="none",
+        linewidths=0.0,
+        label=rf"Adjusted $P$ > {sig_outline_fdr:g}",
     )
 
     ax.legend(
-        handles=handles,
-        title="Dot encoding",
+        handles=[significance_handle, nonsignificance_handle],
+        title="Statistical\nsignificance",
         loc="upper left",
-        bbox_to_anchor=(1.02, 0.9),
+        bbox_to_anchor=(1.06, 0.7),
         frameon=False,
-
-        # Main control for vertical distance between legend rows.
-        labelspacing=1.,
-
-        # Optional spacing refinements.
+        labelspacing=0.8,
         handletextpad=1.0,
         borderaxespad=0.0,
     )
@@ -666,7 +705,8 @@ def run_panel_analysis(
         gene_order=gene_order,
         block_ranges=block_ranges,
         out_png=os.path.join(out_dir, dotplot_figure_name),
-        title=f"{title_prefix}: proteins with top marker genes",
+        # Reader-facing Figure 7d title.
+        title="Top gene associations by protein marker",
         sig_outline_fdr=fdr_thresh,
     )
 
@@ -761,3 +801,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

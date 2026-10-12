@@ -40,8 +40,9 @@ Scientific semantics retained from the source script
 - Predicted protein values are used as stored.
 - Top gene–protein pairs are selected from the DE table.
 - Robust 5th–99th percentile scaling defines gene/protein co-expression states.
-- Three states are retained:
+- Three internal states are retained:
     protein-dominant, both-strong, gene-dominant.
+  The figure displays these as Protein-dominant, Both high, and Gene-dominant.
 - Optional contours are derived from smoothed local state fractions.
 
 The plotting stage is intentionally layout-only: it receives precomputed
@@ -81,7 +82,7 @@ XENIUM_LOCATION_CSV = "LUAD_2_A_xenium_axis.csv"
 
 OUTPUT_ROOT = (
     "/media/huifang/data/registration/paper_analysis/"
-    "Figure7_modality/per_marker_ratio/per_marker/"
+    "Figure7_modality/e_per_marker_ratio/per_marker/"
 )
 
 
@@ -90,7 +91,7 @@ OUTPUT_ROOT = (
 # ============================================================
 
 TARGET_PROTEINS: Optional[List[str]] = [
-    # "IDO1",
+    "IDO1",
     "NKX2.1",
     # "CD68",
     # "CD20",
@@ -110,9 +111,9 @@ RANDOM_SEED = 0
 PERCENTILE_LOW = 5.0
 PERCENTILE_HIGH = 99.0
 
-DOMINANCE_FRACTION_THRESHOLD = 0.65
+DOMINANCE_FRACTION_THRESHOLD = 0.75
 DOMINANCE_MIN_SIGNAL = 0.25
-BOTH_STRONG_MIN_SIGNAL = 0.55
+BOTH_STRONG_MIN_SIGNAL = 0.5
 
 
 # ============================================================
@@ -151,7 +152,7 @@ CONTOUR_COLORS = {
 
 CONTOUR_LABELS = {
     "protein_dominant": "Protein-dominant region",
-    "both_strong": "Both-strong region",
+    "both_strong": "Both-high region",
     "gene_dominant": "Gene-dominant region",
 }
 
@@ -174,23 +175,23 @@ class PlotLayout:
     point_size: float = 1.0
 
     # Title.
-    title_fontsize: float = 14.0
-    title_pad: float = 10.0
+    title_fontsize: float = 16.0
+    title_pad: float = 20.0
     title_loc: str = "left"
-    title_x: float = 0.06
+    title_x: float = 0.02
     title_ha: str = "left"
 
     # Main three-state legend.
-    legend_fontsize: float = 10
-    state_legend_x: float = 0.2
-    state_legend_y: float = 1.01
+    legend_fontsize: float = 12
+    state_legend_x: float = 0.18
+    state_legend_y: float = 1.03
     state_legend_ncol: int = 1
-    state_legend_handletextpad: float = 0.35
-    state_legend_columnspacing: float = 0.5
+    state_legend_handletextpad: float = 0.40
+    state_legend_columnspacing: float = 0.6
 
     # Optional contour legend.
-    contour_legend_x: float = 0.07
-    contour_legend_y: float = 0.9
+    contour_legend_x: float = 0.9
+    contour_legend_y: float = 1.03
     contour_legend_ncol: int = 3
     contour_legend_handlelength: float = 2.4
 
@@ -1082,20 +1083,75 @@ def plot_coexpression_map(
 
     ax.axis("off")
 
-    ax.set_title(
-        rf"$\it{{{gene_name}}}$ gene  /  {protein_name} protein",
-        x=layout.title_x,
-        ha=layout.title_ha,
-        fontsize=layout.title_fontsize,
-        fontweight="bold",
-        pad=layout.title_pad,
+    from matplotlib.offsetbox import TextArea, HPacker, AnnotationBbox
+
+    gene_text = TextArea(
+        gene_name,
+        textprops=dict(
+            fontsize=layout.title_fontsize,
+            fontweight="bold",
+            fontstyle="italic",
+        ),
     )
+
+    gene_label = TextArea(
+        " gene | ",
+        textprops=dict(
+            fontsize=layout.title_fontsize,
+            fontweight="normal",
+            fontstyle="normal",
+        ),
+    )
+
+    protein_text = TextArea(
+        protein_name,
+        textprops=dict(
+            fontsize=layout.title_fontsize,
+            fontweight="bold",
+            fontstyle="normal",
+        ),
+    )
+
+    protein_label = TextArea(
+        " protein",
+        textprops=dict(
+            fontsize=layout.title_fontsize,
+            fontweight="normal",
+            fontstyle="normal",
+        ),
+    )
+
+    title_box = HPacker(
+        children=[gene_text, gene_label, protein_text, protein_label],
+        align="center",
+        pad=0,
+        sep=0,
+    )
+
+    # Convert title alignment to AnnotationBbox alignment.
+    box_alignment = {
+        "left": (0.0, 0.0),
+        "center": (0.5, 0.0),
+        "right": (1.0, 0.0),
+    }.get(layout.title_ha, (0.5, 0.0))
+
+    title_artist = AnnotationBbox(
+        title_box,
+        (layout.title_x, 1.0),
+        xycoords=ax.transAxes,
+        xybox=(0, layout.title_pad),
+        boxcoords="offset points",
+        box_alignment=box_alignment,
+        frameon=False,
+    )
+
+    ax.add_artist(title_artist)
     state_handles = [
         Line2D(
             [0], [0],
             marker="o",
             linestyle="none",
-            label="Protein dominant",
+            label="Protein-dominant",
             markerfacecolor=PROTEIN_RGB,
             markeredgecolor="none",
             markersize=6.5,
@@ -1104,7 +1160,7 @@ def plot_coexpression_map(
             [0], [0],
             marker="o",
             linestyle="none",
-            label="Both strong",
+            label="Both high",
             markerfacecolor=BOTH_RGB,
             markeredgecolor="none",
             markersize=6.5,
@@ -1113,7 +1169,7 @@ def plot_coexpression_map(
             [0], [0],
             marker="o",
             linestyle="none",
-            label="Gene dominant",
+            label="Gene-dominant",
             markerfacecolor=GENE_RGB,
             markeredgecolor="none",
             markersize=6.5,
@@ -1139,7 +1195,7 @@ def plot_coexpression_map(
     if contour_handles:
         ax.legend(
             handles=contour_handles,
-            loc="upper left",
+            loc="upper right",
             bbox_to_anchor=(
                 layout.contour_legend_x,
                 layout.contour_legend_y,
@@ -1392,3 +1448,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

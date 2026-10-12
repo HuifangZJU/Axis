@@ -721,23 +721,23 @@ def plot_case_study_grid(
                     )
 
             summary = _aggregate_for_panel(method_metrics)
-            metric_text = (
-                f"Dice ↑  {summary['dice']:.3f}\n"
-                f"Spatial r ↑  {summary['spatial_corr']:.3f}\n"
-                f"Shift ↓  {summary['center_shift']:.1f}\n"
-                f"Local ↑  {summary['neighbor_accuracy']:.3f}"
-            )
-            ax.text(
-                0.02,
-                0.02,
-                metric_text,
-                transform=ax.transAxes,
-                ha="left",
-                va="bottom",
-                fontsize=7.5,
-                linespacing=1.25,
-                bbox={"facecolor": "white", "edgecolor": "0.75", "linewidth": 0.5, "alpha": 0.9, "pad": 2.5},
-            )
+            # metric_text = (
+            #     f"Dice ↑  {summary['dice']:.3f}\n"
+            #     f"Spatial r ↑  {summary['spatial_corr']:.3f}\n"
+            #     f"Shift ↓  {summary['center_shift']:.1f}\n"
+            #     f"Local ↑  {summary['neighbor_accuracy']:.3f}"
+            # )
+            # ax.text(
+            #     0.02,
+            #     0.02,
+            #     metric_text,
+            #     transform=ax.transAxes,
+            #     ha="left",
+            #     va="bottom",
+            #     fontsize=7.5,
+            #     linespacing=1.25,
+            #     bbox={"facecolor": "white", "edgecolor": "0.75", "linewidth": 0.5, "alpha": 0.9, "pad": 2.5},
+            # )
 
         slice_handles = [
             Line2D([0], [0], marker="o", linestyle="none", color="0.25", markersize=5, label="Fixed slice"),
@@ -747,8 +747,8 @@ def plot_case_study_grid(
         ]
         fig.legend(
             handles=slice_handles,
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.955),
+            loc="lower left",
+            bbox_to_anchor=(0., 0.02),
             ncol=4,
             frameon=False,
             handletextpad=0.4,

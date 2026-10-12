@@ -15,8 +15,8 @@ The streamlined workflow contains:
 5. Per-domain top-gene composition summaries.
 6. Cortical-layer and hippocampal representative temporal-pattern maps selected
    from the per-domain top-gene results. Each representative gene is saved as
-   an independent figure, with its region-level representative-pattern fraction
-   annotated with all region-present temporal trends in an in-plot bottom legend.
+   an independent figure, with region-level temporal-pattern fractions shown in a
+   right-side dot-and-percentage annotation without repeating pattern names.
 
 For each gene listed in SPATIAL_MAP_GENES, evaluation also saves a compact NPZ
 under OUTDIR/spatial_maps/. The NPZ contains the exact matched coordinates,
@@ -101,11 +101,11 @@ BG_SIZE = 1.0
 # STYLE
 # ============================================================
 PATTERN_COLORS = {
-    "Increasing": "#D55E00",
-    "Decreasing": "#0072B2",
-    "Peak": "#009E73",
-    "Trough": "#CC79A7",
-    "Mixed": "#9E9E9E",
+    "Increase": "#D55E00",
+    "Decrease": "#0072B2",
+    "Mid-stage peak": "#009E73",
+    "Mid-stage trough": "#CC79A7",
+    "Stable": "#9E9E9E",
 }
 
 
@@ -414,11 +414,11 @@ def classify_location_pattern(v1: np.ndarray, v2: np.ndarray, v3: np.ndarray) ->
 
     tau = max(PATTERN_MIN_DELTA, float(np.nanmedian(amp) * PATTERN_RELATIVE_FACTOR))
 
-    pat = np.full(v1.shape[0], "Mixed", dtype=object)
-    pat[(d12 > tau) & (d23 > tau)] = "Increasing"
-    pat[(d12 < -tau) & (d23 < -tau)] = "Decreasing"
-    pat[(d12 > tau) & (d23 < -tau)] = "Peak"
-    pat[(d12 < -tau) & (d23 > tau)] = "Trough"
+    pat = np.full(v1.shape[0], "Stable", dtype=object)
+    pat[(d12 > tau) & (d23 > tau)] = "Increase"
+    pat[(d12 < -tau) & (d23 < -tau)] = "Decrease"
+    pat[(d12 > tau) & (d23 < -tau)] = "Mid-stage peak"
+    pat[(d12 < -tau) & (d23 > tau)] = "Mid-stage trough"
 
     return pat, amp.astype(np.float32)
 
@@ -559,11 +559,11 @@ def save_spatial_gene_maps(
             "n_locations": int(len(coords)),
             "n_valid_domain_locations": int(valid_mask.sum()),
             "pattern_threshold": float(tau),
-            "n_increasing": int(count_map.get("Increasing", 0)),
-            "n_decreasing": int(count_map.get("Decreasing", 0)),
+            "n_increasing": int(count_map.get("Increase", 0)),
+            "n_decreasing": int(count_map.get("Decrease", 0)),
             "n_peak": int(count_map.get("Peak", 0)),
             "n_trough": int(count_map.get("Trough", 0)),
-            "n_mixed": int(count_map.get("Mixed", 0)),
+            "n_mixed": int(count_map.get("Stable", 0)),
         })
 
         print(f"[SAVE] Spatial map {gene}: {save_path}")
@@ -667,11 +667,11 @@ def compute_domain_gene_stats(data: List[AlignedTimepoint]) -> pd.DataFrame:
                 pass
 
             pat, _ = classify_location_pattern(v1, v2, v3)
-            inc_frac[j] = np.mean(pat == "Increasing")
-            dec_frac[j] = np.mean(pat == "Decreasing")
-            peak_frac[j] = np.mean(pat == "Peak")
-            trough_frac[j] = np.mean(pat == "Trough")
-            mixed_frac[j] = np.mean(pat == "Mixed")
+            inc_frac[j] = np.mean(pat == "Increase")
+            dec_frac[j] = np.mean(pat == "Decrease")
+            peak_frac[j] = np.mean(pat == "Mid-stage peak")
+            trough_frac[j] = np.mean(pat == "Mid-stage trough")
+            mixed_frac[j] = np.mean(pat == "Stable")
 
         kw_fdr = bh_fdr(kw_p)
 
@@ -775,13 +775,13 @@ def scatter_trend_panel(
             s=max(float(s), float(BG_SIZE)),
             alpha=background_alpha,
             linewidths=0,
-            label="Mixed",
+            label="Stable",
             rasterized=True,
             zorder=1,
         )
 
     # Overlay only locations with a directional temporal pattern.
-    for pattern in ["Increasing", "Decreasing", "Peak", "Trough"]:
+    for pattern in ["Increase", "Decrease", "Mid-stage peak", "Mid-stage trough","Stable"]:
         pattern_mask = plot_mask & (patterns == pattern)
         if np.any(pattern_mask):
             ax.scatter(
@@ -849,58 +849,6 @@ def scatter_delta_panel(
 
     return scatter
 
-# def plot_gene_triptych(
-#     data: List[AlignedTimepoint],
-#     gene: str,
-#     save_path: str,
-#     mask: Optional[np.ndarray] = None,
-#     title_suffix: Optional[str] = None,
-#     remove_invalid_background: bool = False,
-# ):
-#     genes = data[0].genes.astype(str).tolist()
-#     if gene not in genes:
-#         print(f"[WARN] Gene {gene} not found. Skip figure.")
-#         return
-#
-#     j = genes.index(gene)
-#     coords = data[0].coords
-#
-#     valid_mask = valid_domain_mask(data[0].domains)
-#     if mask is None:
-#         mask = valid_mask if remove_invalid_background else np.ones(coords.shape[0], dtype=bool)
-#     else:
-#         mask = np.asarray(mask, dtype=bool)
-#         if remove_invalid_background:
-#             mask = mask & valid_mask
-#
-#     v1 = data[0].X[:, j]
-#     v2 = data[1].X[:, j]
-#     v3 = data[2].X[:, j]
-#
-#     d12 = v2 - v1
-#     d23 = v3 - v2
-#     pats, _ = classify_location_pattern(v1, v2, v3)
-#
-#     subtitle = title_suffix if title_suffix is not None else "Whole landscape"
-#
-#     set_style()
-#     fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.8))
-#
-#     scatter_delta_panel(axes[0], coords, d12, "5.7m − 2.5m", mask=mask)
-#     scatter_delta_panel(axes[1], coords, d23, "17.9m − 5.7m", mask=mask)
-#     scatter_trend_panel(axes[2], coords, pats, "Per-location trend", mask=mask)
-#
-#     handles = [
-#         plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=PATTERN_COLORS[p],
-#                    markersize=7, label=p)
-#         for p in ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
-#     ]
-#     axes[2].legend(handles=handles, loc="upper right", frameon=False, title="Pattern")
-#
-#     fig.suptitle(f"{gene} | {subtitle}", y=1.01, fontsize=16)
-#     fig.tight_layout()
-#     fig.savefig(save_path, dpi=FIG_DPI, bbox_inches="tight")
-#     plt.close(fig)
 
 def plot_gene_triptych(
     data: List[AlignedTimepoint],
@@ -1020,7 +968,7 @@ def plot_gene_triptych(
             color="none",
             markerfacecolor=(
                 BG_COLOR
-                if pattern == "Mixed"
+                if pattern == "Stable"
                 else PATTERN_COLORS[pattern]
             ),
             markeredgecolor="none",
@@ -1028,11 +976,11 @@ def plot_gene_triptych(
             label=pattern,
         )
         for pattern in [
-            "Increasing",
-            "Decreasing",
-            "Peak",
-            "Trough",
-            "Mixed",
+            "Increase",
+            "Decrease",
+            "Mid-stage peak",
+            "Mid-stage trough",
+            "Stable",
         ]
     ]
 
@@ -1141,10 +1089,11 @@ def plot_all_domains_top_genes_summary(
     )
 
     plotted_patterns = [
-        "Increasing",
-        "Decreasing",
-        "Peak",
-        "Trough",
+        "Increase",
+        "Decrease",
+        "Mid-stage peak",
+        "Mid-stage trough",
+        "Stable",
     ]
 
     handles = [
@@ -1161,11 +1110,18 @@ def plot_all_domains_top_genes_summary(
     # ------------------------------------------------------------------
     # Fixed figure geometry
     # ------------------------------------------------------------------
-    # Same dimensions as ONE panel in the original multi-domain figure.
-    FIGSIZE_SINGLE = (4.5, 4.2)
+    # Preserve the original main-plot geometry exactly and add only extra
+    # canvas width on the right for the one-column pattern legend.
+    MAIN_FIGSIZE_SINGLE = (4.5, 5.2)
+    RIGHT_LEGEND_EXTRA_WIDTH = 1.90
+
+    # Original subplot margins, retained in PHYSICAL units after widening.
+    MAIN_LEFT = 0.30
+    MAIN_RIGHT = 0.90
+    MAIN_BOTTOM = 0.20
+    MAIN_TOP = 0.90
 
     for dom in domains:
-
         # ==============================================================
         # Prepare one domain
         # ==============================================================
@@ -1196,8 +1152,22 @@ def plot_all_domains_top_genes_summary(
         # Make one independent figure
         # ==============================================================
 
-        fig, ax = plt.subplots(
-            figsize=FIGSIZE_SINGLE,
+        base_width, base_height = MAIN_FIGSIZE_SINGLE
+        figure_width = base_width + RIGHT_LEGEND_EXTRA_WIDTH
+
+        fig = plt.figure(
+            figsize=(figure_width, base_height),
+        )
+
+        # Keep the main stacked-bar panel at exactly the same physical size
+        # and position it had before the canvas was widened.
+        ax = fig.add_axes(
+            [
+                MAIN_LEFT * base_width / figure_width,
+                MAIN_BOTTOM,
+                (MAIN_RIGHT - MAIN_LEFT) * base_width / figure_width,
+                MAIN_TOP - MAIN_BOTTOM,
+            ]
         )
 
         if dfd.empty:
@@ -1230,29 +1200,35 @@ def plot_all_domains_top_genes_summary(
             )
 
             frac_map = {
-                "Increasing": pd.to_numeric(
+                "Increase": pd.to_numeric(
                     dfd["inc_frac"],
                     errors="coerce",
                 )
                 .fillna(0.0)
                 .to_numpy(dtype=float),
 
-                "Decreasing": pd.to_numeric(
+                "Decrease": pd.to_numeric(
                     dfd["dec_frac"],
                     errors="coerce",
                 )
                 .fillna(0.0)
                 .to_numpy(dtype=float),
 
-                "Peak": pd.to_numeric(
+                "Mid-stage peak": pd.to_numeric(
                     dfd["peak_frac"],
                     errors="coerce",
                 )
                 .fillna(0.0)
                 .to_numpy(dtype=float),
 
-                "Trough": pd.to_numeric(
+                "Mid-stage trough": pd.to_numeric(
                     dfd["trough_frac"],
+                    errors="coerce",
+                )
+                .fillna(0.0)
+                .to_numpy(dtype=float),
+                "Stable": pd.to_numeric(
+                    dfd["mixed_frac"],
                     errors="coerce",
                 )
                 .fillna(0.0)
@@ -1296,13 +1272,13 @@ def plot_all_domains_top_genes_summary(
                 tick_label.set_fontstyle("italic")
             if dom in ["1","4","6","10"]:
                 ax.set_title(
-                    f"Cortex | Domain {dom}",
+                    f"Cortex (Domain {dom})",
                     fontsize=18,
                     pad=8,
                 )
             elif dom in ["8","11"]:
                 ax.set_title(
-                    f"Hippocampus | Domain {dom}",
+                    f"Hippocampus (Domain {dom})",
                     fontsize=18,
                     pad=8,
                     x=0.5,
@@ -1317,7 +1293,7 @@ def plot_all_domains_top_genes_summary(
 
 
             ax.set_xlabel(
-                "Fraction of locations",
+                "Fraction of matched locations",
                 fontsize=12
             )
 
@@ -1377,31 +1353,73 @@ def plot_all_domains_top_genes_summary(
             ax.spines["right"].set_visible(False)
 
         # ==============================================================
-        # Shared legend within fixed figure canvas
+        # Pattern legend on the RIGHT in one column.
+        #
+        # Every independently saved domain plot contains the same legend so
+        # redundant copies can be cropped during multi-panel assembly.
+        # The main stacked-bar panel itself is unchanged.
         # ==============================================================
-        #
-        # fig.legend(
-        #     handles=handles,
-        #     loc="upper center",
-        #     ncol=len(plotted_patterns),
-        #     frameon=False,
-        #     bbox_to_anchor=(0.5, 0.985),
-        #     columnspacing=1.0,
-        #     handlelength=1.3,
-        # )
+        if dom =='11':
+            legend_x = (
+                MAIN_RIGHT * base_width
+                + 0.12
+            ) / figure_width
 
-        # Reserve:
-        # left   -> gene names
-        # right  -> delta annotations
-        # top    -> legend
-        #
-        # Fixed margins make all saved PNG dimensions identical.
-        fig.subplots_adjust(
-            left=0.3,
-            right=0.9,
-            bottom=0.15,
-            top=0.85,
-        )
+            fig.legend(
+                handles=handles,
+                title="Age-associated\n   pattern   ",
+                loc="upper left",
+                bbox_to_anchor=(legend_x, 0.8),
+                ncol=1,
+                frameon=False,
+                borderaxespad=0.0,
+                fontsize=11,
+                title_fontsize=11,
+                handlelength=1.3,
+                handletextpad=0.65,
+                labelspacing=0.65,
+                columnspacing=0.0,
+            )
+
+            # # General x-axis annotation, replacing the per-panel x-label
+            # # ----------------------------------------------------------
+            # # General x-axis key: a mini stacked bar with equal shares of
+            # # every pattern, followed by the explanatory text.
+            # # ----------------------------------------------------------
+            # key_w = 0.19  # mini-bar width  (figure fraction)
+            # key_h = 0.028  # mini-bar height (figure fraction)
+            # key_y = 0.40  # mini-bar bottom (figure fraction)
+            #
+            # ax_key = fig.add_axes([legend_x, key_y, key_w, key_h])
+            # n_pat = len(plotted_patterns)
+            # ax_key.barh(
+            #     [0] * n_pat,
+            #     [1.0 / n_pat] * n_pat,
+            #     left=[i / n_pat for i in range(n_pat)],
+            #     color=[PATTERN_COLORS[p] for p in plotted_patterns],
+            #     alpha=0.92,
+            #     height=1.0,
+            # )
+            # ax_key.set_xlim(0, 1)
+            # ax_key.set_ylim(-0.5, 0.5)
+            # ax_key.axis("off")
+            #
+            # # End labels "0" and "1" under the mini bar
+            # fig.text(legend_x, key_y - 0.012, "0",
+            #          ha="center", va="top", fontsize=9, color="0.3")
+            # fig.text(legend_x + key_w, key_y - 0.012, "1",
+            #          ha="center", va="top", fontsize=9, color="0.3")
+            #
+            # # Explanatory text under the bar
+            # fig.text(
+            #     legend_x,
+            #     key_y - 0.07,
+            #     "Fraction of\nmatched locations",
+            #     ha="left",
+            #     va="top",
+            #     fontsize=11,
+            #     color="0.2",
+            # )
 
         # ==============================================================
         # Output filename
@@ -1469,12 +1487,12 @@ def _select_region_representatives_from_top_domain_genes(
     6. When fewer than four patterns are represented, add the second-ranked
        genes from represented patterns until exactly four unique genes remain.
     """
-    pattern_order = ["Increasing", "Decreasing", "Peak", "Trough"]
+    pattern_order = ["Increase", "Decrease", "Mid-stage peak", "Mid-stage trough"]
     fraction_columns = {
-        "Increasing": "inc_frac",
-        "Decreasing": "dec_frac",
-        "Peak": "peak_frac",
-        "Trough": "trough_frac",
+        "Increase": "inc_frac",
+        "Decrease": "dec_frac",
+        "Mid-stage peak": "peak_frac",
+        "Mid-stage trough": "trough_frac",
     }
 
     required_columns = {
@@ -1548,13 +1566,13 @@ def _select_region_representatives_from_top_domain_genes(
     # Pattern-specific delta support. A large value requires the mean deltas to
     # follow the direction expected for that temporal pattern.
     pattern_delta_support = {
-        "Increasing": np.maximum(delta_12, 0.0)
+        "Increase": np.maximum(delta_12, 0.0)
         + np.maximum(delta_23, 0.0),
-        "Decreasing": np.maximum(-delta_12, 0.0)
+        "Decrease": np.maximum(-delta_12, 0.0)
         + np.maximum(-delta_23, 0.0),
-        "Peak": np.maximum(delta_12, 0.0)
+        "Mid-stage peak": np.maximum(delta_12, 0.0)
         + np.maximum(-delta_23, 0.0),
-        "Trough": np.maximum(-delta_12, 0.0)
+        "Mid-stage trough": np.maximum(-delta_12, 0.0)
         + np.maximum(delta_23, 0.0),
     }
 
@@ -1832,7 +1850,7 @@ def _region_pattern_fractions(
     group_mask: np.ndarray,
 ) -> dict:
     """Return pooled region-level fractions for every temporal pattern present."""
-    pattern_order = ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
+    pattern_order = ["Increase", "Decrease", "Mid-stage peak", "Mid-stage trough", "Stable"]
     patterns = np.asarray(patterns, dtype=object)
     group_mask = np.asarray(group_mask, dtype=bool)
     valid = group_mask & pd.notna(patterns)
@@ -1885,7 +1903,7 @@ def _render_pattern_pixel_image(
     for (x, y), pattern in zip(coords_valid, patterns_valid):
         col = x_to_col[np.round(x, 8)]
         row = y_to_row[np.round(y, 8)]
-        color = background_color if pattern == "Mixed" else PATTERN_COLORS.get(pattern, background_color)
+        color = background_color if pattern == "Stable" else PATTERN_COLORS.get(pattern, background_color)
         image[row, col, :] = _hex_to_rgba01(color, alpha=1.0)
 
     dx = float(np.median(np.diff(x_vals))) if len(x_vals) > 1 else 1.0
@@ -1901,14 +1919,26 @@ def _render_pattern_pixel_image(
 
 
 def _ordered_region_legend_items(fractions: dict) -> list:
-    """Order directional trend legend items by descending regional fraction."""
-    primary_patterns = ["Increasing", "Decreasing", "Peak", "Trough"]
+    """Return pattern fractions in one fixed figure-wide color order.
+
+    Panels h/i intentionally omit the pattern names and show only a colored dot
+    followed by the percentage. Keeping a fixed order makes those dot-only
+    annotations directly comparable across representative genes.
+    """
+    pattern_order = [
+        "Increase",
+        "Decrease",
+        "Mid-stage peak",
+        "Mid-stage trough",
+        "Stable",
+    ]
+
     items = []
-    for pattern in primary_patterns:
-        frac = fractions.get(pattern, np.nan)
-        if np.isfinite(frac) and frac > 0:
-            items.append((pattern, float(frac)))
-    items.sort(key=lambda x: (-x[1], x[0]))
+    for pattern in pattern_order:
+        fraction = fractions.get(pattern, np.nan)
+        if np.isfinite(fraction) and fraction > 0:
+            items.append((pattern, float(fraction)))
+
     return items
 
 
@@ -1965,8 +1995,8 @@ def _plot_region_pattern_genes_individually(
     temporal-pattern map. The two month-to-month delta maps are not generated.
 
     The representative gene selection itself is unchanged. For each selected
-    gene, the legend reports the fraction of all locations pooled across the
-    region's domains that exhibit that gene's assigned representative pattern.
+    gene, the right-side annotation reports all region-present pattern fractions
+    using colored dots followed only by percentages; pattern names are omitted.
     """
     selected = _select_region_representatives_from_top_domain_genes(
         stats_df=stats_df,
@@ -1986,7 +2016,7 @@ def _plot_region_pattern_genes_individually(
 
     # Compute pooled region-level fractions for every trend of each selected gene.
     # These fractions are location-weighted across all domains in the region.
-    pattern_order = ["Increasing", "Decreasing", "Peak", "Trough", "Mixed"]
+    pattern_order = ["Increase", "Decrease", "Mid-stage peak", "Mid-stage trough", "Stable"]
     pattern_cache = {}
     fraction_cache = {}
 
@@ -2055,7 +2085,29 @@ def _plot_region_pattern_genes_individually(
                 data[2].X[:, j],
             )
 
-        fig, ax = plt.subplots(figsize=figsize)
+        # =============================================================
+        # Preserve the original spatial-map geometry and add only extra
+        # canvas width on the right for dot + percentage annotations.
+        # =============================================================
+        base_width, base_height = figsize
+        right_annotation_extra_width = 1.90
+        figure_width = base_width + right_annotation_extra_width
+
+        fig = plt.figure(
+            figsize=(figure_width, base_height),
+        )
+
+        # Reproduce the original subplot margins in physical units:
+        # left=0.04, right=0.98, bottom=0.20, top=0.88.
+        # Widening therefore does not resize the spatial map itself.
+        ax = fig.add_axes(
+            [
+                0.04 * base_width / figure_width,
+                0.20,
+                (0.98 - 0.04) * base_width / figure_width,
+                0.88 - 0.20,
+            ]
+        )
 
         pixel_image, pixel_extent = _render_pattern_pixel_image(
             coords=coords,
@@ -2071,8 +2123,8 @@ def _plot_region_pattern_genes_individually(
             aspect="equal",
             zorder=1,
         )
-        ax.set_title(f"{group_name} | {gene}", fontsize=18)
-
+        # ax.set_title(f"{group_name} {gene}", fontsize=18)
+        ax.set_title(rf"{group_name} | $\it{{{gene}}}$", fontsize=18)
         _apply_axis_style(
             ax=ax,
             xlim=xlim,
@@ -2084,47 +2136,105 @@ def _plot_region_pattern_genes_individually(
         # The title and legend remain visible.
         ax.set_axis_off()
 
-        # Show every temporal trend actually present in this region for this gene.
-        # Stable is displayed last; the other four patterns are ordered by fraction.
+        # =============================================================
+        # Right-side pattern-fraction annotation.
+        #
+        # Requirement for panels h/i:
+        #   - do NOT print pattern names;
+        #   - show only a colored dot followed by the percentage;
+        #   - keep the annotation outside the spatial map on the right.
+        #
+        # The color order is fixed by _ordered_region_legend_items(), so one
+        # retained panel-g legend can serve as the color key after assembly.
+        # =============================================================
         fractions = fraction_cache.get(gene, {})
         legend_handles = []
-        for legend_name, fraction in _ordered_region_legend_items(fractions):
-            color = BG_COLOR if legend_name == "Stable" else PATTERN_COLORS[legend_name]
+
+        for pattern_name_for_legend, fraction in _ordered_region_legend_items(
+            fractions
+        ):
+            color = (
+                BG_COLOR
+                if pattern_name_for_legend == "Stable"
+                else PATTERN_COLORS[pattern_name_for_legend]
+            )
+
             legend_handles.append(
                 plt.Line2D(
                     [0],
                     [0],
-                    color=color,
-                    lw=6,
-                    label=f"{legend_name}: {100.0 * fraction:.1f}%",
+                    marker="o",
+                    linestyle="",
+                    markerfacecolor=color,
+                    markeredgecolor="none",
+                    markersize=8.0,
+                    # Percentage only: no pattern-name text.
+                    label=f"{100.0 * fraction:.1f}%",
                 )
             )
 
         if legend_handles:
-            # Put the legend in the reserved figure margin below the map so it
-            # never overlaps the pixel image. Stable/Mixed is intentionally not
-            # included in this annotation legend.
+            # annotation_x = (
+            #     0.98 * base_width
+            # ) / figure_width
+            annotation_x=0.4
+
             fig.legend(
                 handles=legend_handles,
                 loc="lower center",
-                bbox_to_anchor=(0.5, 0.025),
-                ncol=min(2, len(legend_handles)),
+                bbox_to_anchor=(annotation_x, 0.01),
+                ncol=3,
                 frameon=False,
-                columnspacing=1.,
-                handlelength=1.35,
-                handletextpad=0.60,
-                fontsize=12.,
                 borderaxespad=0.0,
+                fontsize=15.0,
+                handlelength=0.8,
+                handletextpad=0.55,
+                labelspacing=0.8,
+                columnspacing=0.0,
             )
 
-        # Reserve a larger bottom margin for the external legend so the spatial
-        # image and annotations remain completely separated.
-        fig.subplots_adjust(
-            left=0.04,
-            right=0.98,
-            bottom=0.20,
-            top=0.88,
-        )
+            # =============================================================
+            # Right-side color key: pattern name + color
+            # =============================================================
+            key_patterns = [
+                "Increase",
+                "Decrease",
+                "Mid-stage peak",
+                "Mid-stage trough",
+                "Stable",
+            ]
+
+            key_handles = [
+                plt.Line2D(
+                    [0], [0],
+                    marker="o",
+                    linestyle="",
+                    markerfacecolor=(
+                        BG_COLOR if p == "Stable" else PATTERN_COLORS[p]
+                    ),
+                    markeredgecolor="none",
+                    markersize=9,
+                    label=p,
+                )
+                for p in key_patterns
+            ]
+
+            key_x = (0.98 * base_width + 0.12) / figure_width
+
+            fig.legend(
+                handles=key_handles,
+                title="Age-associated\n   pattern   ",
+                loc="center left",
+                bbox_to_anchor=(key_x, 0.55),
+                ncol=1,
+                frameon=False,
+                borderaxespad=0.0,
+                fontsize=11,
+                title_fontsize=11,
+                handlelength=0.8,
+                handletextpad=0.55,
+                labelspacing=0.65,
+            )
 
         gene_save_path = _resolve_gene_figure_path(
             save_path=save_path,
@@ -2269,27 +2379,27 @@ def main():
 
         marker_dir = os.path.join(figdir, "marker_case_studies")
         ensure_dir(marker_dir)
-        for gene in MARKER_CASE_GENES:
-            plot_gene_triptych(
-                data=data,
-                gene=gene,
-                save_path=os.path.join(
-                    marker_dir,
-                    f"whole_landscape_{safe_name(gene)}.png",
-                ),
-                title_suffix="Whole landscape (valid domains only)",
-                remove_invalid_background=True,
-            )
-
-        plot_all_domains_top_genes_summary(
-            stats_df=stats_df,
-            save_path=os.path.join(
-                figdir,
-                "all_domains_top_genes_summary.png",
-            ),
-            top_n_show=TOP_GENES_PER_DOMAIN,
-        )
-
+        # for gene in MARKER_CASE_GENES:
+        #     plot_gene_triptych(
+        #         data=data,
+        #         gene=gene,
+        #         save_path=os.path.join(
+        #             marker_dir,
+        #             f"whole_landscape_{safe_name(gene)}.png",
+        #         ),
+        #         title_suffix="Whole landscape (valid domains only)",
+        #         remove_invalid_background=True,
+        #     )
+        #
+        # plot_all_domains_top_genes_summary(
+        #     stats_df=stats_df,
+        #     save_path=os.path.join(
+        #         figdir,
+        #         "all_domains_top_genes_summary.png",
+        #     ),
+        #     top_n_show=TOP_GENES_PER_DOMAIN,
+        # )
+        #
         selected_dir = os.path.join(
             figdir,
             "selected_domain_spatial_maps",
@@ -2312,7 +2422,7 @@ def main():
             stats_df=stats_df,
             save_path=os.path.join(selected_dir, "hippocampus_representative_genes.png"),
             point_size=5,
-            xlim=(724, 0),
+            xlim=(724, -100),
             ylim=(400, 924),
         )
 
@@ -2324,3 +2434,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

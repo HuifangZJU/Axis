@@ -86,7 +86,7 @@ output_dir = Path(
 )
 output_dir.mkdir(parents=True, exist_ok=True)
 
-knot = 30
+knot = 50
 
 gene_marker = "ACTA2"
 protein_marker = "IDO1"

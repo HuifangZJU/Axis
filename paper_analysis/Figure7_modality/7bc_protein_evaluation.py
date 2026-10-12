@@ -57,10 +57,15 @@ VIRTUAL_PROTEIN_PATH = (
     "/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/presta/"
     "virtual_protein_1.000_presta_knot30_fitlog1p1_minimal.h5ad"
 )
+# VIRTUAL_PROTEIN_PATH = ("/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/virtual_protein_1.000.h5ad")
 REAL_GENE_PATH = (
     "/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/presta/"
     "LUAD_2_A_xenium_0.000_presta_knot30_fitlog1p1_minimal.h5ad"
 )
+# REAL_GENE_PATH = ("/media/huifang/data/registration/phenocycler/huifang/virtual_tissue/virtual_pair/LUAD_2_A_xenium_0.000.h5ad")
+
+
+
 OUTDIR = "/media/huifang/data/registration/paper_analysis/Figure7_modality/bc_evaluation/"
 
 # Saved numerical results / plotting payload.
@@ -88,9 +93,9 @@ GENE_LOG1P = True
 PROTEIN_LOG1P = True
 MIN_VALID_CELLS = 20
 
-FIG_DPI = 600
+FIG_DPI = 350
 INVERT_Y = True
-POINT_SIZE = 1.0
+POINT_SIZE = 0.1
 N_MARKERS_TO_PLOT = 8
 PLOT_MARKERS: Optional[List[str]] = None  # e.g. ["IDO1", "CD44", "Pan-Cytokeratin"]
 
@@ -110,8 +115,8 @@ HEATMAP_CLUSTER_DISTANCE = "correlation"
 # if the intended interpretation is association magnitude irrespective of direction.
 HEATMAP_RANK_BY_ABS_COGNATE = True
 
-SCATTER_POINT_SIZE = 0.20
-SCATTER_ALPHA = 0.30
+SCATTER_POINT_SIZE = 2.0
+SCATTER_ALPHA = 0.10
 SCATTER_COLOR = "0.45"
 SCATTER_RANGE_PERCENTILES = (0.1, 99.9)
 SCATTER_RANGE_PAD_FRAC = 0.035
@@ -545,15 +550,17 @@ def _heatmap_figsize(df: pd.DataFrame) -> Tuple[float, float]:
 
 
 def _format_heatmap_axes(ax, title: str) -> None:
-    ax.set_title(title,fontsize=16)
-    ax.set_xlabel("Gene markers (Real)",fontsize=14,weight="bold")
-    ax.set_ylabel("Protein markers (Virtual)",fontsize=14,weight="bold")
-    ax.tick_params(axis="x", rotation=90,labelsize=12)
-    ax.tick_params(axis="y", rotation=0,labelsize=12)
-    for tick_label in ax.get_yticklabels():
-        tick_label.set_fontstyle("italic")
+    ax.set_title(title, fontsize=16,pad=15)
+    ax.set_xlabel("Measured gene markers", fontsize=14, weight="bold")
+    ax.set_ylabel("Generated protein markers", fontsize=14, weight="bold")
+    ax.tick_params(axis="x", rotation=90, labelsize=12)
+    ax.tick_params(axis="y", rotation=0, labelsize=12)
+
+    # Gene symbols are italicized; protein-marker names remain roman.
     for tick_label in ax.get_xticklabels():
         tick_label.set_fontstyle("italic")
+    for tick_label in ax.get_yticklabels():
+        tick_label.set_fontstyle("normal")
 
 def plot_correlation_heatmap(
     corr_df: pd.DataFrame,
@@ -571,7 +578,7 @@ def plot_correlation_heatmap(
         vmax=1,
         linewidths=0.12,
         linecolor="white",
-        cbar_kws={"label": "Pearson correlation", "shrink": 0.72,"pad":0.008},
+        cbar_kws={"label": r"Pearson $r$", "shrink": 0.72, "pad": 0.008},
         ax=ax,
     )
 
@@ -583,7 +590,7 @@ def plot_correlation_heatmap(
     for b in _pattern_cluster_boundaries(order_info):
         ax.axhline(b, color="0.55", lw=1.25, alpha=0.75)
         ax.axvline(b, color="0.55", lw=1.25, alpha=0.75)
-    _format_heatmap_axes(ax, " Protein (virtual) – Gene (Real) Correlation")
+    _format_heatmap_axes(ax, "Gene–protein concordance across matched cells")
     fig.tight_layout()
     save_fig(fig, path)
 
@@ -607,6 +614,61 @@ def _robust_axis_range(values: np.ndarray) -> Tuple[float, float]:
     return float(lo - pad), float(hi + pad)
 
 
+
+
+
+SCATTER_POINT_SIZE = 1.0
+SCATTER_DENSITY_CMAP = "coolwarm"
+SCATTER_DENSITY_COLOR_PERCENTILES = (1.0, 99.7)
+
+# Density-dependent transparency for the real scatter points.
+# Low-density observations are nearly transparent; high-density observations
+# approach full opacity.  ALPHA_POWER > 1 suppresses sparse observations more
+# aggressively while preserving dense cores.
+SCATTER_DENSITY_ALPHA_MIN = 0.008
+SCATTER_DENSITY_ALPHA_MAX = 0.92
+SCATTER_DENSITY_ALPHA_POWER = 2.
+
+# Gaussian redistribution dots use the same density-aware transparency trend,
+# multiplied by this global scale.  Because many replicas overlap, keep this
+# substantially below 1.0.
+SCATTER_GAUSSIAN_ALPHA_SCALE = 0.22
+
+# ------------------------------------------------------------------
+# Adaptive Gaussian scatter rendering
+# ------------------------------------------------------------------
+# A moderate kNN radius is used only to estimate local point density
+# in the gene-protein correlation space.  It does NOT smooth the
+# biological measurements or alter the reported correlations.
+SCATTER_PILOT_K = 300
+
+# Gaussian bandwidth is measured in the standardized correlation space.
+# For a typical-density point (pilot radius ~= median pilot radius),
+# sigma ~= BASE_SCALE * median_radius.  Sparse points have a larger
+# pilot radius and therefore receive a much wider Gaussian kernel.
+SCATTER_GAUSSIAN_BASE_SCALE = 10
+SCATTER_GAUSSIAN_BANDWIDTH_POWER = 1
+SCATTER_GAUSSIAN_MIN_SCALE = 10
+SCATTER_GAUSSIAN_MAX_SCALE = 10
+
+# Dense points retain almost all of their weight at the measured
+# coordinate.  As local sparsity increases, progressively more visual
+# weight is redistributed through the Gaussian kernel.
+SCATTER_SPREAD_START_RATIO = 1.05
+SCATTER_SPREAD_FULL_RATIO = 2.50
+SCATTER_SPREAD_POWER = 1.20
+SCATTER_MAX_SPREAD_FRACTION = 0.95
+
+# Monte-Carlo Gaussian "splatting" keeps the final panel looking like a
+# true scatter plot instead of a raster/KDE image.  The original points
+# are always drawn; these replicas are visualization-only samples from
+# each sparse point's Gaussian kernel.
+SCATTER_GAUSSIAN_REPLICATES = 6
+SCATTER_GAUSSIAN_POINT_SIZE = 0.70
+SCATTER_MAX_GAUSSIAN_POINTS = 1_500_000
+SCATTER_RANDOM_SEED = 1729
+
+
 def plot_paired_scatter(
     ax,
     gene_z: np.ndarray,
@@ -614,52 +676,392 @@ def plot_paired_scatter(
     gene_label: str,
     protein_marker: str,
 ) -> None:
+    """
+    Adaptive-bandwidth Gaussian scatter visualization.
+
+    Every measured cell is retained at its original gene/protein coordinate.
+    In addition, each point can redistribute part of its *visualization weight*
+    through a Gaussian kernel in the gene-protein correlation space.
+
+    Local bandwidth is inverse to point density:
+
+        dense region  -> small kNN radius -> narrow Gaussian -> almost no blur
+        sparse region -> large kNN radius -> wide Gaussian   -> stronger spread
+
+    The Gaussian redistribution is strictly a rendering operation.  It does
+    not alter gene/protein values, cell pairing, spatial maps, heatmaps, or
+    Pearson/Spearman correlations.
+    """
+
+    # ========================================================
+    # 1. ORIGINAL PAIRED OBSERVATIONS
+    # ========================================================
     gene_z = np.asarray(gene_z, dtype=np.float32).reshape(-1)
     protein_z = np.asarray(protein_z, dtype=np.float32).reshape(-1)
-    good = np.isfinite(gene_z) & np.isfinite(protein_z)
-    x, y = gene_z[good], protein_z[good]
 
+    good = np.isfinite(gene_z) & np.isfinite(protein_z)
+    x = gene_z[good]
+    y = protein_z[good]
+
+    if len(x) == 0:
+        ax.text(
+            0.5, 0.5, "No valid observations",
+            transform=ax.transAxes,
+            ha="center", va="center", fontsize=12,
+        )
+        return
+
+    # ========================================================
+    # 2. DISPLAY RANGE
+    # ========================================================
     xlim = _robust_axis_range(x)
     ylim = _robust_axis_range(y)
+
     in_view = (
         (x >= xlim[0]) & (x <= xlim[1]) &
         (y >= ylim[0]) & (y <= ylim[1])
     )
-    ax.scatter(
-        x[in_view], y[in_view],
-        s=SCATTER_POINT_SIZE,
-        alpha=SCATTER_ALPHA,
-        color=SCATTER_COLOR,
-        linewidths=0,
-        rasterized=True,
-    )
 
-    diag_lo, diag_hi = max(xlim[0], ylim[0]), min(xlim[1], ylim[1])
-    if diag_hi > diag_lo:
-        ax.plot(
-            [diag_lo, diag_hi], [diag_lo, diag_hi],
-            ls="--", lw=0.85, color="0.35", alpha=0.75, zorder=4,
+    xv = x[in_view]
+    yv = y[in_view]
+
+    if len(xv) == 0:
+        xv = x
+        yv = y
+
+    n_view = len(xv)
+
+    # ========================================================
+    # 3. STANDARDIZED CORRELATION SPACE
+    #
+    # Neighbor searching and Gaussian spreading are both performed in
+    # the gene-protein scatter space, NOT in tissue x/y coordinates.
+    # Standardization prevents one axis from dominating Euclidean
+    # distance if their numerical ranges differ.
+    # ========================================================
+    x_mean = float(np.mean(xv))
+    y_mean = float(np.mean(yv))
+    x_scale = max(float(np.std(xv)), 1e-8)
+    y_scale = max(float(np.std(yv)), 1e-8)
+
+    xs = (xv - x_mean) / x_scale
+    ys = (yv - y_mean) / y_scale
+    xy = np.column_stack([xs, ys]).astype(np.float32)
+
+    # Default values for a tiny dataset.
+    density_color = np.ones(n_view, dtype=np.float64)
+    bandwidth = np.zeros(n_view, dtype=np.float64)
+    spread_fraction = np.zeros(n_view, dtype=np.float64)
+
+    if n_view > 2:
+        # ====================================================
+        # 4. PILOT kNN RADIUS = LOCAL SPARSITY ESTIMATE
+        # ====================================================
+        pilot_k = min(max(int(SCATTER_PILOT_K), 1), n_view - 1)
+        tree = cKDTree(xy)
+
+        pilot_radius, _ = tree.query(
+            xy,
+            k=[pilot_k + 1],  # first neighbor is the point itself
+            workers=-1,
+        )
+        pilot_radius = np.asarray(pilot_radius, dtype=np.float64).reshape(-1)
+
+        positive_radius = pilot_radius[
+            np.isfinite(pilot_radius) & (pilot_radius > 0)
+        ]
+        if positive_radius.size:
+            eps = max(
+                float(np.percentile(positive_radius, 0.1)) * 0.1,
+                1e-12,
+            )
+        else:
+            eps = 1e-12
+
+        pilot_radius = np.maximum(pilot_radius, eps)
+        reference_radius = max(float(np.median(pilot_radius)), eps)
+        relative_radius = pilot_radius / reference_radius
+
+        # ====================================================
+        # 5. TRUE ADAPTIVE GAUSSIAN BANDWIDTH
+        #
+        # This is the quantity that controls how far a point's visual
+        # weight is spread in the correlation space.
+        #
+        # power > 1 makes sparse-region bandwidth grow faster.
+        # ====================================================
+        bandwidth = (
+            SCATTER_GAUSSIAN_BASE_SCALE
+            * reference_radius
+            * np.power(relative_radius, SCATTER_GAUSSIAN_BANDWIDTH_POWER)
         )
 
+        bandwidth = np.clip(
+            bandwidth,
+            SCATTER_GAUSSIAN_MIN_SCALE * reference_radius,
+            SCATTER_GAUSSIAN_MAX_SCALE * reference_radius,
+        )
+
+        # ====================================================
+        # 6. FRACTION OF VISUAL WEIGHT TO REDISTRIBUTE
+        #
+        # Typical/dense cells remain almost exactly where measured.
+        # Boundary/sparse cells progressively move visual weight into
+        # their broader Gaussian kernel.
+        # ====================================================
+        spread_denominator = max(
+            SCATTER_SPREAD_FULL_RATIO - SCATTER_SPREAD_START_RATIO,
+            1e-8,
+        )
+        spread_level = np.clip(
+            (relative_radius - SCATTER_SPREAD_START_RATIO)
+            / spread_denominator,
+            0.0,
+            1.0,
+        )
+        spread_fraction = (
+            SCATTER_MAX_SPREAD_FRACTION
+            * np.power(spread_level, SCATTER_SPREAD_POWER)
+        )
+
+        # ====================================================
+        # 7. LOCAL DENSITY USED ONLY FOR POINT COLOR
+        # ====================================================
+        local_density = (
+            float(pilot_k)
+            / (np.pi * np.maximum(pilot_radius, eps) ** 2)
+        )
+        density_color = np.log1p(local_density)
+
+    # ========================================================
+    # 8. ROBUST DENSITY COLOR SCALE
+    # ========================================================
+    finite_density = density_color[np.isfinite(density_color)]
+    if finite_density.size:
+        color_vmin, color_vmax = np.percentile(
+            finite_density,
+            SCATTER_DENSITY_COLOR_PERCENTILES,
+        )
+        if (
+            not np.isfinite(color_vmin)
+            or not np.isfinite(color_vmax)
+            or color_vmax <= color_vmin
+        ):
+            color_vmin = float(np.min(finite_density))
+            color_vmax = float(np.max(finite_density))
+            if color_vmax <= color_vmin:
+                color_vmax = color_vmin + 1.0
+    else:
+        color_vmin, color_vmax = 0.0, 1.0
+
+    denom = max(float(color_vmax - color_vmin), 1e-12)
+    density_norm = np.clip(
+        (density_color - color_vmin) / denom,
+        0.0,
+        1.0,
+    )
+
+    # Density-dependent transparency.  This is independent of the colormap:
+    #   density_norm ~= 0 -> nearly transparent
+    #   density_norm ~= 1 -> nearly solid
+    # Increasing SCATTER_DENSITY_ALPHA_POWER makes sparse points fade faster.
+    density_alpha = (
+        SCATTER_DENSITY_ALPHA_MIN
+        + (SCATTER_DENSITY_ALPHA_MAX - SCATTER_DENSITY_ALPHA_MIN)
+        * np.power(density_norm, SCATTER_DENSITY_ALPHA_POWER)
+    )
+    density_alpha = np.clip(density_alpha, 0.0, 1.0)
+
+    cmap = plt.get_cmap(SCATTER_DENSITY_CMAP)
+    base_rgba = cmap(density_norm)
+
+    # ========================================================
+    # 9. GAUSSIAN REDISTRIBUTION FOR SPARSE POINTS
+    #
+    # This is Monte-Carlo Gaussian splatting.  Each replica is a tiny
+    # visualization-only dot sampled from N(original_point, bandwidth).
+    # The random seed is fixed, so figures are reproducible.
+    # ========================================================
+    sparse_idx = np.flatnonzero(spread_fraction > 1e-4)
+
+    if sparse_idx.size:
+        requested_replicates = max(int(SCATTER_GAUSSIAN_REPLICATES), 1)
+
+        # Keep rendering bounded for very large datasets.
+        max_replicates_by_budget = max(
+            int(SCATTER_MAX_GAUSSIAN_POINTS // max(len(sparse_idx), 1)),
+            1,
+        )
+        n_replicates = min(requested_replicates, max_replicates_by_budget)
+
+        # If even one replica per sparse source exceeds the rendering
+        # budget, keep the most strongly redistributed sources.
+        if len(sparse_idx) > int(SCATTER_MAX_GAUSSIAN_POINTS):
+            rank = np.argsort(spread_fraction[sparse_idx])[::-1]
+            sparse_idx = sparse_idx[rank[: int(SCATTER_MAX_GAUSSIAN_POINTS)]]
+            n_replicates = 1
+
+        rng = np.random.default_rng(SCATTER_RANDOM_SEED)
+
+        source_xs = xs[sparse_idx]
+        source_ys = ys[sparse_idx]
+        source_bw = bandwidth[sparse_idx]
+        source_spread = spread_fraction[sparse_idx]
+        source_rgba = base_rgba[sparse_idx].copy()
+        source_density_alpha = density_alpha[sparse_idx]
+
+        # Gaussian replicas inherit the same density-dependent transparency.
+        # Sparse boundary observations therefore remain soft, while regions
+        # approaching the dense core become progressively more visible.
+        # sqrt(n) keeps total opacity reasonably stable as replica count changes.
+        kernel_alpha = (
+            SCATTER_GAUSSIAN_ALPHA_SCALE
+            * source_density_alpha
+            * source_spread
+            / np.sqrt(float(n_replicates))
+        )
+
+        for _ in range(n_replicates):
+            dx = rng.normal(
+                loc=0.0,
+                scale=source_bw,
+                size=len(sparse_idx),
+            )
+            dy = rng.normal(
+                loc=0.0,
+                scale=source_bw,
+                size=len(sparse_idx),
+            )
+
+            # Convert Gaussian samples from standardized correlation
+            # space back to the displayed gene/protein coordinates.
+            x_kernel = x_mean + (source_xs + dx) * x_scale
+            y_kernel = y_mean + (source_ys + dy) * y_scale
+
+            kernel_in_view = (
+                (x_kernel >= xlim[0]) & (x_kernel <= xlim[1]) &
+                (y_kernel >= ylim[0]) & (y_kernel <= ylim[1])
+            )
+
+            if not np.any(kernel_in_view):
+                continue
+
+            kernel_rgba = source_rgba[kernel_in_view].copy()
+            kernel_rgba[:, 3] = np.clip(
+                kernel_alpha[kernel_in_view],
+                0.0,
+                1.0,
+            )
+
+            ax.scatter(
+                x_kernel[kernel_in_view],
+                y_kernel[kernel_in_view],
+                c=kernel_rgba,
+                s=SCATTER_GAUSSIAN_POINT_SIZE,
+                linewidths=0,
+                edgecolors="none",
+                rasterized=True,
+                zorder=1,
+            )
+
+    # ========================================================
+    # 10. ORIGINAL REAL POINTS
+    #
+    # Dense points retain essentially their original opacity.  Sparse
+    # boundary points keep a faint real-coordinate core while most of
+    # their visual weight has been redistributed through the Gaussian.
+    # This suppresses hard artificial envelopes without replacing the
+    # plot with a raster density image.
+    # ========================================================
+    # Original points use density-controlled opacity as well.  Dense points are
+    # nearly solid; sparse boundary points are close to transparent.  The
+    # spread_fraction term further reduces the real-coordinate core when its
+    # visualization weight has been redistributed through the Gaussian kernel.
+    core_alpha = density_alpha * (1.0 - spread_fraction)
+    core_alpha = np.clip(
+        core_alpha,
+        SCATTER_DENSITY_ALPHA_MIN * 0.25,
+        SCATTER_DENSITY_ALPHA_MAX,
+    )
+
+    original_rgba = base_rgba.copy()
+    original_rgba[:, 3] = core_alpha
+
+    # Draw sparse cells first and dense cells last.
+    order = np.argsort(density_color)
+
+    ax.scatter(
+        xv[order],
+        yv[order],
+        c=original_rgba[order],
+        s=SCATTER_POINT_SIZE,
+        linewidths=0,
+        edgecolors="none",
+        rasterized=True,
+        zorder=2,
+    )
+
+    # ========================================================
+    # 11. IDENTITY / REFERENCE LINE
+    # ========================================================
+    diag_lo = max(xlim[0], ylim[0])
+    diag_hi = min(xlim[1], ylim[1])
+
+    if diag_hi > diag_lo:
+        ax.plot(
+            [diag_lo, diag_hi],
+            [diag_lo, diag_hi],
+            ls="--",
+            lw=0.85,
+            color="0.35",
+            alpha=0.75,
+            zorder=4,
+        )
+
+    # ========================================================
+    # 12. AXES
+    # ========================================================
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_box_aspect(1)
-    ax.set_xlabel(f"{gene_label} gene reads",fontsize=14)
-    ax.set_ylabel(f"Generated {protein_marker} signal",fontsize=14)
-    ax.set_title(f"Gene {gene_label} (real) | Protein {protein_marker} (virtual)")
 
-    stats_text = (
-        f"Pearson = {safe_corr(x, y, pearsonr):.2f}\n"
-        f"Spearman = {safe_corr(x, y, spearmanr):.2f}"
+    ax.set_xlabel(
+        f"Measured {gene_label} gene expression (z-score)",
+        fontsize=13,
     )
+    ax.set_ylabel(
+        f"Generated {protein_marker} protein signal (z-score)",
+        fontsize=13,
+    )
+    # ax.set_title(
+    #     f"Gene {gene_label} (real) | Protein {protein_marker} (virtual)"
+    # )
+
+    # ========================================================
+    # 13. ORIGINAL CELL-LEVEL CORRELATION
+    # ========================================================
+    stats_text = (
+        rf"Pearson $r$ = {safe_corr(x, y, pearsonr):.2f}"
+        "\n"
+        rf"Spearman $\rho$ = {safe_corr(x, y, spearmanr):.2f}"
+    )
+
     ax.text(
-        0.035, 0.965, stats_text,
+        0.035,
+        0.965,
+        stats_text,
         transform=ax.transAxes,
-        ha="left", va="top", fontsize=12,
-        bbox=dict(boxstyle="round,pad=0.28", facecolor="white", edgecolor="0.82", alpha=0.90),
+        ha="left",
+        va="top",
+        fontsize=15,
+        bbox=dict(
+            boxstyle="round,pad=0.28",
+            facecolor="white",
+            edgecolor="0.82",
+            alpha=0.90,
+        ),
         zorder=6,
     )
-
 
 def plot_marker_panel(
     protein_marker: str,
@@ -685,15 +1087,15 @@ def plot_marker_panel(
         coords_z[:, 0], coords_z[:, 1], c=gene_z, s=POINT_SIZE,
         cmap="vlag", vmin=-zlim, vmax=zlim, linewidths=0, rasterized=True,
     )
-    axes[0].set_title(f"Real gene: {gene_label}")
-    fig.colorbar(sc0, ax=axes[0], fraction=0.026, pad=0.02, label="z-scored read")
+    axes[0].set_title(f"Measured gene expression: {gene_label}")
+    fig.colorbar(sc0, ax=axes[0], fraction=0.026, pad=0.02, label="Gene expression (z-score)")
 
     sc1 = axes[1].scatter(
         coords_z[:, 0], coords_z[:, 1], c=protein_z, s=POINT_SIZE,
         cmap="vlag", vmin=-zlim, vmax=zlim, linewidths=0, rasterized=True,
     )
-    axes[1].set_title(f"Generated protein: {protein_marker}")
-    fig.colorbar(sc1, ax=axes[1], fraction=0.026, pad=0.02, label="z-scored read")
+    axes[1].set_title(f"Generated protein signal: {protein_marker}")
+    fig.colorbar(sc1, ax=axes[1], fraction=0.026, pad=0.02, label="Protein signal (z-score)")
 
     for ax in axes:
         ax.set_aspect("equal", adjustable="box")
@@ -923,10 +1325,10 @@ def evaluate_and_save() -> None:
 
     full_corr_df = pd.DataFrame(
         full_corr,
-        index=pd.Index(all_proteins, name="Generated protein"),
+        index=pd.Index(all_proteins, name="Generated protein marker"),
         columns=pd.Index(
             [str(label) for label, _ in all_gene_entries],
-            name="Xenium gene",
+            name="Measured gene marker",
         ),
     )
     full_corr_df.to_csv(FULL_CORR_CSV)
@@ -1076,3 +1478,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

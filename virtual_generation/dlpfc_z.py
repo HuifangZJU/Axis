@@ -637,13 +637,13 @@ ATTR_SPATIAL_BANDWIDTH = 6
 
 
 
-for GROUP_ID in [1]:
+for GROUP_ID in [2]:
 # for GROUP_ID in [1]:
     print(f"group id {GROUP_ID}")
     AXIS_OUT = os.path.join(ROOT, "pairwise_output", f"group_{GROUP_ID}")
     # gene subset
     # for MODE in ["query","analysis","virtual_cf"]:
-    for MODE in ["integration"]:
+    for MODE in ["query"]:
         OUT_DIR = os.path.join(
             ROOT,
             "virtual_tissue",
@@ -663,13 +663,13 @@ for GROUP_ID in [1]:
 
         if MODE=="query":
             ANCHOR_IDS = [1, 2]
-            QUERY_AXIS_VALUES = [80, 160, 240]
+            # QUERY_AXIS_VALUES = [80, 160, 240]
 
-            # QUERY_AXIS_VALUES = np.arange(20, 301, 10).tolist()
+            QUERY_AXIS_VALUES = np.arange(20, 301, 10).tolist()
             GENE_SUBSET = ["PCP4"]
             # GENE_SUBSET=None
             anchor_bank = load_anchor_bank()
-            run_query(save_meta=True)
+            run_query(save_meta=False)
 
 
         if MODE == "analysis":

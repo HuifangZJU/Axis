@@ -2174,7 +2174,7 @@ class AxisMethodIllustrator:
         funcs = {
             # "figure1": self.figure1_native_discrete_stack,
             # "figure2": self.figure2_native_pseudo_stack,
-            "figure3": self.figure3_transition_field_3d,
+            # "figure3": self.figure3_transition_field_3d,
             "figure4": self.figure4_virtual_generation_3d,
             "figure5": self.figure5_matched_analysis_3d,
             "figure6": self.figure6_output_summary,

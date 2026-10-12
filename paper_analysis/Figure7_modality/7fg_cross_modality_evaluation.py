@@ -450,7 +450,7 @@ def plot_pearson_histogram_kde(
     ax.text(
         median,
         ax.get_ylim()[1] * 0.97,
-        f"  median = {median:.2f}",
+        f"  Median $r$ = {median:.2f}",
         ha="left",
         va="top",
         fontsize=layout.histogram_tick_fontsize,
@@ -462,7 +462,7 @@ def plot_pearson_histogram_kde(
         min(1.0, float(np.max(values)) + 0.10),
     )
     ax.set_xlabel(
-        "Pearson correlation ($r$)",
+        "Pearson $r$ (measured vs predicted)",
         fontsize=layout.histogram_label_fontsize,
     )
     ax.set_ylabel(
@@ -470,10 +470,11 @@ def plot_pearson_histogram_kde(
         fontsize=layout.histogram_label_fontsize,
     )
     ax.set_title(
-        "Prediction agreement across proteins",
+        "Measured-predicted agreement across protein targets",
         loc="left",
         fontsize=layout.histogram_title_fontsize,
         pad=8,
+        x=-0.13
     )
     ax.tick_params(
         axis="both",
@@ -658,7 +659,7 @@ def plot_raw_spatial_map(
     ax.text(
         0.5,
         title_y,
-        f" — {state_label}",
+        f" | {state_label}",
         transform=ax.transAxes,
         ha="left",
         va="bottom",
