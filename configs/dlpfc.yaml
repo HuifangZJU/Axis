@@ -1,0 +1,52 @@
+# Human dorsolateral prefrontal cortex (DLPFC), 10x Visium
+# Maynard et al., Nat. Neurosci. 2021; https://github.com/LieberInstitute/HumanPilot
+# 12 sections in 3 groups of 4 (relative depths 0, 10, 300, 310 µm within a group).
+
+name: dlpfc
+root: DLPFC/huifang
+raw: DLPFC                        # h5adfile/ and original_data/{sample}/spatial/
+humanpilot: humanpilot            # tissue_positions_list per sample
+groups: [0, 1, 2]
+sample_groups:
+  0: ["151507", "151508", "151509", "151510"]
+  1: ["151669", "151670", "151671", "151672"]
+  2: ["151673", "151674", "151675", "151676"]
+samples: [0, 1, 2, 3]
+positions_um: {0: 0, 1: 10, 2: 310, 3: 320}
+
+canvas_size: 512
+preprocess:
+  min_cells: 3
+  min_genes: 200
+  target_sum: 1.0e+4
+  log1p: true
+pseudoimage:
+  n_comps: 10
+  patch_size: 4                   # as in pipelines/preprocessing/dlpfc.py
+  sigma: 2
+  bilateral_weight: 0.1
+
+model:
+  in_channels: 3
+  fusion: transformer
+  checkpoint: ${AXIS_DATA_DIR}/DLPFC/huifang/trained_models/group{group}/model_1000.pth
+
+generation:                       # Fig. 4a-g (dense depth series)
+  anchors: [1, 2]
+  queries: [40, 70, 100, 130, 160, 190, 220, 250, 280]
+  grid: visium
+  grid_size: 80
+  max_dist: 5.0
+  spatial_bandwidth: 1
+  attr_spatial_bandwidth: 6
+  knn: 48
+  min_neighbors: 1
+  attr_keys: [layer_guess_reordered]
+
+integration:                      # Fig. 4h-k (population level)
+  reference: 0
+  grid_size: 80
+  fuse_radius: 10
+  alpha: 0.6
+  keep_nuc_frac: 0.6
+  pca_dim: 32

@@ -1,0 +1,47 @@
+# TgCRND8 Alzheimer's-disease and wild-type mouse brain, 10x Xenium (10x Genomics data portal)
+# Group 0: Tg 2.5, 5.7, 17.9 months; group 1: WT 2.5, 5.7, 13.4 months.
+
+name: xenium_mouse_brain
+root: xenium/mouse_brain          # transition-field inputs/outputs
+analysis_root: mouse_brain        # virtual tissues, joint domains (Figs. 5-6)
+raw_images: xenium/raw_data       # Xenium output folders with morphology_down10x.png
+groups: [0]
+samples: [0, 1, 2, 4, 5]
+sample_names:
+  0: Tg_2.5m
+  1: Tg_5.7m
+  2: Tg_17.9m
+  3: WT_2.5m
+  4: WT_5.7m
+  5: WT_13.4m
+positions_months: {0: 2.5, 1: 5.7, 2: 17.9}
+query_months: [4.1, 8.25, 11.8, 14.85]
+
+canvas_size: 1024
+preprocess:
+  min_counts: 100
+  min_cells: 10
+  target_sum: 1.0e+4
+  log1p: true
+  dapi_clahe: {clip_limit: 2.0, tile_grid_size: [8, 8], dilate_iterations: 2}
+pseudoimage:
+  n_comps: 10
+  preset: xenium                  # 8-px cells -> 128x128, values < 0.01 zeroed
+
+model:
+  in_channels: 1                  # DAPI
+  fusion: linear
+  checkpoint: ${AXIS_DATA_DIR}/xenium/mouse_brain/trained_models/model_1000.pth
+training:                         # encoded in the checkpoint names (win31_21)
+  morph_win: 31
+  mol_win: 21
+
+generation:
+  grid: pixel
+  grid_size: 256
+  max_dist: 8.0
+  spatial_bandwidth: 1.0
+  attr_spatial_bandwidth: 4
+  knn: 48
+  min_neighbors: 3
+  attr_keys: [axis_joint_domain]

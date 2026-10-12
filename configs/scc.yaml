@@ -1,0 +1,48 @@
+# Human cutaneous squamous cell carcinoma (SCC), 10x Visium
+# Ji et al., Cell 2020; GEO GSE144240. Four patients x three serial sections (0, 10, 20 µm).
+# Parameters follow Methods ("Human SCC 10x Visium") and the pipeline scripts in
+# reproducibility/pipelines/*/scc*.py.
+
+name: scc
+root: SCC/huifang                 # processed data, relative to $AXIS_DATA_DIR
+raw: SCC/paste                    # original counts / coordinates / H&E (PASTE format)
+istar: SCC/istar                  # iSTAR super-resolution outputs (Fig. 2k-m)
+ablation: SCC/huifang/ablation    # degraded-morphology inputs (Fig. 2j)
+groups: [2, 5, 9, 10]             # patients
+samples: [0, 1, 2]
+positions_um: {0: 0, 1: 10, 2: 20}
+
+canvas_size: 512
+preprocess:
+  min_cells: 15
+  min_genes: 100
+  target_sum: 1.0e+4
+  log1p: true
+pseudoimage:
+  n_comps: 10
+  preset: visium                  # 16-px Gaussian cells -> 32x32, median filter, nearest resize to 64x64
+
+model:
+  in_channels: 3                  # H&E
+  fusion: transformer
+  checkpoint: ${AXIS_DATA_DIR}/SCC/huifang/trained_models/scc_patient{group}_img_win9_gene_win5_frac0.95_gene0.5_generegu0/saved_models/model_1000.pth
+training:                         # encoded in the released checkpoint name
+  morph_win: 9
+  mol_win: 5
+  lambda_morph: 1.0
+  lambda_mol: 0.5
+  lambda_smooth: 1.0
+  epochs: 1000
+  lr: 1.0e-4
+
+generation:                       # Fig. 3 (held-out 10-µm section)
+  anchors: [0, 2]
+  query: 10
+  grid: visium
+  grid_size: 40
+  max_dist: 10.0                  # canvas px
+  spatial_bandwidth: 3            # canvas px (see "Notes for authors" in the release PR)
+  attr_spatial_bandwidth: 4
+  knn: 48
+  min_neighbors: 1
+  attr_keys: [original_clusters]

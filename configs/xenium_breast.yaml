@@ -1,0 +1,16 @@
+# Human breast cancer, paired 10x Xenium sections (10x Genomics data portal)
+
+name: xenium_breast
+root: breast_cancer
+canvas_size: 2048
+model:
+  in_channels: 1
+  fusion: linear
+training:                         # encoded in the checkpoint names (win31_21)
+  morph_win: 31
+  mol_win: 21
+preprocess:
+  min_counts: 100
+  min_cells: 10
+evaluation:
+  n_landmarks: 20
