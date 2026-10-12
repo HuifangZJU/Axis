@@ -1,5 +1,8 @@
 name: Docs
 
+# Builds the site on every pull request and publishes it to GitHub Pages on
+# pushes to main. One-time setup: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions" (without it the deploy step fails with HTTP 404).
 on:
   push:
     branches: [main]
@@ -19,13 +22,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install "mkdocs>=1.5" "mkdocs-material>=9.4" "mkdocstrings[python]>=0.24" "pymdown-extensions>=10.0"
+      - run: pip install "mkdocs>=1.6" "mkdocs-material>=9.4" "mkdocstrings[python]>=0.24" "pymdown-extensions>=10.0"
       - run: mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+        if: github.event_name != 'pull_request'
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: site
@@ -39,4 +44,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
