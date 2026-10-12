@@ -82,3 +82,16 @@ def test_category_colours_do_not_depend_on_present_categories():
     full, partial = colours(["0", "1", "2"] * 3), colours(["0", "2"] * 3)
     assert partial["2"] == full["2"]
     plt.close("all")
+
+
+def test_checkpoint_must_match_the_network_when_not_training(toy_series, tmp_path):
+    from axis.registration import TransitionFieldNet, save_checkpoint
+
+    image = toy_series[0].uns["axis"]["image"]
+    channels = 1 if image.ndim == 2 else image.shape[2]
+    n_comps = toy_series[0].uns["axis"]["pseudoimage"].shape[-1]
+    save_checkpoint(TransitionFieldNet(channels, n_comps, fusion_module="linear"), tmp_path / "linear.pth")
+    with pytest.raises(ValueError, match="untrained"):  # default fusion="transformer" does not match
+        axis.tl.fit_transition(toy_series, checkpoint=tmp_path / "linear.pth", epochs=0, device="cpu")
+    fields = axis.tl.fit_transition(toy_series, checkpoint=tmp_path / "linear.pth", fusion="linear", epochs=0, device="cpu")
+    assert fields[(0, 1)].shape == (2, 64, 64)

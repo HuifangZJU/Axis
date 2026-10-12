@@ -193,7 +193,11 @@ def fit_transition(
         Defaults to all ordered pairs.
     checkpoint
         Optional checkpoint to start from (AXIS ≥ 1.0 format or an original
-        ``state_dict``). With ``epochs=0`` the checkpoint is used as is.
+        ``state_dict``). The network is built from the inputs (image channels,
+        pseudo-image components) and ``fusion``, and the parameters whose names
+        and shapes match are copied. With ``epochs=0`` the checkpoint is used as
+        is, and a checkpoint that leaves network parameters untrained raises
+        ``ValueError``; with training it acts as a warm start.
     model
         A pre-built :class:`axis.registration.TransitionFieldNet` (overrides
         ``fusion`` and ``checkpoint``).
@@ -216,7 +220,7 @@ def fit_transition(
     from .registration.data import PairDataset
     from .registration.inference import predict_field
     from .registration.losses import RegistrationLoss
-    from .registration.model import TransitionFieldNet, load_state_dict_flexible
+    from .registration.model import DERIVED_BUFFERS, TransitionFieldNet, load_state_dict_flexible
     from .registration.train import train_transition_network
 
     device = settings.resolve_device(device)
@@ -226,17 +230,28 @@ def fit_transition(
     in_channels = 1 if images[0].ndim == 2 else images[0].shape[2]
     n_comp = pseudo[0].shape[-1]
 
+    train = bool(epochs) and (max_steps is None or max_steps > 0)
     if model is None:
         model = TransitionFieldNet(in_channels=in_channels, in_gene_channels=n_comp, fusion_module=fusion)
         if checkpoint is not None:
             payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
             state = payload["state_dict"] if isinstance(payload, dict) and "state_dict" in payload else payload
             loaded, skipped = load_state_dict_flexible(model, state)
-            log(f"[axis] loaded {len(loaded)} tensors from {checkpoint} ({len(skipped)} skipped)")
+            untrained = [k for k in model.state_dict() if k not in set(loaded) and k.rsplit(".", 1)[-1] not in DERIVED_BUFFERS]
+            log(
+                f"[axis] loaded {len(loaded)} tensors from {checkpoint} ({len(skipped)} checkpoint tensors "
+                f"skipped, {len(untrained)} network tensors not initialised)"
+            )
+            if untrained and not train:
+                raise ValueError(
+                    f"The checkpoint leaves {len(untrained)} network tensors untrained (e.g. {untrained[:3]}). "
+                    "Match fusion=, the number of pseudo-image components and the image channels to the "
+                    "checkpoint, or train further with epochs > 0 (warm start)."
+                )
 
     dataset = PairDataset(images, pseudo, masks, pairs=pairs)
     history: dict = {}
-    if epochs and (max_steps is None or max_steps > 0):
+    if train:
         loss_fn = RegistrationLoss(
             lambda_morph=lambda_morph,
             lambda_mol=lambda_mol,
