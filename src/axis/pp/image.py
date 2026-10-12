@@ -149,9 +149,10 @@ def prepare_canvas(
             img = np.pad(img, pad, mode="constant", constant_values=255 if not enhance_dapi else 0)
         crop = (0, 0, side)
 
-    pil = Image.fromarray(img)
-    _, final_img, _, final_uv = crop_square_then_resize_square(pil, coords, crop, canvas_size)
-    out = np.asarray(final_img)
+    left, top, side = crop
+    pil = Image.fromarray(img).crop((left, top, left + side, top + side))
+    out = np.asarray(pil.resize((canvas_size, canvas_size), Image.LANCZOS))
+    final_uv = (coords - np.array([left, top])) * (canvas_size / side)
     if grayscale or enhance_dapi:
         out = to_grayscale(out)
     if enhance_dapi:

@@ -1,0 +1,23 @@
+name: Release
+
+# Builds the distribution on a version tag and publishes it to PyPI with
+# trusted publishing (configure the "pypi" environment and a trusted publisher
+# for this repository on pypi.org before the first release).
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

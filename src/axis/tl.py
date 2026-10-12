@@ -222,7 +222,7 @@ def fit_transition(
     device = settings.resolve_device(device)
     images, pseudo, masks = _axis_inputs(adatas, uns_key)
     n = len(adatas)
-    pairs = list(pairs) if pairs is not None else list(permutations(range(n), 2))
+    pairs = [tuple(int(i) for i in p) for p in pairs] if pairs is not None else list(permutations(range(n), 2))
     in_channels = 1 if images[0].ndim == 2 else images[0].shape[2]
     n_comp = pseudo[0].shape[-1]
 
