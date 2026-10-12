@@ -22,9 +22,12 @@ First public release, restructured from the submission snapshot
 * `axis.pp.prepare_canvas` drops an alpha channel and rescales images with
   values above 255 (e.g. 16-bit DAPI) linearly by their maximum instead of
   clipping them; other inputs are unchanged.
-* `axis.pl.spatial` and `axis.pl.matched` colour categories by a fixed
-  category order (the column's categorical order, otherwise a natural sort of
-  the labels), so panels agree when a section lacks a category.
+* `axis.pl.spatial` and `axis.pl.matched` colour categories in a fixed order
+  (the column's categorical order, otherwise a natural sort of the labels).
+  `axis.pl.matched` gives each category one colour across all samples;
+  `axis.pl.spatial` keeps the colours of panels that share the categories
+  (a categorical column with the same categories, or the same `categories=`)
+  when a section lacks one.
 * All machine-specific paths replaced by `AXIS_DATA_DIR` /
   `AXIS_EXPERIMENT_DIR` and per-dataset YAML configs. The wheel ships the
   configs as `axis/_configs` (`setup.py`, `MANIFEST.in`), so
@@ -45,7 +48,7 @@ First public release, restructured from the submission snapshot
       (`TypeError`); it now passes `max_x=1024, max_y=1024`.
 * Compatibility with current NumPy / pandas / anndata / matplotlib releases.
 * Tests, continuous integration and this documentation site. The
-  documentation build validates links and anchors (`mkdocs build --strict`
+  documentation build validates internal links and anchors (`mkdocs build --strict`
   fails on broken ones), and `tests/test_docs.py` checks the `axis` names and
   calls in every Python code block of `README.md` and `docs/` against the API
   without running them.

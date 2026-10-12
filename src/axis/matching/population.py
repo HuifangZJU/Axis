@@ -5,16 +5,19 @@ sample, the pooled evidence of all samples is coupled to the reference support
 by a sparse Sinkhorn transport whose cost mixes spatial and molecular
 dissimilarity,
 
-``C_ri(u) = alpha * C^(x)_ri(u) + (1 - alpha) * C^(z)_ri(u)``  (alpha = 0.6),
+``C_ri(u) = alpha * C^(x)_ri(u) + (1 - alpha) * C^(z)_ri(u)``
+(alpha = 0.6 in [`axis.tl.integrate`][axis.tl.integrate]; the function default is 0.5),
 
 the coupling-weighted profiles are denoised by adaptive singular-value
 thresholding (retained singular-value mass ``eta``) and edge-preserving
 anisotropic diffusion of the latent representation, and the coupling and
-low-rank reconstruction are iterated for a fixed number of rounds. Every source
-sample receives equal total mass, distributed uniformly over its locations.
+low-rank reconstruction are iterated for a fixed number of rounds.
+[`axis.tl.integrate`][axis.tl.integrate] gives every source sample equal total
+mass, distributed uniformly over its locations (``point_masses``).
 
-The entry point is :func:`integrate_population`
-(alias of the original ``spatial_regrid_fuse_visium_gpu_robust``).
+The entry point is [`integrate_population`][axis.matching.population.integrate_population],
+a thin wrapper around the original
+[`spatial_regrid_fuse_visium_gpu_robust`][axis.matching.population.spatial_regrid_fuse_visium_gpu_robust].
 """
 
 from __future__ import annotations
@@ -476,10 +479,63 @@ def spatial_regrid_fuse_visium_gpu_robust(
 
         fixed_grid_pts[grid_support_mask]
 
-    The `grid_size` argument is retained so the exposed call uses the same
-    parameter values as the original method. For the fixed-grid adaptation it
-    is recorded as provenance; lattice geometry is inferred from the supplied
-    Visium coordinates.
+    Parameters
+    ----------
+    adata
+        Pooled evidence: coordinates in ``obsm["spatial"]`` and non-negative
+        molecular values in ``X``.
+    fixed_grid_pts
+        ``(M, 2)`` output locations, in the frame of ``obsm["spatial"]``.
+    grid_support_mask
+        Boolean mask of length ``M`` selecting the output locations.
+    point_masses
+        Mass of every evidence point (normalised to sum to 1; default uniform).
+    fuse_radius
+        Radius around each evidence point within which output locations are
+        candidate coupling partners (``None``: all output locations).
+    k_mask
+        Maximum number of candidate output locations per evidence point (the
+        nearest are kept).
+    alpha
+        Weight ``α`` of the spatial cost in Eq. (36) (``1 - alpha`` for the
+        molecular cost).
+    pca_dim
+        Dimension of the PCA embedding used for the molecular cost.
+    outer_loops
+        Number of coupling / low-rank rounds.
+    keep_nuc_frac
+        Retained singular-value mass ``η`` of Eq. (38).
+    knee_mode
+        Select the rank at the knee of the singular-value spectrum instead of
+        by ``keep_nuc_frac``.
+    aniso_iters
+        Number of anisotropic-diffusion steps on the latent representation
+        (``0``: off).
+    aniso_tau
+        Diffusion step size.
+    aniso_kappa
+        ``κ`` of Eq. (39).
+    gene_chunk
+        Number of features transported at a time.
+    epsilon
+        Entropic regularisation of the Sinkhorn kernel ``exp(-C / epsilon)``.
+    sinkhorn_iters
+        Maximum number of Sinkhorn iterations.
+    device
+        Torch device; ``"cuda"`` falls back to the CPU when CUDA is unavailable.
+    use_raw
+        Use ``adata.raw.X`` instead of ``X`` when ``adata.raw`` is set.
+    attr_schema
+        ``{column: "categorical" | "continuous"}`` for ``obs`` annotations
+        transferred with the final coupling.
+
+    Returns
+    -------
+    anndata.AnnData
+        Integrated profiles at ``fixed_grid_pts[grid_support_mask]``
+        (``obsm["spatial"]``), with the transferred annotations in ``obs``
+        (category probabilities in ``obsm["{column}_probabilities"]``) and the
+        parameters in ``uns``.
     """
     if device == "cuda" and not torch.cuda.is_available():
         log("[axis] CUDA requested but unavailable; using CPU.", level=2)
@@ -914,5 +970,35 @@ def spatial_regrid_fuse_visium_gpu_robust(
     return new_adata
 
 
-#: Public name of the population-integration routine.
-integrate_population = spatial_regrid_fuse_visium_gpu_robust
+def integrate_population(adata: AnnData, fixed_grid_pts, grid_support_mask, *args, **kwargs) -> AnnData:
+    """Sparse Sinkhorn population integration on a fixed output support (Methods Eqs. (36)-(39)).
+
+    Public name of
+    [`spatial_regrid_fuse_visium_gpu_robust`][axis.matching.population.spatial_regrid_fuse_visium_gpu_robust],
+    which documents all parameters; the arguments are passed on unchanged.
+    [`axis.tl.integrate`][axis.tl.integrate] builds the pooled input from a list
+    of samples and their transition fields.
+
+    Parameters
+    ----------
+    adata
+        Pooled evidence: coordinates in ``obsm["spatial"]`` and non-negative
+        molecular values in ``X``.
+    fixed_grid_pts
+        ``(M, 2)`` output locations.
+    grid_support_mask
+        Boolean mask of length ``M`` selecting the output locations.
+    *args
+        Further positional arguments, in the order of
+        ``spatial_regrid_fuse_visium_gpu_robust``.
+    **kwargs
+        Further keyword arguments, e.g. ``point_masses``, ``fuse_radius``,
+        ``alpha`` (default 0.5), ``keep_nuc_frac`` (default 0.9), ``pca_dim``,
+        ``outer_loops``, ``device`` (default ``"cuda"``) and ``attr_schema``.
+
+    Returns
+    -------
+    anndata.AnnData
+        Integrated profiles at ``fixed_grid_pts[grid_support_mask]``.
+    """
+    return spatial_regrid_fuse_visium_gpu_robust(adata, fixed_grid_pts, grid_support_mask, *args, **kwargs)

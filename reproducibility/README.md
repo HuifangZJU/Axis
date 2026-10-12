@@ -84,12 +84,16 @@ scripts**, which are kept as they were used for the paper.
     - `scc_istar.py` only displays the iSTAR pseudo-images. Its commented save
       call cannot be re-enabled as is, because `image`, `labels`, `gene_mask`
       and `out_dir` are not defined.
-- **Stage 3.** The inference scripts do not save new fields. `run_scc.py`,
-  `run_dlpfc.py` and `run_xenium_mouse.py` only post-process the files already
-  in `network_input/` and `pairwise_output/`, and stop with
-  `FileNotFoundError` when a file they need is missing; `run_phenocycler.py`
-  computes and plots the fields without saving them. To compute and save the
-  fields, uncomment:
+- **Stage 3.** The inference scripts do not save new fields. `run_scc.py`
+  and `run_dlpfc.py` only copy the reference-frame coordinates from
+  `network_input/` and `pairwise_output/` into `obsm["spatial_axis"]` of the
+  `h5ad/<group>_<sample>.h5ad` files (a group without such files is skipped
+  with a log line), and `run_xenium_mouse.py` only maps the existing
+  `pairwise_output/` results onto the reference sample. They stop with an
+  error (e.g. `FileNotFoundError`) when a `network_input/` or
+  `pairwise_output/` file they need is missing. `run_phenocycler.py` computes
+  and plots the fields without saving them. To compute and save the fields,
+  uncomment:
     - `generate_pairwise_result()` in `run_scc.py` and `run_dlpfc.py`, plus the
       `save_results_per_pair` loop in `run_dlpfc.py`;
     - `run_network()` in `run_xenium_mouse.py`;
@@ -125,7 +129,7 @@ Both multimodal scripts default to `--epochs 1001` and write to
 reads its list file below `AXIS_DATA_DIR`. Each line holds a `fixed moving`
 pair of sample prefixes relative to `AXIS_DATA_DIR`, and
 `<prefix>_image_<size>.png`, `_pca_out_<size>.npy`, `_pca_mask_<size>.npy` and
-`_validation_<size>.npz` must exist (`<size>` is the dataset's `base_size`;
+`_validation_<size>.npz` must exist (`<size>` is the `base_size` of `Image_svg_pair`: 512 in `train_multimodal.py`, `--base_size` (default 1024) in `train_image_xenium.py`;
 `save_network_input` writes the files without the `_<size>` suffix). The list
 files are not distributed.
 
@@ -205,10 +209,12 @@ Notes for Fig. 7:
   (set `PRETSA_DIR`) and the plotting helper `spatialplot.R`, which is not
   distributed (set `AXIS_R_HELPERS`).
 - **7d / 7e plotters.** `7d_de_dotplot.py` reads `xenium_DE.rds`, and
-  `7e_spatial_covisualization.py` reads `xenium_DE.rds`,
-  `xenium_protein_predict.rds`, `LUAD_2_A_xenium_axis.csv` and
-  `adata_xenium_cell_level.h5ad`, from `$AXIS_DATA_DIR/phenocycler/haotian/`
-  (`--input_folder` / `--data_root`). Copy `multi_human_LUAD/xenium_DE.rds`,
+  `7e_spatial_covisualization.py --mode eval` (or `both`) reads
+  `xenium_DE.rds`, `xenium_protein_predict.rds`, `LUAD_2_A_xenium_axis.csv`
+  and `adata_xenium_cell_level.h5ad`, from
+  `$AXIS_DATA_DIR/phenocycler/haotian/` (`--input_folder` / `--data_root`);
+  its default `--mode plot` only redraws the results saved by `eval`. Copy
+  `multi_human_LUAD/xenium_DE.rds`,
   `multi_human_LUAD/expr/xenium_protein_predict.rds` and
   `multi_human_LUAD/spatial_axis/LUAD_2_A_xenium_axis.csv` there.
 - **7f–g.** `7fg_cross_modality_evaluation.py` reads

@@ -8,7 +8,7 @@ Conventions
   ``warped(p) = moving(p + flow(p))``.
 * Point coordinates are ``(x, y)`` pixel positions, shape ``(N, 2)``.
 * Transporting moving-sample points into the fixed frame therefore requires the
-  inverse map, which :func:`find_inverse_warp_coords` approximates by a
+  inverse map, which [`find_inverse_warp_coords`][axis.registration.warp.find_inverse_warp_coords] approximates by a
   nearest-neighbour search over the forward-mapped pixel grid.
 * Scaling a field by ``alpha`` (Methods, Eq. (25)) gives the partial transport
   used for intermediate-state generation.
@@ -85,7 +85,7 @@ def find_inverse_warp_coords(
     uv_coords
         ``(N, 2)`` ``(x, y)`` coordinates in the moving image.
     flow
-        Transition field (see :func:`ensure_flow_2hw` for accepted layouts).
+        Transition field (see [`ensure_flow_2hw`][axis.registration.warp.ensure_flow_2hw] for accepted layouts).
     batch_size
         Number of query points per distance computation.
     device
@@ -93,8 +93,9 @@ def find_inverse_warp_coords(
 
     Returns
     -------
-    Coordinates in the fixed frame, with the same container type as
-    ``uv_coords`` (NumPy array, or tensor on the input device).
+    numpy.ndarray or torch.Tensor
+        Coordinates in the fixed frame, with the same container type as
+        ``uv_coords`` (NumPy array, or tensor on the input device).
     """
     uv_was_numpy = isinstance(uv_coords, np.ndarray)
     uv = torch.from_numpy(np.ascontiguousarray(uv_coords)) if uv_was_numpy else uv_coords
@@ -141,7 +142,7 @@ def find_inverse_warp_coords(
 def find_inverse_warp_coords_local(uv_coords, flow, window: int = 15, tau: float = 0.1, eps: float = 1e-8):
     """Soft (sub-pixel) inverse warp restricted to a local window.
 
-    A differentiable alternative to :func:`find_inverse_warp_coords`: the
+    A differentiable alternative to [`find_inverse_warp_coords`][axis.registration.warp.find_inverse_warp_coords]: the
     fixed-grid positions within ``window`` pixels of each query are averaged
     with soft-min weights ``softmax(-d / tau)``.
     """
@@ -227,7 +228,7 @@ def warp_image(image: np.ndarray, flow: ArrayLike, mode: str = "bilinear") -> np
 def warp_highres_image_with_lowres_flow_cpu(moving_hr, st: nn.Module, flow_lr: torch.Tensor):
     """Warp a high-resolution image with a low-resolution network field (CPU).
 
-    Kept for the reproducibility scripts; :func:`warp_image` is the general API.
+    Kept for the reproducibility scripts; [`warp_image`][axis.registration.warp.warp_image] is the general API.
     Returns the warped ``uint8`` RGB image and the upsampled ``(2, H, W)`` field.
     """
     import cv2

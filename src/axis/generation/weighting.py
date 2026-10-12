@@ -6,7 +6,7 @@ evidence points, the contribution of point ``(r, i)`` is
 ``w_ri(u) = beta_r * K_sigma_x(|u - x~_ri|) * q_ri(u)``
 
 * ``beta_r`` – biological-axis weight of the source anchor
-  (:func:`axis.generation.compute_axis_kernel_weights`);
+  ([`compute_axis_kernel_weights`][axis.generation.evidence.compute_axis_kernel_weights]);
 * ``K_sigma_x`` – Gaussian kernel of the local spatial distance;
 * ``q_ri(u)`` – molecular-quality weight from total counts and detected
   features relative to the local medians, clipped to ``[0.5, 2]`` and raised to
@@ -98,10 +98,19 @@ def prepare_local_query_support(
         Per-evidence quality covariates; when both are given the
         molecular-quality weight is applied.
     spatial_bandwidth
-        ``sigma_x``; defaults to half the output-grid spacing.
-    knn, min_neighbors, radius
-        Neighbourhood definition (``k`` nearest evidence points, optionally
-        restricted to ``radius`` while always keeping ``min_neighbors``).
+        ``sigma_x`` in canvas pixels. Defaults to ``infer_grid_spacing(grid_pts)``,
+        half the median axis-aligned coordinate spacing of the output locations:
+        half the pitch on a ``"pixel"`` grid, about one third of the spot pitch
+        on the hexagonal ``"visium"`` grid.
+    knn
+        Number of nearest evidence points per output location; the
+        ``max(knn, min_neighbors)`` nearest are used.
+    min_neighbors
+        Lower bound on the number of nearest evidence points; with ``radius``,
+        the ``min_neighbors`` nearest are always kept.
+    radius
+        Optional radius: farther evidence points are dropped, except the
+        ``min_neighbors`` nearest.
     """
     coords = np.asarray(coords, dtype=dtype)
     grid_pts = np.asarray(grid_pts, dtype=dtype)

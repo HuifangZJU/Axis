@@ -35,6 +35,14 @@ __all__ = [
 
 @dataclass
 class RegionMeta:
+    """Geometry of one domain, as built by [`build_region_metadata`][axis.metrics.alignment.build_region_metadata].
+
+    ``coords`` holds the domain's points; ``mask`` (raster, ``None`` when no
+    polygon could be built), ``contours``, ``centroid_x``/``centroid_y`` and
+    ``area`` describe their alpha shape (built without isolated points when
+    ``remove_outliers=True``).
+    """
+
     domain: str
     coords: np.ndarray
     contours: list[np.ndarray]
@@ -57,6 +65,12 @@ def filter_isolated_points(
     min_neighbors: int = 3,
     radius_scale: float = 1.8,
 ) -> np.ndarray:
+    """Drop points with fewer than ``min_neighbors`` other points within ``radius``.
+
+    ``radius=None`` uses ``radius_scale`` times the median distance to the
+    fourth-nearest neighbour (the farthest other point in sets of fewer than
+    five). Sets of at most ``min_neighbors`` points are returned unchanged.
+    """
     coords = np.asarray(coords, dtype=np.float64)
     if len(coords) <= min_neighbors:
         return coords
@@ -123,6 +137,14 @@ def build_region_metadata(
     neighbor_radius: Optional[float],
     min_neighbors: int = 3,
 ) -> Dict[str, RegionMeta]:
+    """Per-domain geometry ([`RegionMeta`][axis.metrics.alignment.RegionMeta]) for each domain in ``common_domains``.
+
+    Each entry holds the domain's points, the alpha shape of those points
+    (built after dropping isolated points with
+    [`filter_isolated_points`][axis.metrics.alignment.filter_isolated_points]
+    when ``remove_outliers=True``), its raster mask of shape ``mask_shape`` and
+    contours, centroid and area.
+    """
     coords = np.asarray(coords, dtype=np.float64)
     labels = _string_labels(labels)
     regions: Dict[str, RegionMeta] = {}
@@ -371,6 +393,7 @@ def evaluate_neighborhood_metrics(
 
 
 def merge_metric_tables(domain_df: pd.DataFrame, neighborhood_df: pd.DataFrame) -> pd.DataFrame:
+    """Left-join the neighbourhood metrics onto the domain metrics by ``domain`` (one row per domain)."""
     left = domain_df.copy()
     right = neighborhood_df.copy()
     left["domain"] = left["domain"].astype(str)

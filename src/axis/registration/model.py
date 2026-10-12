@@ -1,12 +1,12 @@
 """AXIS transition-field networks.
 
-:class:`TransitionFieldNet` is the multimodal coarse-to-fine registration
+[`TransitionFieldNet`][axis.registration.model.TransitionFieldNet] is the multimodal coarse-to-fine registration
 network described in Methods ("AXIS: Tissue transition field learning"). It
 takes the morphology images and molecular pseudo-images of a *fixed* (reference)
 and a *moving* (source) sample and predicts a dense, non-rigid displacement
 field ``D_{moving -> fixed}`` together with a global affine transform.
 
-:class:`ImageTransitionNet` is the morphology-only variant used for
+[`ImageTransitionNet`][axis.registration.model.ImageTransitionNet] is the morphology-only variant used for
 pre-training and for the image-only ablations.
 
 Both classes keep the module names of the original implementation
@@ -69,7 +69,7 @@ class TransitionFieldNet(nn.Module):
 
     Notes
     -----
-    Inputs are ``[B, C, 1, H, W]`` tensors (see :mod:`axis.registration.blocks`).
+    Inputs are ``[B, C, 1, H, W]`` tensors (see ``axis.registration.blocks``).
     The pseudo-images must be at 1/8 of the image resolution and may carry an
     extra trailing mask channel, which is ignored by the encoder.
     """
@@ -115,10 +115,13 @@ class TransitionFieldNet(nn.Module):
 
         Returns
         -------
-        warped_image, warped_gene, flow, flow_gene, affined_image, affined_gene, affine_para
-            ``flow`` is the full-resolution field ``[B, 3, 1, H, W]`` (channels
-            ``d, y, x``); ``flow_gene`` is the same field resized to the
-            pseudo-image grid, Eq. (Gamma) in Methods.
+        tuple of torch.Tensor
+            ``(warped_image, warped_gene, flow, flow_gene, affined_image,
+            affined_gene, affine_para)``. ``flow`` is the full-resolution field
+            ``[B, 3, 1, H, W]`` (channels ``d, y, x``); ``flow_gene`` is the same
+            field resized to the pseudo-image grid, with displacements rescaled
+            to its pixels (the resizing Γ in Methods, "Image and molecular
+            warping").
         """
         _check_spatial_size(fixed_image)
         x_fix = self.Encoder(fixed_image, fixed_gene[:, : self.gene_channels])
@@ -181,7 +184,9 @@ class ImageTransitionNet(nn.Module):
 
 # Backwards-compatible names used throughout the original code base.
 NICE_Trans = TransitionFieldNet
+"""Original name of [`TransitionFieldNet`][axis.registration.model.TransitionFieldNet] (same class)."""
 NICE_Trans_img = ImageTransitionNet
+"""Original name of [`ImageTransitionNet`][axis.registration.model.ImageTransitionNet] (same class)."""
 
 
 def build_model(kind: str = "multimodal", **kwargs) -> nn.Module:
@@ -195,7 +200,7 @@ def build_model(kind: str = "multimodal", **kwargs) -> nn.Module:
 
 #: Buffers that are recomputed when a network is constructed. The Swin
 #: ``relative_position_index`` tables (int64, 4096 x 4096 per block) make up
-#: ~95% of a full ``state_dict``; :func:`axis.registration.save_checkpoint`
+#: ~95% of a full ``state_dict``; ``axis.registration.save_checkpoint``
 #: leaves them out.
 DERIVED_BUFFERS = ("relative_position_index",)
 
@@ -205,7 +210,7 @@ def _is_derived(key: str) -> bool:
 
 
 def strip_derived_buffers(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """Drop the deterministic buffers listed in :data:`DERIVED_BUFFERS`."""
+    """Drop the deterministic buffers listed in ``DERIVED_BUFFERS`` (the Swin ``relative_position_index`` tables)."""
     return {k: v for k, v in state_dict.items() if not _is_derived(k)}
 
 
@@ -213,7 +218,8 @@ def load_state_dict_strict(model: nn.Module, state_dict: Dict[str, torch.Tensor]
     """``load_state_dict(strict=True)`` that accepts checkpoints without derived buffers.
 
     Checkpoints written by the original code (which include the buffers) and by
-    :func:`axis.registration.save_checkpoint` (which do not) both load.
+    [`axis.registration.save_checkpoint`][axis.registration.train.save_checkpoint]
+    (which do not) both load.
     """
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     missing = [k for k in missing if not _is_derived(k)]
@@ -251,7 +257,10 @@ def load_model(
     device: Optional[str] = None,
     **model_kwargs,
 ) -> nn.Module:
-    """Load a checkpoint written by :func:`axis.registration.train` or by the original code.
+    """Load a checkpoint written by [`axis.registration.save_checkpoint`][axis.registration.train.save_checkpoint] or by the original code.
+
+    [`axis.tl.fit_transition`][axis.tl.fit_transition] writes them to ``out_dir``
+    during training.
 
     Checkpoints saved by AXIS ≥ 1.0 store ``{"config": ..., "state_dict": ...}``;
     plain ``state_dict`` files from the original scripts are also accepted, in

@@ -3,16 +3,17 @@
 Public API (scanpy-style):
 
 * ``axis.pp`` – canvases and molecular pseudo-images
-  (:func:`axis.pp.prepare_canvas`, :func:`axis.pp.build_pseudoimages`)
+  ([`axis.pp.prepare_canvas`][axis.pp.prepare_canvas],
+  [`axis.pp.build_pseudoimages`][axis.pp.build_pseudoimages])
 * ``axis.tl`` – transition fields, generation and matching
-  (:func:`axis.tl.fit_transition`, :func:`axis.tl.generate`,
-  :func:`axis.tl.match`, :func:`axis.tl.integrate`)
+  ([`axis.tl.fit_transition`][axis.tl.fit_transition], [`axis.tl.generate`][axis.tl.generate],
+  [`axis.tl.match`][axis.tl.match], [`axis.tl.integrate`][axis.tl.integrate])
 * ``axis.pl`` – plotting
 * ``axis.metrics`` – evaluation metrics
 
 Lower-level building blocks live in ``axis.registration``,
 ``axis.generation`` and ``axis.matching``. Data locations are configured
-through :data:`axis.settings` (``AXIS_DATA_DIR``) and ``axis.config``.
+through [`axis.settings`][axis.settings] (``AXIS_DATA_DIR``) and ``axis.config``.
 """
 
 from __future__ import annotations

@@ -48,7 +48,7 @@ def predict_field(
     """Predict the ``(2, H, W)`` ``(dy, dx)`` field registering ``moving`` onto ``fixed``.
 
     Inputs are ``[C, H, W]`` (or batched ``[1, C, H, W]``) tensors as produced
-    by :class:`axis.registration.PairDataset`.
+    by [`axis.registration.PairDataset`][axis.registration.data.PairDataset].
     """
     device = settings.resolve_device(device)
     model.to(device).eval()

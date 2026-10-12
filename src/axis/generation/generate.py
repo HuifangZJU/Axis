@@ -146,8 +146,13 @@ def generate_virtual_tissue_fixed_grid(
         Evidence coordinates ``(N, 2)`` in the query frame and molecular values ``(N, G)``.
     grid_pts
         Output locations ``(M, 2)``.
-    attrs, attr_schema
-        Optional evidence annotations (DataFrame with ``N`` rows) and their kinds.
+    attrs
+        Optional evidence annotations (DataFrame with ``N`` rows).
+    attr_schema
+        Kind of each annotation (``"categorical"``, ``"continuous"`` or
+        ``"boolean"``). Inferred from the column dtypes when omitted; numeric
+        columns whose names contain e.g. ``cluster`` or ``domain`` count as
+        categorical.
     grid_support_mask
         Tissue-support filter of the output locations.
     point_weights
@@ -159,9 +164,10 @@ def generate_virtual_tissue_fixed_grid(
 
     Returns
     -------
-    AnnData with ``X`` ``(M, G)``, ``obsm["spatial"] = grid_pts`` and the
-    support diagnostics ``obs["valid"]``, ``obs["active_query_support"]``,
-    ``obs["confidence"]``, ``obs["nearest_dist"]``.
+    anndata.AnnData
+        ``X`` ``(M, G)``, ``obsm["spatial"] = grid_pts`` and the support
+        diagnostics ``obs["valid"]``, ``obs["active_query_support"]``,
+        ``obs["confidence"]``, ``obs["nearest_dist"]``.
     """
     if X.shape[0] != coords.shape[0]:
         raise ValueError("X rows must match coords rows.")

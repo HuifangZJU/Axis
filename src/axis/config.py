@@ -7,7 +7,7 @@ dataset lives (relative to ``AXIS_DATA_DIR``) and the default parameters used
 for pseudo-image construction, transition-field learning and virtual-tissue
 generation (Methods, "AXIS analysis of real datasets").
 
-String values may reference environment variables or the two AXIS roots::
+String values may reference environment variables or the two AXIS roots:
 
     root: ${AXIS_DATA_DIR}/SCC/huifang
     checkpoint: ${AXIS_EXPERIMENT_DIR}/combined/scc_patient10/model_1000.pth
@@ -99,7 +99,7 @@ def load_config(name_or_path: Union[str, os.PathLike], overrides: Optional[Dict[
     Parameters
     ----------
     name_or_path
-        Either a config name found in :func:`config_dir` or a path to a YAML file.
+        Either the name of a config in [`config_dir()`][axis.config.config_dir] or a path to a YAML file.
     overrides
         Optional mapping merged (shallowly per top-level section) on top of the file.
     """

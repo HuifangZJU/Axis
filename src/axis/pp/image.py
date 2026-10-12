@@ -126,12 +126,13 @@ def prepare_canvas(
         Convert RGB to grayscale (used when samples of different modalities are
         registered; Methods "Input data").
     enhance_dapi
-        Apply :func:`clahe` (Xenium / PhenoCycler DAPI).
+        Apply [`clahe`][axis.pp.clahe] (Xenium / PhenoCycler DAPI).
 
     Returns
     -------
-    ``adata``, with the canvas image in ``uns[uns_key]["image"]`` and the canvas
-    coordinates in ``obsm[key_added]``.
+    anndata.AnnData
+        ``adata``, with the canvas image in ``uns[uns_key]["image"]`` and the
+        canvas coordinates in ``obsm[key_added]``.
     """
     if canvas_size % 16:
         raise ValueError("canvas_size must be divisible by 16")

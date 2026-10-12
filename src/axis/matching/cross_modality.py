@@ -236,7 +236,7 @@ def per_target_metrics(y_true: np.ndarray, y_pred: np.ndarray, names: Sequence[s
 
 @dataclass
 class CrossModalityResult:
-    """Output of :func:`fit_cross_modality`."""
+    """Output of [`fit_cross_modality`][axis.matching.cross_modality.fit_cross_modality]."""
 
     models: Dict[str, object]
     metrics: pd.DataFrame

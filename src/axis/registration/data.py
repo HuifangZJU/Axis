@@ -1,15 +1,16 @@
 """Datasets of (fixed, moving) sample pairs for transition-field learning.
 
-:class:`PairDataset` is the in-memory dataset used by :func:`axis.tl.fit_transition`.
+[`PairDataset`][axis.registration.data.PairDataset] is the in-memory dataset used by
+[`axis.tl.fit_transition`][axis.tl.fit_transition].
 The remaining classes read the on-disk ``network_input`` layout produced by the
-preprocessing scripts in ``reproducibility/pipelines/preprocessing``::
+preprocessing scripts in ``reproducibility/pipelines/preprocessing``:
 
     {root}/network_input/{group}_{sample}_image[_{size}].png      morphology canvas
     {root}/network_input/{group}_{sample}_pca_out[_{size}].npy    pseudo-image (h, w, C)
     {root}/network_input/{group}_{sample}_pca_mask[_{size}].npy   molecular support (h, w)
     {root}/network_input/{group}_{sample}_validation[_{size}].npz coord (N, 2), label (N,)
 
-All roots default to locations below ``AXIS_DATA_DIR`` (see :mod:`axis.settings`).
+All roots default to locations below ``AXIS_DATA_DIR`` (see [`axis.settings`][axis.settings]).
 """
 
 from __future__ import annotations
@@ -58,6 +59,7 @@ def default_image_transform(mode: str = "RGB", size: Optional[int] = None):
 
 
 def default_gene_transform():
+    """``ToTensor`` only: ``(h, w, C)`` pseudo-images become ``[C, h, w]`` tensors (float arrays are not rescaled)."""
     import torchvision.transforms as transforms
 
     return transforms.Compose([transforms.ToTensor()])

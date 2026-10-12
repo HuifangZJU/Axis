@@ -27,7 +27,8 @@ with \(\sigma\) half a grid cell.
 
 The implementation (`axis.pp.get_gene_feature_matrix_soft`) evaluates the
 kernel at the centres of cells of `patch_size` canvas pixels, with
-\(\sigma\) = `patch_size` / 2, but deviates from Eq. (1) in two ways:
+\(\sigma\) = `patch_size` / 2 by default (`sigma`), but deviates from Eq. (1)
+in two ways:
 
 - Each entity contributes only to the 3 × 3 cells around the cell that
   contains it, and with `normalize_per_cell=True` (the default, used by
@@ -39,8 +40,9 @@ kernel at the centres of cells of `patch_size` canvas pixels, with
 `axis.pp.build_pseudoimages` then applies the preset (`preset`, see
 `axis.pp.PSEUDOIMAGE_PRESETS`) through `axis.pp.rasterize_pseudoimage`:
 
-- `"visium"`: a 32 × 32 grid of cells, a size-2 median filter and
-  nearest-neighbour resizing to canvas / 8.
+- `"visium"`: cells of canvas // 32 pixels (a 32 × 32 grid on 512- and
+  1024-px canvases), a size-2 median filter and nearest-neighbour resizing to
+  canvas / 8.
 - `"xenium"`: 8-px cells, with values below 0.01 set to 0.
 
 The pseudo-image must be at 1/8 of the canvas, the resolution of the level-4

@@ -1,9 +1,9 @@
 """Example data.
 
-* :func:`load_scc_sample` reads the three serial SCC Visium sections of one
+* [`load_scc_sample`][axis.datasets.load_scc_sample] reads the three serial SCC Visium sections of one
   patient in the format distributed with the tutorial
   (``{patient}_{i}.h5ad``, i = 0, 1, 2 at 0, 10 and 20 µm).
-* :func:`toy_series` simulates a small series of deformed sections with
+* [`toy_series`][axis.datasets.toy_series] simulates a small series of deformed sections with
   matching morphology images; it needs no download and is used by the tests and
   the documentation.
 """
@@ -18,8 +18,8 @@ import numpy as np
 
 __all__ = ["load_scc_sample", "toy_series", "SCC_DEPTHS_UM"]
 
-#: Section depths of the SCC series (µm).
 SCC_DEPTHS_UM = (0.0, 10.0, 20.0)
+"""Depths (µm) of SCC sections 0, 1 and 2; [`load_scc_sample`][axis.datasets.load_scc_sample] stores each section's depth in ``uns["depth_um"]``."""
 
 
 def load_scc_sample(directory: Union[str, os.PathLike], patient: int = 10, sections: Sequence[int] = (0, 1, 2)) -> List:
@@ -73,7 +73,7 @@ def toy_series(
     (``"gradient"``), ``obs["domain"]`` labels, canvas coordinates in
     ``obsm["spatial_canvas"]`` and an RGB morphology canvas in
     ``uns["axis"]["image"]``, i.e. the data are ready for
-    :func:`axis.pp.build_pseudoimages`.
+    [`axis.pp.build_pseudoimages`][axis.pp.build_pseudoimages].
     """
     import anndata as ad
     import pandas as pd
