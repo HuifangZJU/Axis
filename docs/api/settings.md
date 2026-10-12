@@ -2,12 +2,14 @@
 
 ::: axis.settings
     options:
-      members: [AxisSettings, data_path, experiment_path]
+      members: [settings, AxisSettings, data_path, experiment_path]
 
 ::: axis.config
     options:
-      members: [load_config, list_configs, DatasetConfig]
+      members: [load_config, list_configs, config_dir, DatasetConfig]
 
 ::: axis.io
 
 ::: axis.datasets
+    options:
+      members: [load_scc_sample, toy_series, SCC_DEPTHS_UM]
