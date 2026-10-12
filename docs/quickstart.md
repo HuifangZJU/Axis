@@ -31,8 +31,12 @@ axis.pl.pseudoimage(adatas[0])
 ```
 
 `build_pseudoimages` normalises counts (10⁴ per spot, `log1p`), projects the
-shared genes of all sections onto 10 principal components and rasterises every
-component with a Gaussian kernel (Methods Eq. 1) on a 1/8-resolution grid.
+shared genes of all sections onto 10 principal components (each min–max scaled
+to [0, 1]) and rasterises every component with a Gaussian kernel (Methods Eq. 1)
+on a 32 × 32 grid (16-px cells on the 512-px canvas). A median filter and a
+nearest-neighbour resize then bring it to 1/8 of the canvas resolution
+(64 × 64), the resolution at which the network fuses molecular and morphology
+features.
 
 ## 2 · Transition fields
 
@@ -49,17 +53,20 @@ axis.pl.registration(adatas[0].uns["axis"]["image"], adatas[2].uns["axis"]["imag
 !!! tip "Hardware"
     Training at 512 px is best done on a GPU (on CPU it needs more than 14 GB of RAM). On a CPU use
     `canvas_size=256` in `prepare_canvas` and fewer steps: 400 steps took
-    55 min on 4 CPU cores. Inference at 512 px takes ~12 s per pair on the same
-    CPU. A trained checkpoint can be supplied with `checkpoint=` (and `epochs=0`
-    to skip training); the whole quickstart then runs in about 1.5 min.
+    55 min on 4 CPU cores. The bandwidths and `max_dist` in step 4 are in canvas
+    pixels and set for 512 px; at 256 px halve them (`spatial_bandwidth=1.5,
+    attr_spatial_bandwidth=2, max_dist=5`), as `examples/quickstart_scc.py` does.
+    A model trained in an earlier run can be supplied with `checkpoint=` (and
+    `epochs=0` to skip training); the 256-px quickstart then runs in about
+    1.5 min (81 s).
 
 ## 3 · Spatially matched analysis
 
 ```python
-axis.tl.match(adatas, fields, reference=0)            # writes obsm["spatial_axis"]
-axis.pl.matched(adatas, color="original_clusters")
+axis.tl.match(adatas, fields, reference=0, key_added="spatial_axis_new")  # keeps the published obsm["spatial_axis"]
+axis.pl.matched(adatas, color="original_clusters", key="spatial_axis_new")
 
-matched = axis.tl.match(adatas, fields, reference=0, reconstruct=True,
+matched = axis.tl.match(adatas, fields, reference=0, reconstruct=True, key_added="spatial_axis_new",
                         attr_keys=["original_clusters"])   # all sections on section 0's spots
 delta = axis.tl.contrast(matched[2], matched[0], genes=["KRT1", "COL1A1"])
 ```
@@ -83,7 +90,8 @@ anchor weights β = (0.5, 0.5).
 ## Script version
 
 ```bash
-python examples/quickstart_scc.py --data-dir scc_patient10 --out quickstart_out
+python examples/quickstart_scc.py --data-dir scc_patient10 --out quickstart_out             # GPU
+python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU (gallery run)
 ```
 
 writes the figures shown in the [gallery](gallery.md) and a `report.json`

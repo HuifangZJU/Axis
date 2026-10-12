@@ -26,7 +26,7 @@ otherwise pick an unsuitable build (<https://pytorch.org/get-started/locally/>).
 |---|---|---|
 | `metrics` | alphashape, shapely, scikit-image | alignment metrics (Dice on alpha-shape masks), training monitors |
 | `crossmodal` | xgboost | `axis.tl.predict_modality` |
-| `train` | tensorboardX, imgaug | the original training scripts in `reproducibility/pipelines/training` |
+| `train` | tensorboardX, imgaug | the original training scripts in `reproducibility/pipelines/training`; most of them also need other extras (the multimodal training and evaluation scripts import `axis.metrics.monitor`, i.e. `metrics`, and `train_image.py` / `train_image_xenium.py` import seaborn), so install `.[paper]` to run them |
 | `paper` | all of the above + seaborn, h5py, pyreadr, statsmodels, paste-bio, POT, igraph, leidenalg | every figure script |
 | `docs` | mkdocs-material, mkdocstrings | building this site |
 | `dev` | pytest, ruff, build, twine | tests and packaging |
