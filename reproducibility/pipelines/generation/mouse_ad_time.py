@@ -366,7 +366,7 @@ def run_query():
 
 
 def run_virtual_counterfactual():
-    grid_pts, _ = make_common_grid_from_coords(GRID_SIZE,basezize=1024)
+    grid_pts, _ = make_common_grid_from_coords(GRID_SIZE, max_x=1024, max_y=1024)
     for query_axis_value in QUERY_AXIS_VALUES:
         query_axis_value = float(query_axis_value)
 
