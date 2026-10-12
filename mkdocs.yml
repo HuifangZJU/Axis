@@ -6,6 +6,14 @@ repo_name: HuifangZJU/Axis
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2026 The AXIS authors &middot; MIT License
 
+# Broken links, missing pages and unknown anchors are warnings, which
+# `mkdocs build --strict` (CI) turns into errors.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
 theme:
   name: material
   features:

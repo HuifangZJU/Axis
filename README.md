@@ -76,8 +76,8 @@ fields = axis.tl.fit_transition(adatas, morph_win=9, mol_win=5, lambda_mol=0.5,
 fields.save("scc_fields")
 
 # 3. spatially matched analysis: express every section in the frame of section 0
-axis.tl.match(adatas, fields, reference=0)                # -> obsm["spatial_axis"]
-axis.pl.matched(adatas, color="original_clusters")
+axis.tl.match(adatas, fields, reference=0, key_added="spatial_axis_new")  # keeps the published obsm["spatial_axis"]
+axis.pl.matched(adatas, color="original_clusters", key="spatial_axis_new")
 
 # 4. virtual tissue generation at the unmeasured depth of 10 µm
 vt = axis.tl.generate(adatas, fields, positions=[0, 10, 20], query=10, anchors=[0, 2],
