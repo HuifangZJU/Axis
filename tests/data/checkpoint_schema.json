@@ -1,0 +1,3499 @@
+{
+"image_rgb": {
+"Decoder.backdim_2.bias": [
+32
+],
+"Decoder.backdim_2.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Decoder.backdim_3.bias": [
+64
+],
+"Decoder.backdim_3.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Decoder.backdim_4.bias": [
+128
+],
+"Decoder.backdim_4.weight": [
+128,
+256,
+1,
+1,
+1
+],
+"Decoder.backdim_5.bias": [
+256
+],
+"Decoder.backdim_5.weight": [
+256,
+256,
+1,
+1,
+1
+],
+"Decoder.conv_1.Conv_1.bias": [
+16
+],
+"Decoder.conv_1.Conv_1.weight": [
+16,
+32,
+3,
+3,
+3
+],
+"Decoder.conv_1.Conv_2.bias": [
+16
+],
+"Decoder.conv_1.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Decoder.conv_1.boundary_extractor.reduce.bias": [
+8
+],
+"Decoder.conv_1.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Decoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Decoder.reghead_1.reg_head.bias": [
+3
+],
+"Decoder.reghead_1.reg_head.weight": [
+3,
+16,
+3,
+3,
+3
+],
+"Decoder.reghead_2.reg_head.bias": [
+3
+],
+"Decoder.reghead_2.reg_head.weight": [
+3,
+32,
+3,
+3,
+3
+],
+"Decoder.reghead_3.reg_head.bias": [
+3
+],
+"Decoder.reghead_3.reg_head.weight": [
+3,
+64,
+3,
+3,
+3
+],
+"Decoder.reghead_4.reg_head.bias": [
+3
+],
+"Decoder.reghead_4.reg_head.weight": [
+3,
+128,
+3,
+3,
+3
+],
+"Decoder.reghead_5.affine_head_1.weight": [
+128,
+256
+],
+"Decoder.reghead_5.affine_head_2.weight": [
+12,
+128
+],
+"Decoder.trans_2.blocks.0.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.0.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.0.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.0.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.1.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.1.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.1.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.2.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.2.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.2.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.3.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.3.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.3.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.weight": [
+32
+],
+"Decoder.trans_3.blocks.0.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.0.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.0.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.0.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.1.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.1.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.1.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.2.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.2.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.2.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.3.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.3.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.3.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.weight": [
+64
+],
+"Decoder.trans_4.blocks.0.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.0.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.0.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.0.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.1.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.1.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.1.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.2.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.2.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.2.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.3.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.3.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.3.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.weight": [
+128
+],
+"Decoder.trans_5.blocks.0.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.0.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.0.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.0.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.1.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.1.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.1.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.2.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.2.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.2.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.3.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.3.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.3.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.weight": [
+256
+],
+"Decoder.upsample_1.norm.bias": [
+16
+],
+"Decoder.upsample_1.norm.weight": [
+16
+],
+"Decoder.upsample_1.up_conv.bias": [
+16
+],
+"Decoder.upsample_1.up_conv.weight": [
+32,
+16,
+2,
+2
+],
+"Decoder.upsample_2.norm.bias": [
+32
+],
+"Decoder.upsample_2.norm.weight": [
+32
+],
+"Decoder.upsample_2.up_conv.bias": [
+32
+],
+"Decoder.upsample_2.up_conv.weight": [
+64,
+32,
+2,
+2
+],
+"Decoder.upsample_3.norm.bias": [
+64
+],
+"Decoder.upsample_3.norm.weight": [
+64
+],
+"Decoder.upsample_3.up_conv.bias": [
+64
+],
+"Decoder.upsample_3.up_conv.weight": [
+128,
+64,
+2,
+2
+],
+"Decoder.upsample_4.norm.bias": [
+128
+],
+"Decoder.upsample_4.norm.weight": [
+128
+],
+"Decoder.upsample_4.up_conv.bias": [
+128
+],
+"Decoder.upsample_4.up_conv.weight": [
+256,
+128,
+2,
+2
+],
+"Encoder.conv_1.Conv_1.bias": [
+8
+],
+"Encoder.conv_1.Conv_1.weight": [
+8,
+3,
+3,
+3,
+3
+],
+"Encoder.conv_1.Conv_2.bias": [
+8
+],
+"Encoder.conv_1.Conv_2.weight": [
+8,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_1.boundary_extractor.reduce.bias": [
+4
+],
+"Encoder.conv_1.boundary_extractor.reduce.weight": [
+4,
+8,
+1,
+1,
+1
+],
+"Encoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+4,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_1.bias": [
+16
+],
+"Encoder.conv_2.Conv_1.weight": [
+16,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_2.bias": [
+16
+],
+"Encoder.conv_2.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_2.boundary_extractor.reduce.bias": [
+8
+],
+"Encoder.conv_2.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Encoder.conv_2.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_1.bias": [
+32
+],
+"Encoder.conv_3.Conv_1.weight": [
+32,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_2.bias": [
+32
+],
+"Encoder.conv_3.Conv_2.weight": [
+32,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_3.boundary_extractor.reduce.bias": [
+16
+],
+"Encoder.conv_3.boundary_extractor.reduce.weight": [
+16,
+32,
+1,
+1,
+1
+],
+"Encoder.conv_3.boundary_extractor.sobel_like.weight": [
+1,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_1.bias": [
+64
+],
+"Encoder.conv_4.Conv_1.weight": [
+64,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_2.bias": [
+64
+],
+"Encoder.conv_4.Conv_2.weight": [
+64,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_4.boundary_extractor.reduce.bias": [
+32
+],
+"Encoder.conv_4.boundary_extractor.reduce.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Encoder.conv_4.boundary_extractor.sobel_like.weight": [
+1,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_1.bias": [
+128
+],
+"Encoder.conv_5.Conv_1.weight": [
+128,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_2.bias": [
+128
+],
+"Encoder.conv_5.Conv_2.weight": [
+128,
+128,
+3,
+3,
+3
+],
+"Encoder.conv_5.boundary_extractor.reduce.bias": [
+64
+],
+"Encoder.conv_5.boundary_extractor.reduce.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Encoder.conv_5.boundary_extractor.sobel_like.weight": [
+1,
+64,
+3,
+3,
+3
+]
+},
+"multimodal_linear_gray": {
+"Decoder.backdim_2.bias": [
+32
+],
+"Decoder.backdim_2.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Decoder.backdim_3.bias": [
+64
+],
+"Decoder.backdim_3.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Decoder.backdim_4.bias": [
+128
+],
+"Decoder.backdim_4.weight": [
+128,
+256,
+1,
+1,
+1
+],
+"Decoder.backdim_5.bias": [
+256
+],
+"Decoder.backdim_5.weight": [
+256,
+256,
+1,
+1,
+1
+],
+"Decoder.conv_1.Conv_1.bias": [
+16
+],
+"Decoder.conv_1.Conv_1.weight": [
+16,
+32,
+3,
+3,
+3
+],
+"Decoder.conv_1.Conv_2.bias": [
+16
+],
+"Decoder.conv_1.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Decoder.conv_1.boundary_extractor.reduce.bias": [
+8
+],
+"Decoder.conv_1.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Decoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Decoder.reghead_1.reg_head.bias": [
+3
+],
+"Decoder.reghead_1.reg_head.weight": [
+3,
+16,
+3,
+3,
+3
+],
+"Decoder.reghead_2.reg_head.bias": [
+3
+],
+"Decoder.reghead_2.reg_head.weight": [
+3,
+32,
+3,
+3,
+3
+],
+"Decoder.reghead_3.reg_head.bias": [
+3
+],
+"Decoder.reghead_3.reg_head.weight": [
+3,
+64,
+3,
+3,
+3
+],
+"Decoder.reghead_4.reg_head.bias": [
+3
+],
+"Decoder.reghead_4.reg_head.weight": [
+3,
+128,
+3,
+3,
+3
+],
+"Decoder.reghead_5.affine_head_1.weight": [
+128,
+256
+],
+"Decoder.reghead_5.affine_head_2.weight": [
+12,
+128
+],
+"Decoder.trans_2.blocks.0.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.0.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.0.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.0.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.1.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.1.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.1.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.2.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.2.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.2.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.3.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.3.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.3.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.weight": [
+32
+],
+"Decoder.trans_3.blocks.0.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.0.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.0.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.0.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.1.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.1.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.1.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.2.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.2.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.2.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.3.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.3.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.3.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.weight": [
+64
+],
+"Decoder.trans_4.blocks.0.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.0.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.0.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.0.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.1.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.1.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.1.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.2.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.2.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.2.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.3.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.3.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.3.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.weight": [
+128
+],
+"Decoder.trans_5.blocks.0.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.0.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.0.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.0.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.1.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.1.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.1.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.2.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.2.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.2.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.3.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.3.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.3.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.weight": [
+256
+],
+"Decoder.upsample_1.norm.bias": [
+16
+],
+"Decoder.upsample_1.norm.weight": [
+16
+],
+"Decoder.upsample_1.up_conv.bias": [
+16
+],
+"Decoder.upsample_1.up_conv.weight": [
+32,
+16,
+2,
+2
+],
+"Decoder.upsample_2.norm.bias": [
+32
+],
+"Decoder.upsample_2.norm.weight": [
+32
+],
+"Decoder.upsample_2.up_conv.bias": [
+32
+],
+"Decoder.upsample_2.up_conv.weight": [
+64,
+32,
+2,
+2
+],
+"Decoder.upsample_3.norm.bias": [
+64
+],
+"Decoder.upsample_3.norm.weight": [
+64
+],
+"Decoder.upsample_3.up_conv.bias": [
+64
+],
+"Decoder.upsample_3.up_conv.weight": [
+128,
+64,
+2,
+2
+],
+"Decoder.upsample_4.norm.bias": [
+128
+],
+"Decoder.upsample_4.norm.weight": [
+128
+],
+"Decoder.upsample_4.up_conv.bias": [
+128
+],
+"Decoder.upsample_4.up_conv.weight": [
+256,
+128,
+2,
+2
+],
+"Encoder.conv_1.Conv_1.bias": [
+8
+],
+"Encoder.conv_1.Conv_1.weight": [
+8,
+1,
+3,
+3,
+3
+],
+"Encoder.conv_1.Conv_2.bias": [
+8
+],
+"Encoder.conv_1.Conv_2.weight": [
+8,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_1.boundary_extractor.reduce.bias": [
+4
+],
+"Encoder.conv_1.boundary_extractor.reduce.weight": [
+4,
+8,
+1,
+1,
+1
+],
+"Encoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+4,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_1.bias": [
+16
+],
+"Encoder.conv_2.Conv_1.weight": [
+16,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_2.bias": [
+16
+],
+"Encoder.conv_2.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_2.boundary_extractor.reduce.bias": [
+8
+],
+"Encoder.conv_2.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Encoder.conv_2.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_1.bias": [
+32
+],
+"Encoder.conv_3.Conv_1.weight": [
+32,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_2.bias": [
+32
+],
+"Encoder.conv_3.Conv_2.weight": [
+32,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_3.boundary_extractor.reduce.bias": [
+16
+],
+"Encoder.conv_3.boundary_extractor.reduce.weight": [
+16,
+32,
+1,
+1,
+1
+],
+"Encoder.conv_3.boundary_extractor.sobel_like.weight": [
+1,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_1.bias": [
+64
+],
+"Encoder.conv_4.Conv_1.weight": [
+64,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_2.bias": [
+64
+],
+"Encoder.conv_4.Conv_2.weight": [
+64,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_4.boundary_extractor.reduce.bias": [
+32
+],
+"Encoder.conv_4.boundary_extractor.reduce.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Encoder.conv_4.boundary_extractor.sobel_like.weight": [
+1,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_1.bias": [
+128
+],
+"Encoder.conv_5.Conv_1.weight": [
+128,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_2.bias": [
+128
+],
+"Encoder.conv_5.Conv_2.weight": [
+128,
+128,
+3,
+3,
+3
+],
+"Encoder.conv_5.boundary_extractor.reduce.bias": [
+64
+],
+"Encoder.conv_5.boundary_extractor.reduce.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Encoder.conv_5.boundary_extractor.sobel_like.weight": [
+1,
+64,
+3,
+3,
+3
+],
+"Encoder.fusion.fusion_conv.bias": [
+64
+],
+"Encoder.fusion.fusion_conv.weight": [
+64,
+74,
+1,
+1,
+1
+]
+},
+"multimodal_transformer_rgb": {
+"Decoder.backdim_2.bias": [
+32
+],
+"Decoder.backdim_2.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Decoder.backdim_3.bias": [
+64
+],
+"Decoder.backdim_3.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Decoder.backdim_4.bias": [
+128
+],
+"Decoder.backdim_4.weight": [
+128,
+256,
+1,
+1,
+1
+],
+"Decoder.backdim_5.bias": [
+256
+],
+"Decoder.backdim_5.weight": [
+256,
+256,
+1,
+1,
+1
+],
+"Decoder.conv_1.Conv_1.bias": [
+16
+],
+"Decoder.conv_1.Conv_1.weight": [
+16,
+32,
+3,
+3,
+3
+],
+"Decoder.conv_1.Conv_2.bias": [
+16
+],
+"Decoder.conv_1.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Decoder.conv_1.boundary_extractor.reduce.bias": [
+8
+],
+"Decoder.conv_1.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Decoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Decoder.reghead_1.reg_head.bias": [
+3
+],
+"Decoder.reghead_1.reg_head.weight": [
+3,
+16,
+3,
+3,
+3
+],
+"Decoder.reghead_2.reg_head.bias": [
+3
+],
+"Decoder.reghead_2.reg_head.weight": [
+3,
+32,
+3,
+3,
+3
+],
+"Decoder.reghead_3.reg_head.bias": [
+3
+],
+"Decoder.reghead_3.reg_head.weight": [
+3,
+64,
+3,
+3,
+3
+],
+"Decoder.reghead_4.reg_head.bias": [
+3
+],
+"Decoder.reghead_4.reg_head.weight": [
+3,
+128,
+3,
+3,
+3
+],
+"Decoder.reghead_5.affine_head_1.weight": [
+128,
+256
+],
+"Decoder.reghead_5.affine_head_2.weight": [
+12,
+128
+],
+"Decoder.trans_2.blocks.0.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.0.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.0.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.0.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.0.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.0.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.1.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.1.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.1.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.1.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.1.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.2.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.2.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.2.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.2.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.2.norm2.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.attn.proj.weight": [
+32,
+32
+],
+"Decoder.trans_2.blocks.3.attn.qkv.bias": [
+96
+],
+"Decoder.trans_2.blocks.3.attn.qkv.weight": [
+96,
+32
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_bias_table": [
+29791,
+2
+],
+"Decoder.trans_2.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.bias": [
+128
+],
+"Decoder.trans_2.blocks.3.mlp.linear1.weight": [
+128,
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.mlp.linear2.weight": [
+32,
+128
+],
+"Decoder.trans_2.blocks.3.norm1.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm1.weight": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.bias": [
+32
+],
+"Decoder.trans_2.blocks.3.norm2.weight": [
+32
+],
+"Decoder.trans_3.blocks.0.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.0.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.0.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.0.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.0.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.0.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.1.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.1.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.1.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.1.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.1.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.2.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.2.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.2.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.2.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.2.norm2.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.attn.proj.weight": [
+64,
+64
+],
+"Decoder.trans_3.blocks.3.attn.qkv.bias": [
+192
+],
+"Decoder.trans_3.blocks.3.attn.qkv.weight": [
+192,
+64
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_bias_table": [
+29791,
+4
+],
+"Decoder.trans_3.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.bias": [
+256
+],
+"Decoder.trans_3.blocks.3.mlp.linear1.weight": [
+256,
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.mlp.linear2.weight": [
+64,
+256
+],
+"Decoder.trans_3.blocks.3.norm1.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm1.weight": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.bias": [
+64
+],
+"Decoder.trans_3.blocks.3.norm2.weight": [
+64
+],
+"Decoder.trans_4.blocks.0.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.0.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.0.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.0.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.0.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.0.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.1.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.1.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.1.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.1.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.1.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.2.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.2.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.2.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.2.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.2.norm2.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.attn.proj.weight": [
+128,
+128
+],
+"Decoder.trans_4.blocks.3.attn.qkv.bias": [
+384
+],
+"Decoder.trans_4.blocks.3.attn.qkv.weight": [
+384,
+128
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_bias_table": [
+29791,
+8
+],
+"Decoder.trans_4.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.bias": [
+512
+],
+"Decoder.trans_4.blocks.3.mlp.linear1.weight": [
+512,
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.mlp.linear2.weight": [
+128,
+512
+],
+"Decoder.trans_4.blocks.3.norm1.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm1.weight": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.bias": [
+128
+],
+"Decoder.trans_4.blocks.3.norm2.weight": [
+128
+],
+"Decoder.trans_5.blocks.0.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.0.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.0.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.0.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.0.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.0.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.0.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.1.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.1.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.1.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.1.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.1.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.1.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.2.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.2.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.2.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.2.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.2.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.2.norm2.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.attn.proj.weight": [
+256,
+256
+],
+"Decoder.trans_5.blocks.3.attn.qkv.bias": [
+768
+],
+"Decoder.trans_5.blocks.3.attn.qkv.weight": [
+768,
+256
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_bias_table": [
+29791,
+16
+],
+"Decoder.trans_5.blocks.3.attn.relative_position_index": [
+4096,
+4096
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.bias": [
+1024
+],
+"Decoder.trans_5.blocks.3.mlp.linear1.weight": [
+1024,
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.mlp.linear2.weight": [
+256,
+1024
+],
+"Decoder.trans_5.blocks.3.norm1.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm1.weight": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.bias": [
+256
+],
+"Decoder.trans_5.blocks.3.norm2.weight": [
+256
+],
+"Decoder.upsample_1.norm.bias": [
+16
+],
+"Decoder.upsample_1.norm.weight": [
+16
+],
+"Decoder.upsample_1.up_conv.bias": [
+16
+],
+"Decoder.upsample_1.up_conv.weight": [
+32,
+16,
+2,
+2
+],
+"Decoder.upsample_2.norm.bias": [
+32
+],
+"Decoder.upsample_2.norm.weight": [
+32
+],
+"Decoder.upsample_2.up_conv.bias": [
+32
+],
+"Decoder.upsample_2.up_conv.weight": [
+64,
+32,
+2,
+2
+],
+"Decoder.upsample_3.norm.bias": [
+64
+],
+"Decoder.upsample_3.norm.weight": [
+64
+],
+"Decoder.upsample_3.up_conv.bias": [
+64
+],
+"Decoder.upsample_3.up_conv.weight": [
+128,
+64,
+2,
+2
+],
+"Decoder.upsample_4.norm.bias": [
+128
+],
+"Decoder.upsample_4.norm.weight": [
+128
+],
+"Decoder.upsample_4.up_conv.bias": [
+128
+],
+"Decoder.upsample_4.up_conv.weight": [
+256,
+128,
+2,
+2
+],
+"Encoder.conv_1.Conv_1.bias": [
+8
+],
+"Encoder.conv_1.Conv_1.weight": [
+8,
+3,
+3,
+3,
+3
+],
+"Encoder.conv_1.Conv_2.bias": [
+8
+],
+"Encoder.conv_1.Conv_2.weight": [
+8,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_1.boundary_extractor.reduce.bias": [
+4
+],
+"Encoder.conv_1.boundary_extractor.reduce.weight": [
+4,
+8,
+1,
+1,
+1
+],
+"Encoder.conv_1.boundary_extractor.sobel_like.weight": [
+1,
+4,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_1.bias": [
+16
+],
+"Encoder.conv_2.Conv_1.weight": [
+16,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_2.Conv_2.bias": [
+16
+],
+"Encoder.conv_2.Conv_2.weight": [
+16,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_2.boundary_extractor.reduce.bias": [
+8
+],
+"Encoder.conv_2.boundary_extractor.reduce.weight": [
+8,
+16,
+1,
+1,
+1
+],
+"Encoder.conv_2.boundary_extractor.sobel_like.weight": [
+1,
+8,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_1.bias": [
+32
+],
+"Encoder.conv_3.Conv_1.weight": [
+32,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_3.Conv_2.bias": [
+32
+],
+"Encoder.conv_3.Conv_2.weight": [
+32,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_3.boundary_extractor.reduce.bias": [
+16
+],
+"Encoder.conv_3.boundary_extractor.reduce.weight": [
+16,
+32,
+1,
+1,
+1
+],
+"Encoder.conv_3.boundary_extractor.sobel_like.weight": [
+1,
+16,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_1.bias": [
+64
+],
+"Encoder.conv_4.Conv_1.weight": [
+64,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_4.Conv_2.bias": [
+64
+],
+"Encoder.conv_4.Conv_2.weight": [
+64,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_4.boundary_extractor.reduce.bias": [
+32
+],
+"Encoder.conv_4.boundary_extractor.reduce.weight": [
+32,
+64,
+1,
+1,
+1
+],
+"Encoder.conv_4.boundary_extractor.sobel_like.weight": [
+1,
+32,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_1.bias": [
+128
+],
+"Encoder.conv_5.Conv_1.weight": [
+128,
+64,
+3,
+3,
+3
+],
+"Encoder.conv_5.Conv_2.bias": [
+128
+],
+"Encoder.conv_5.Conv_2.weight": [
+128,
+128,
+3,
+3,
+3
+],
+"Encoder.conv_5.boundary_extractor.reduce.bias": [
+64
+],
+"Encoder.conv_5.boundary_extractor.reduce.weight": [
+64,
+128,
+1,
+1,
+1
+],
+"Encoder.conv_5.boundary_extractor.sobel_like.weight": [
+1,
+64,
+3,
+3,
+3
+],
+"Encoder.fusion.fuse_conv.bias": [
+64
+],
+"Encoder.fusion.fuse_conv.weight": [
+64,
+64,
+1,
+1
+],
+"Encoder.fusion.gene_proj.bias": [
+64
+],
+"Encoder.fusion.gene_proj.weight": [
+64,
+10,
+1,
+1
+],
+"Encoder.fusion.img_proj.bias": [
+64
+],
+"Encoder.fusion.img_proj.weight": [
+64,
+64,
+1,
+1
+],
+"Encoder.fusion.transformer.linear1.bias": [
+128
+],
+"Encoder.fusion.transformer.linear1.weight": [
+128,
+64
+],
+"Encoder.fusion.transformer.linear2.bias": [
+64
+],
+"Encoder.fusion.transformer.linear2.weight": [
+64,
+128
+],
+"Encoder.fusion.transformer.norm1.bias": [
+64
+],
+"Encoder.fusion.transformer.norm1.weight": [
+64
+],
+"Encoder.fusion.transformer.norm2.bias": [
+64
+],
+"Encoder.fusion.transformer.norm2.weight": [
+64
+],
+"Encoder.fusion.transformer.self_attn.in_proj_bias": [
+192
+],
+"Encoder.fusion.transformer.self_attn.in_proj_weight": [
+192,
+64
+],
+"Encoder.fusion.transformer.self_attn.out_proj.bias": [
+64
+],
+"Encoder.fusion.transformer.self_attn.out_proj.weight": [
+64,
+64
+]
+}
+}

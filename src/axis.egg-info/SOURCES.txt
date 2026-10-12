@@ -1,9 +1,0 @@
-pyproject.toml
-src/axis/__init__.py
-src/axis/coordinate_utils.py
-src/axis/datasets.py
-src/axis/networks.py
-src/axis.egg-info/PKG-INFO
-src/axis.egg-info/SOURCES.txt
-src/axis.egg-info/dependency_links.txt
-src/axis.egg-info/top_level.txt

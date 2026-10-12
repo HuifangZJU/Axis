@@ -1,0 +1,35 @@
+# Lung adenocarcinoma LUAD_2_A: PhenoCycler proteomics + 10x Xenium transcriptomics
+# https://kero.hgc.jp/Ad-SpatialAnalysis_2024.html
+
+name: phenocycler_luad
+root: phenocycler/huifang
+group: LUAD_2_A
+modalities: [xenium, protein]
+shared_markers:                   # protein - gene pairs used to learn the cross-modality field
+  IDO1: IDO1
+  CD45RO: PTPRC
+  Podoplanin: PDPN
+
+canvas_size: 1024
+preprocess:
+  min_counts: 10
+  min_features: 100
+  target_sum: 100
+pseudoimage:
+  n_comps: 3                      # the three shared markers
+  preset: xenium
+
+model:
+  in_channels: 1
+  fusion: linear
+  checkpoint: ${AXIS_DATA_DIR}/phenocycler/huifang/trained_models/LUAD_2_A/model_1000.pth
+training:                         # pipelines/training/train_multimodal_xenium.py
+  morph_win: 41
+  mol_win: 31
+  lr: 5.0e-5
+
+prediction:                       # XGBoost cross-modality prediction (Fig. 7f-g)
+  test_size: 0.20
+  val_size: 0.10
+  n_estimators: 2000
+  learning_rate: 0.05

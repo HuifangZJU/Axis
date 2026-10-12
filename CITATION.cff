@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use AXIS, please cite the manuscript below."
+title: "AXIS: virtual tissue generation and spatially matched analysis from spatial omics"
+type: software
+version: 1.0.0
+license: MIT
+repository-code: "https://github.com/HuifangZJU/Axis"
+url: "https://huifangzju.github.io/Axis/"
+keywords:
+  - spatial omics
+  - virtual tissue
+  - spatial transcriptomics
+  - image registration
+authors:
+  - family-names: Ma
+    given-names: Huifang
+    affiliation: "Department of Biostatistics and Bioinformatics, Duke University School of Medicine"
+  - family-names: Zhuang
+    given-names: Haotian
+    affiliation: "Department of Biostatistics and Bioinformatics, Duke University School of Medicine"
+  - family-names: Hou
+    given-names: Wenpin
+    affiliation: "Department of Biostatistics and Bioinformatics, Duke University School of Medicine"
+  - family-names: Zhang
+    given-names: Anru
+    affiliation: "Department of Biostatistics and Bioinformatics, Duke University School of Medicine; Department of Computer Science, Duke University"
+  - family-names: Ji
+    given-names: Zhicheng
+    email: zhicheng.ji@duke.edu
+    affiliation: "Department of Biostatistics and Bioinformatics, Duke University School of Medicine; Pierre R. Lamond Department of Electrical and Computer Engineering, Duke University"
+preferred-citation:
+  type: article
+  title: "Virtual tissue generation and spatially matched analysis from spatial omics"
+  authors:
+    - family-names: Ma
+      given-names: Huifang
+    - family-names: Zhuang
+      given-names: Haotian
+    - family-names: Hou
+      given-names: Wenpin
+    - family-names: Zhang
+      given-names: Anru
+    - family-names: Ji
+      given-names: Zhicheng
+  notes: "Manuscript under review."

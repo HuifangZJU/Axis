@@ -1,7 +1,31 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments
 .venv/
+venv/
 env/
+
+# Editors / OS
 .idea/
 .vscode/
 .DS_Store
+
+# Docs build
+site/
+
+# Local data and run outputs (set AXIS_DATA_DIR / AXIS_EXPERIMENT_DIR instead)
+/data/
+/experiments/
+/quickstart_out/
+*.pth
+*.h5ad
+*.npz
