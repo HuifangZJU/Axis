@@ -56,8 +56,8 @@ is the AXIS alignment stored with the sample (`obsm["spatial_axis"]`).
 | 20 µm → 0 µm, neighbourhood agreement | 0.551 | 0.662 | 0.714 |
 
 Median distance between this run's and the published transported spots:
-3.5 px (10 µm) and 4.6 px (20 µm) on the 256-px canvas, i.e. about a quarter
-to a third of the spot spacing.
+3.5 px (10 µm) and 4.6 px (20 µm) on the 256-px canvas, where neighbouring
+spots are 6.75 px apart (about 0.5 and 0.7 spot spacings).
 
 The generated section has 882 supported spots. Its cluster composition
 differs from the held-out section by a mean symmetric relative error of
