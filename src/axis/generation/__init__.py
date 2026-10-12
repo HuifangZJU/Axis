@@ -1,10 +1,10 @@
 """Virtual-tissue generation (Methods, "AXIS: Virtual-tissue generation").
 
-* :mod:`~axis.generation.evidence` – anchor selection, axis weights, evidence planes
-* :mod:`~axis.generation.support` – output supports and tissue-support filter
-* :mod:`~axis.generation.weighting` – spatial and molecular-quality weights
-* :mod:`~axis.generation.generate` – evidence-weighted generation
-* :mod:`~axis.generation.meta` – saving the evidence behind a generated tissue
+* [`evidence`][axis.generation.evidence] – anchor selection, axis weights, evidence planes
+* [`support`][axis.generation.support] – output supports and tissue-support filter
+* [`weighting`][axis.generation.weighting] – spatial and molecular-quality weights
+* [`generate`][axis.generation.generate] – evidence-weighted generation
+* [`meta`][axis.generation.meta] – saving the evidence behind a generated tissue
 """
 
 from .evidence import (

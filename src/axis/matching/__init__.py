@@ -1,9 +1,9 @@
 """Spatially matched analysis (Methods, "AXIS: Spatially matched analysis").
 
-* :mod:`~axis.matching.reference` – reconstruction of samples on a reference support
-* :mod:`~axis.matching.contrast` – location-wise molecular contrasts
-* :mod:`~axis.matching.population` – population-level integration (Sinkhorn + low rank)
-* :mod:`~axis.matching.cross_modality` – cross-modality prediction (XGBoost)
+* [`reference`][axis.matching.reference] – reconstruction of samples on a reference support
+* [`contrast`][axis.matching.contrast] – location-wise molecular contrasts
+* [`population`][axis.matching.population] – population-level integration (Sinkhorn + low rank)
+* [`cross_modality`][axis.matching.cross_modality] – cross-modality prediction (XGBoost)
 """
 
 from .contrast import (

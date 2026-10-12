@@ -21,7 +21,8 @@ class NCC:
     """Squared local normalised cross-correlation, Eq. (21).
 
     ``loss(I, J) = -mean_u Cov_N(u)(I, J)^2 / (Var_N(u)(I) Var_N(u)(J) + eps)``
-    with a ``win x win`` window (21 by default for morphology).
+    with a ``win x win`` window (default 9; ``RegistrationLoss`` and
+    ``axis.tl.fit_transition`` use 21 for morphology).
     """
 
     def __init__(self, win: int = 9):
@@ -154,7 +155,8 @@ def smoothness_loss(flow: torch.Tensor) -> torch.Tensor:
     return Grad("l2").loss(flow)
 
 
-Regu_loss = smoothness_loss  # name used by the original training scripts
+Regu_loss = smoothness_loss
+"""Original name of [`smoothness_loss`][axis.registration.losses.smoothness_loss], used by the original training scripts."""
 
 
 class RegistrationLoss:
@@ -164,8 +166,10 @@ class RegistrationLoss:
     ----------
     lambda_morph, lambda_mol, lambda_smooth
         Weights ``λ_m``, ``λ_p`` and ``λ_D``.
-    morph_win, mol_win
-        Local NCC window sizes for morphology and molecular terms.
+    morph_win
+        Local NCC window size of the morphology term.
+    mol_win
+        Local NCC window size of the molecular term.
     n_mol_channels
         Number of pseudo-image channels (the mask is the last channel).
     """

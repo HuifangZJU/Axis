@@ -1,8 +1,13 @@
 # Tutorials
 
 Each tutorial maps to one family of analyses in the manuscript and uses the
-public API. The code is runnable on the quickstart sample or on the synthetic
-`axis.datasets.toy_series()` where noted.
+public API. The examples continue from `adatas` (prepared with
+`axis.pp.prepare_canvas` and `axis.pp.build_pseudoimages`) and `fields` from a
+previous step. The transition-field example runs on the synthetic
+`axis.datasets.toy_series()`, and the first generation example on the
+[Quickstart](../quickstart.md) sample (SCC patient 10). The other examples need
+the dataset of the corresponding figure (DLPFC, Xenium mouse brain, LUAD
+Xenium/PhenoCycler; see `configs/`).
 
 | Tutorial | Manuscript |
 |---|---|

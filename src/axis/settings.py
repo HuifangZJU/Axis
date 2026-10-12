@@ -4,7 +4,7 @@ All file-system locations used by AXIS and by the reproducibility scripts are
 resolved through this module, so that no absolute, machine-specific path needs
 to appear in the code base.
 
-Two environment variables are recognised:
+Four environment variables are recognised:
 
 ``AXIS_DATA_DIR``
     Root directory that holds the processed datasets (one sub-directory per
@@ -16,10 +16,22 @@ Two environment variables are recognised:
     Root directory for trained models, training logs and intermediate
     training figures. Defaults to ``$AXIS_DATA_DIR/experiments``.
 
-Both can also be changed at run time::
+``AXIS_DEVICE``
+    Default torch device (``"auto"``: CUDA when available); see
+    ``AxisSettings.device``.
+
+``AXIS_VERBOSITY``
+    0 = silent, 1 = progress messages (default), 2 = debug.
+
+The dataset configs are located separately (``AXIS_CONFIG_DIR``, see
+[`axis.config.config_dir`][axis.config.config_dir]).
+
+All four can also be changed at run time, through the attributes of
+``axis.settings``:
 
     import axis
     axis.settings.data_dir = "/path/to/axis_data"
+    axis.settings.device = "cpu"
 """
 
 from __future__ import annotations
@@ -101,6 +113,7 @@ class AxisSettings:
 
 
 settings = AxisSettings()
+"""The global [`AxisSettings`][axis.settings.AxisSettings] instance, available as ``axis.settings``."""
 
 
 def _join(root: Path, parts) -> str:
@@ -110,7 +123,7 @@ def _join(root: Path, parts) -> str:
 
 
 def data_path(*parts: PathLike) -> str:
-    """Return a path below :attr:`AxisSettings.data_dir` as a string.
+    """Return a path below [`AxisSettings.data_dir`][axis.settings.AxisSettings] as a string.
 
     Examples
     --------
@@ -121,7 +134,7 @@ def data_path(*parts: PathLike) -> str:
 
 
 def experiment_path(*parts: PathLike) -> str:
-    """Return a path below :attr:`AxisSettings.experiment_dir` as a string."""
+    """Return a path below [`AxisSettings.experiment_dir`][axis.settings.AxisSettings] as a string."""
     return _join(settings.experiment_dir, parts)
 
 

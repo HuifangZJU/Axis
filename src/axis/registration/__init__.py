@@ -1,11 +1,11 @@
 """Transition-field learning (Methods, "AXIS: Tissue transition field learning").
 
-* :mod:`~axis.registration.model` – multimodal / image-only networks
-* :mod:`~axis.registration.losses` – training objective, Eqs. (20)-(23)
-* :mod:`~axis.registration.data` – pair datasets
-* :mod:`~axis.registration.train` – training loop
-* :mod:`~axis.registration.inference` – predicting and saving fields
-* :mod:`~axis.registration.warp` – applying fields to images and points
+* [`model`][axis.registration.model] – multimodal / image-only networks
+* [`losses`][axis.registration.losses] – training objective, Eqs. (20)-(23)
+* [`data`][axis.registration.data] – pair datasets
+* [`train`][axis.registration.train] – training loop
+* [`inference`][axis.registration.inference] – predicting and saving fields
+* [`warp`][axis.registration.warp] – applying fields to images and points
 """
 
 from .data import PairDataset, cat_mask_with_features, default_gene_transform, default_image_transform

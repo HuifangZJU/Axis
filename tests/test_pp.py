@@ -76,3 +76,20 @@ def test_prepare_canvas_pads_and_scales():
     assert np.allclose(a.obsm["spatial_canvas"][1], [99 * 0.32, 49 * 0.32])
     axis.pp.prepare_canvas(a, image, canvas_size=32, grayscale=True)
     assert a.uns["axis"]["image"].shape == (32, 32)
+
+
+def test_prepare_canvas_image_formats():
+    import anndata as ad
+
+    a = ad.AnnData(np.ones((2, 2), dtype=np.float32))
+    a.obsm["spatial"] = np.array([[1.0, 1.0], [30.0, 30.0]])
+    ramp = np.tile(np.linspace(0, 4000, 32), (32, 1)).astype(np.uint16)  # 16-bit DAPI-like
+    axis.pp.prepare_canvas(a, ramp, canvas_size=32)
+    out = a.uns["axis"]["image"]
+    assert out.dtype == np.uint8 and out.max() == 255 and (out == 255).mean() < 0.1  # rescaled, not saturated
+    rgba = np.zeros((32, 32, 4), dtype=np.uint8)
+    axis.pp.prepare_canvas(a, rgba, canvas_size=32)
+    assert a.uns["axis"]["image"].shape == (32, 32, 3)  # alpha dropped
+    floats = np.full((32, 32, 3), 0.5)
+    axis.pp.prepare_canvas(a, floats, canvas_size=32)
+    assert a.uns["axis"]["image"].max() == 127  # floats in [0, 1] as before

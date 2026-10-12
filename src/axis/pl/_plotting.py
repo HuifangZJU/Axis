@@ -274,7 +274,7 @@ def axis_weights(observed_positions: Sequence[float], query: float, bandwidth: O
 
 
 def loss(history: Mapping[str, Sequence[float]], smooth: int = 20):
-    """Training curves of the loss terms returned by :func:`axis.tl.fit_transition`."""
+    """Training curves of the loss terms in ``history`` (e.g. ``fields.history`` from [`axis.tl.fit_transition`][axis.tl.fit_transition])."""
     plt = _plt()
     fig, ax = plt.subplots(figsize=(5, 3))
     for key, values in history.items():

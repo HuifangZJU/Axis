@@ -107,7 +107,10 @@ def prepare_canvas(
     adata
         AnnData with spot/cell coordinates in ``obsm[spatial_key]`` (``x, y``).
     image
-        Morphology image (``H x W`` or ``H x W x 3``). Defaults to
+        Morphology image (``H x W``, ``H x W x 3`` or ``H x W x 4``; an alpha
+        channel is dropped). ``uint8`` images and floats in ``[0, 1]`` or
+        ``[0, 255]`` are used as is; images with larger values (e.g. 12/16-bit
+        DAPI) are rescaled linearly by their maximum to 8 bits. Defaults to
         ``adata.uns["image_array"]``.
     spatial_key
         Coordinates in the pixel frame of ``image`` (after multiplying by ``scale``).
@@ -123,12 +126,13 @@ def prepare_canvas(
         Convert RGB to grayscale (used when samples of different modalities are
         registered; Methods "Input data").
     enhance_dapi
-        Apply :func:`clahe` (Xenium / PhenoCycler DAPI).
+        Apply [`clahe`][axis.pp.clahe] (Xenium / PhenoCycler DAPI).
 
     Returns
     -------
-    ``adata``, with the canvas image in ``uns[uns_key]["image"]`` and the canvas
-    coordinates in ``obsm[key_added]``.
+    anndata.AnnData
+        ``adata``, with the canvas image in ``uns[uns_key]["image"]`` and the
+        canvas coordinates in ``obsm[key_added]``.
     """
     if canvas_size % 16:
         raise ValueError("canvas_size must be divisible by 16")
@@ -137,8 +141,15 @@ def prepare_canvas(
             raise KeyError("No image given and adata.uns['image_array'] is missing.")
         image = adata.uns["image_array"]
     img = np.asarray(image)
+    if img.ndim == 3 and img.shape[2] == 4:  # RGBA export: drop the alpha channel
+        img = img[..., :3]
     if img.dtype != np.uint8:
-        img = (np.clip(img, 0, 1) * 255).astype(np.uint8) if img.max() <= 1.0 else np.clip(img, 0, 255).astype(np.uint8)
+        peak = float(img.max()) if img.size else 0.0
+        if peak <= 1.0:
+            img = np.clip(img, 0, 1) * 255
+        elif peak > 255:  # 12/16-bit images would otherwise saturate
+            img = img.astype(np.float64) / peak * 255
+        img = np.clip(img, 0, 255).astype(np.uint8)
     coords = np.asarray(adata.obsm[spatial_key], dtype=np.float64)[:, :2] * float(scale)
 
     if crop is None:

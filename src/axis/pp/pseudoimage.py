@@ -188,16 +188,35 @@ def resize_channels(feature_matrix: np.ndarray, size: int) -> np.ndarray:
 # =============================================================================
 # Presets reproducing the dataset-specific preprocessing of the manuscript
 # =============================================================================
-#: ``patch_size``: grid cell size in canvas pixels, or ``patch_divisor``: number
-#: of cells along the canvas. ``median``: median-filter size (``None`` = off).
-#: ``resize_divisor``: nearest-neighbour resize to ``canvas / resize_divisor``.
-#: ``min_value``: values below are zeroed.
 PSEUDOIMAGE_PRESETS: Dict[str, Dict[str, object]] = {
     # SCC / Visium: 32 x 32 cells (16 px on a 512 canvas), median filter, nearest resize to canvas / 8.
     "visium": {"patch_divisor": 32, "median": 2, "resize_divisor": 8, "min_value": None, "soft": True},
     # Xenium / PhenoCycler: 8-px cells (canvas / 8, i.e. 128 x 128 on a 1024 canvas), small values zeroed.
     "xenium": {"patch_size": 8, "median": None, "resize_divisor": None, "min_value": 0.01, "soft": True},
 }
+"""Rasterisation presets of [`rasterize_pseudoimage`][axis.pp.rasterize_pseudoimage].
+
+``"visium"`` reproduces the SCC / Visium preprocessing (32 x 32 cells, median
+filter, nearest-neighbour resize to 1/8 of the canvas); ``"xenium"`` the
+Xenium / PhenoCycler one (8-px cells, small values zeroed). Keys:
+
+- ``patch_size``: grid cell size in canvas pixels, or ``patch_divisor``: number
+  of cells along the canvas;
+- ``median``: median-filter size (``None`` = off);
+- ``resize_divisor``: nearest-neighbour resize to ``canvas / resize_divisor``
+  (``None`` = off);
+- ``min_value``: values below are zeroed (``None`` = off);
+- ``soft``: Gaussian rasterisation with
+  [`get_gene_feature_matrix_soft`][axis.pp.get_gene_feature_matrix_soft]
+  instead of the per-cell mean of
+  [`get_gene_feature_matrix`][axis.pp.get_gene_feature_matrix].
+
+Individual entries can be overridden through the keyword arguments of
+[`rasterize_pseudoimage`][axis.pp.rasterize_pseudoimage] and
+[`build_pseudoimages`][axis.pp.build_pseudoimages], which also accept
+``sigma``, the Gaussian width of the soft rasterisation (default
+``patch_size / 2``).
+"""
 
 
 def rasterize_pseudoimage(
@@ -261,12 +280,13 @@ def build_pseudoimages(
     ----------
     adatas
         Samples to register. Each must have been passed through
-        :func:`axis.pp.prepare_canvas` (or provide canvas coordinates in
-        ``obsm[spatial_key]`` and the canvas image in ``uns[key_added]["image"]``).
+        [`axis.pp.prepare_canvas`][axis.pp.prepare_canvas] (or provide canvas
+        coordinates in ``obsm[spatial_key]`` and the canvas image in
+        ``uns[key_added]["image"]``).
     n_comps
         Number of principal components ``C_p``.
     preset
-        ``"visium"`` or ``"xenium"``, see :data:`PSEUDOIMAGE_PRESETS`.
+        ``"visium"`` or ``"xenium"``, see [`PSEUDOIMAGE_PRESETS`][axis.pp.PSEUDOIMAGE_PRESETS].
     layer
         Use ``adata.layers[layer]`` instead of ``adata.X``.
     normalize
@@ -280,10 +300,11 @@ def build_pseudoimages(
 
     Returns
     -------
-    The (possibly filtered) AnnData objects. For each sample,
-    ``uns[key_added]`` gains ``"pseudoimage"`` ``(h, w, C)``, ``"mask"`` ``(h, w)``
-    and ``"pseudoimage_params"``, and ``obsm["X_axis_pca"]`` stores the
-    normalised spot embedding.
+    list of anndata.AnnData
+        The (possibly filtered) AnnData objects. For each sample,
+        ``uns[key_added]`` gains ``"pseudoimage"`` ``(h, w, C)``, ``"mask"``
+        ``(h, w)`` and ``"pseudoimage_params"``, and ``obsm["X_axis_pca"]``
+        stores the normalised spot embedding.
     """
     import scanpy as sc
 

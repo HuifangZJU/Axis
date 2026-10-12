@@ -180,7 +180,7 @@ def transform_expression(
 
     This helper is appropriate only when ``matrix`` contains the complete gene
     library used to define each row's library size. For selected-gene extraction
-    from AnnData, use :func:`extract_preprocessed_matrix` instead.
+    from AnnData, use [`extract_preprocessed_matrix`][axis.matching.contrast.extract_preprocessed_matrix] instead.
     """
     matrix = np.asarray(matrix, dtype=np.float32)
     _validate_nonnegative(matrix, label)

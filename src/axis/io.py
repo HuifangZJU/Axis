@@ -1,6 +1,6 @@
 """Reading and writing the on-disk layout shared by the AXIS pipelines.
 
-Each dataset root (``AXIS_DATA_DIR/<dataset>``) follows::
+Each dataset root (``AXIS_DATA_DIR/<dataset>``) follows:
 
     h5ad/{group}_{sample}.h5ad                      measured sections (counts in X)
     network_input/{group}_{sample}_validation.npz   canvas coordinates ("coord") and labels

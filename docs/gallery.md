@@ -40,10 +40,6 @@ Visium-like grid, next to the measured 10-µm section that was held out.
 
 ![Virtual 10-µm section](assets/gallery/scc_virtual_section.jpg)
 
-## Training curve
-
-![Training loss](assets/gallery/scc_training_loss.jpg)
-
 ## Numbers (`report.json`)
 
 Neighbourhood agreement is the fraction of spots whose cluster matches the

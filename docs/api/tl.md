@@ -2,6 +2,8 @@
 
 ::: axis.tl.fit_transition
 ::: axis.tl.TransitionFields
+    options:
+      members: [samples, transport, save, load]
 ::: axis.tl.generate
 ::: axis.tl.match
 ::: axis.tl.integrate

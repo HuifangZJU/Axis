@@ -1,6 +1,6 @@
 """Preprocessing: canvases and molecular pseudo-images (Methods, "Input preparation").
 
-Typical use::
+Typical use:
 
     for adata in adatas:
         axis.pp.prepare_canvas(adata, spatial_key="spatial_image_coor", canvas_size=512)

@@ -31,9 +31,9 @@ def seed_everything(seed: int) -> None:
 def save_checkpoint(model: torch.nn.Module, path: Union[str, os.PathLike], **extra) -> None:
     """Save ``{"config": model.config, "state_dict": ..., **extra}``.
 
-    Deterministic buffers (:data:`axis.registration.model.DERIVED_BUFFERS`) are
+    Deterministic buffers (``axis.registration.model.DERIVED_BUFFERS``) are
     left out, which shrinks a checkpoint from ~2.2 GB to ~36 MB. The file can be
-    read back with :func:`axis.registration.load_model`.
+    read back with [`axis.registration.load_model`][axis.registration.model.load_model].
     """
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     state_dict = strip_derived_buffers(model.state_dict())
@@ -69,7 +69,8 @@ def train_transition_network(
     Parameters
     ----------
     model
-        :class:`TransitionFieldNet` or :class:`ImageTransitionNet`.
+        [`TransitionFieldNet`][axis.registration.model.TransitionFieldNet] or
+        [`ImageTransitionNet`][axis.registration.model.ImageTransitionNet].
     dataset
         Yields dicts with ``fixed_image``, ``moving_image`` and, for the
         multimodal model, ``fixed_gene``/``moving_gene`` (``[C, H, W]`` tensors).
@@ -78,20 +79,23 @@ def train_transition_network(
     lr
         Adam learning rate.
     loss_fn
-        Defaults to :class:`RegistrationLoss` for the multimodal model and to
+        Defaults to [`RegistrationLoss`][axis.registration.losses.RegistrationLoss] for the multimodal model and to
         morphology NCC + smoothness for the image-only model.
     max_steps
         Optional hard cap on the number of optimisation steps (useful for
         quick runs and tests).
-    out_dir, save_every
-        When given, checkpoints ``model_{epoch}.pth`` are written every
-        ``save_every`` epochs and ``model_final.pth`` at the end.
+    out_dir
+        When given, ``model_final.pth`` is written there at the end.
+    save_every
+        With ``out_dir``, also write ``model_{epoch}.pth`` every ``save_every``
+        epochs.
     seed
         RNG seed for reproducible shuffling / initialisation of the loop.
 
     Returns
     -------
-    History of the loss terms (one entry per step).
+    dict of str to list of float
+        History of the loss terms returned by ``loss_fn`` (one entry per step).
     """
     device = settings.resolve_device(device)
     if seed is not None:

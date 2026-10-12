@@ -1,9 +1,9 @@
 """Evaluation metrics.
 
-* :mod:`~axis.metrics.alignment` – transition-field accuracy (Dice, spatial
+* [`alignment`][axis.metrics.alignment] – transition-field accuracy (Dice, spatial
   correlation, centre shift, molecular-neighbourhood correspondence)
-* :mod:`~axis.metrics.generation` – generated / matched tissue fidelity
-* :mod:`~axis.metrics.monitor` – light-weight summaries used during training
+* [`generation`][axis.metrics.generation] – generated / matched tissue fidelity
+* `monitor` – light-weight summaries used during training
 """
 
 from .alignment import (

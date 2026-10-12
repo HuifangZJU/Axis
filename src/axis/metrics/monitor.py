@@ -3,7 +3,7 @@
 Image similarity (NCC, mutual information, SSIM) and label-based spot metrics
 (spatial cross-correlation, centroid shift, alpha-shape Dice) between a fixed
 sample and a warped moving sample. The metrics reported in the manuscript are
-in :mod:`axis.metrics.alignment`. Requires the ``metrics`` extra
+in [`axis.metrics.alignment`][axis.metrics.alignment]. Requires the ``metrics`` extra
 (``alphashape``, ``shapely``, ``scikit-image``).
 """
 

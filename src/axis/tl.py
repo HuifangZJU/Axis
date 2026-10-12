@@ -1,6 +1,6 @@
 """High-level tools (scanpy-style API).
 
-A typical AXIS session::
+A typical AXIS session:
 
     import anndata as ad, axis
 
@@ -100,6 +100,7 @@ class TransitionFields(Mapping):
 
     @property
     def samples(self) -> List[int]:
+        """Sorted indices of all samples that occur in a pair."""
         return sorted({i for pair in self._fields for i in pair})
 
     def transport(self, coords: np.ndarray, fixed: int, moving: int, alpha: float = 1.0) -> np.ndarray:
@@ -181,42 +182,74 @@ def fit_transition(
     """Learn bidirectional transition fields between samples (Methods Eqs. (3)-(23)).
 
     A single multimodal network is trained on all ordered sample pairs (or the
-    given ``pairs``) and then applied to every ordered pair.
+    given ``pairs``) and then applied to each of these pairs.
 
     Parameters
     ----------
     adatas
-        Samples prepared with :func:`axis.pp.prepare_canvas` and
-        :func:`axis.pp.build_pseudoimages`.
+        Samples prepared with [`axis.pp.prepare_canvas`][axis.pp.prepare_canvas] and
+        [`axis.pp.build_pseudoimages`][axis.pp.build_pseudoimages].
     pairs
         Ordered ``(fixed, moving)`` pairs used for training and prediction.
         Defaults to all ordered pairs.
     checkpoint
         Optional checkpoint to start from (AXIS ≥ 1.0 format or an original
-        ``state_dict``). With ``epochs=0`` the checkpoint is used as is.
+        ``state_dict``). The network is built from the inputs (image channels,
+        pseudo-image components) and ``fusion``, and the parameters whose names
+        and shapes match are copied. With ``epochs=0`` the checkpoint is used as
+        is, and a checkpoint that leaves network parameters untrained raises
+        ``ValueError``; with training it acts as a warm start.
     model
-        A pre-built :class:`axis.registration.TransitionFieldNet` (overrides
-        ``fusion`` and ``checkpoint``).
-    epochs, max_steps, lr
-        Training schedule (Adam, batch size 1). ``max_steps`` caps the total
-        number of optimisation steps, e.g. for quick runs on CPU.
+        A pre-built [`axis.registration.TransitionFieldNet`][axis.registration.model.TransitionFieldNet]
+        (overrides ``fusion`` and ``checkpoint``).
+    epochs
+        Number of passes over all training pairs (Adam, batch size 1). ``0``
+        skips training.
+    max_steps
+        Optional cap on the total number of optimisation steps, e.g. for quick
+        runs on CPU.
+    lr
+        Adam learning rate.
     fusion
         ``"transformer"`` (Visium-sized inputs) or ``"linear"`` (large inputs).
-    lambda_morph, lambda_mol, lambda_smooth, morph_win, mol_win
-        Loss weights and local-NCC windows (Eqs. (20)-(22)).
-    out_dir, save_every
-        Optional checkpoint directory / frequency (epochs).
+    lambda_morph
+        Weight ``λ_m`` of the morphology term, Eq. (20).
+    lambda_mol
+        Weight ``λ_p`` of the molecular term, Eq. (20).
+    lambda_smooth
+        Weight ``λ_D`` of the smoothness term, Eq. (20).
+    morph_win
+        Local-NCC window of the morphology term, Eq. (21).
+    mol_win
+        Local-NCC window of the molecular term, Eq. (22).
+    device
+        Torch device (default ``axis.settings.device``; ``"auto"`` selects CUDA
+        when available).
+    seed
+        Random seed of the training loop (``None``: not seeded).
+    out_dir
+        Optional directory for training checkpoints: ``model_final.pth`` at the
+        end and, with ``save_every``, ``model_{epoch}.pth``. Nothing is written
+        without training.
+    save_every
+        Checkpoint frequency in epochs (used with ``out_dir``).
+    uns_key
+        ``uns`` entry holding each sample's canvas ``"image"``, ``"pseudoimage"``
+        and ``"mask"``.
 
     Returns
     -------
-    :class:`TransitionFields` with the trained ``model`` and loss ``history``.
+    TransitionFields
+        Fields for the ordered pairs in ``pairs`` (default: all ordered pairs),
+        with the network (``model``) and the loss ``history`` (empty without
+        training).
     """
     import torch
 
     from .registration.data import PairDataset
     from .registration.inference import predict_field
     from .registration.losses import RegistrationLoss
-    from .registration.model import TransitionFieldNet, load_state_dict_flexible
+    from .registration.model import DERIVED_BUFFERS, TransitionFieldNet, load_state_dict_flexible
     from .registration.train import train_transition_network
 
     device = settings.resolve_device(device)
@@ -226,17 +259,28 @@ def fit_transition(
     in_channels = 1 if images[0].ndim == 2 else images[0].shape[2]
     n_comp = pseudo[0].shape[-1]
 
+    train = bool(epochs) and (max_steps is None or max_steps > 0)
     if model is None:
         model = TransitionFieldNet(in_channels=in_channels, in_gene_channels=n_comp, fusion_module=fusion)
         if checkpoint is not None:
             payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
             state = payload["state_dict"] if isinstance(payload, dict) and "state_dict" in payload else payload
             loaded, skipped = load_state_dict_flexible(model, state)
-            log(f"[axis] loaded {len(loaded)} tensors from {checkpoint} ({len(skipped)} skipped)")
+            untrained = [k for k in model.state_dict() if k not in set(loaded) and k.rsplit(".", 1)[-1] not in DERIVED_BUFFERS]
+            log(
+                f"[axis] loaded {len(loaded)} tensors from {checkpoint} ({len(skipped)} checkpoint tensors "
+                f"skipped, {len(untrained)} network tensors not initialised)"
+            )
+            if untrained and not train:
+                raise ValueError(
+                    f"The checkpoint leaves {len(untrained)} network tensors untrained (e.g. {untrained[:3]}). "
+                    "Match fusion=, the number of pseudo-image components and the image channels to the "
+                    "checkpoint, or train further with epochs > 0 (warm start)."
+                )
 
     dataset = PairDataset(images, pseudo, masks, pairs=pairs)
     history: dict = {}
-    if epochs and (max_steps is None or max_steps > 0):
+    if train:
         loss_fn = RegistrationLoss(
             lambda_morph=lambda_morph,
             lambda_mol=lambda_mol,
@@ -290,7 +334,24 @@ def _attrs(adata, attr_keys: Optional[Sequence[str]]) -> Optional[pd.DataFrame]:
 
 
 def make_grid(kind: Union[str, np.ndarray] = "visium", grid_size: int = 40, canvas_size: int = 512) -> np.ndarray:
-    """Output support on the canvas: ``"visium"`` (hexagonal), ``"pixel"`` (square) or explicit ``(M, 2)`` points."""
+    """Output support on the canvas: ``"visium"`` (hexagonal), ``"pixel"`` (square) or explicit ``(M, 2)`` points.
+
+    Parameters
+    ----------
+    kind
+        ``"visium"`` (staggered hexagonal lattice with about ``grid_size**2``
+        spots), ``"pixel"`` (``grid_size x grid_size`` cell centres) or an
+        ``(M, 2)`` array of canvas coordinates (returned as ``float32``).
+    grid_size
+        Lattice resolution.
+    canvas_size
+        Side of the square canvas covered by the lattice, in pixels.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``(M, 2)`` ``(x, y)`` canvas coordinates.
+    """
     if not isinstance(kind, str):
         return np.asarray(kind, dtype=np.float32)
     grid, _ = make_common_grid_from_coords(grid_size, type=kind, max_x=canvas_size, max_y=canvas_size)
@@ -328,8 +389,10 @@ def generate(
 
     Parameters
     ----------
-    adatas, fields
-        Measured samples and their transition fields.
+    adatas
+        Measured samples.
+    fields
+        Their transition fields.
     positions
         Position of every sample along the biological axis (list aligned with
         ``adatas`` or ``{index: position}``).
@@ -338,27 +401,57 @@ def generate(
     anchors
         Candidate anchor samples (default: all). The two anchors bracketing
         ``query`` are used.
-    grid, grid_size
-        Output support: ``"visium"``/``"pixel"`` lattice with about
-        ``grid_size**2`` locations, or explicit ``(M, 2)`` canvas coordinates.
+    grid
+        Output support: ``"visium"``/``"pixel"`` lattice (see
+        [`make_grid`][axis.tl.make_grid]) or explicit ``(M, 2)`` canvas
+        coordinates.
+    grid_size
+        Lattice resolution (about ``grid_size**2`` locations).
+    spatial_key
+        ``obsm`` key of the canvas coordinates.
     layer
         Molecular values to generate (default ``X``; counts are expected when
         ``use_quality_weight`` is on).
     genes
         Optional subset of features.
-    attr_keys, attr_schema
+    attr_keys
         ``obs`` annotations to generate (e.g. ``["original_clusters"]``).
-    spatial_bandwidth, attr_spatial_bandwidth
-        ``sigma_x`` for molecules / annotations, in canvas pixels.
+    attr_schema
+        Kind of each annotation (``"categorical"``, ``"continuous"`` or
+        ``"boolean"``). Inferred from the column dtypes when omitted; numeric
+        columns whose names contain e.g. ``cluster`` or ``domain`` count as
+        categorical.
+    spatial_bandwidth
+        ``sigma_x`` for molecules, in canvas pixels. Defaults to half the median
+        axis-aligned coordinate spacing of the output support (see
+        [`prepare_local_query_support`][axis.generation.weighting.prepare_local_query_support]).
+    attr_spatial_bandwidth
+        ``sigma_x`` for annotations, in canvas pixels (default: the molecular
+        weights are reused).
     axis_bandwidth
         ``sigma_tau``; defaults to one third of the anchor spacing.
     max_dist
         Tissue-support threshold (``max_distance``, canvas pixels; 8 by default).
+    knn
+        Number of nearest evidence points per output location; the
+        ``max(knn, min_neighbors)`` nearest are used.
+    min_neighbors
+        Lower bound on the number of nearest evidence points; with ``radius``,
+        the ``min_neighbors`` nearest are always kept.
+    radius
+        Optional radius (canvas pixels): farther evidence points are dropped,
+        except the ``min_neighbors`` nearest.
+    use_quality_weight
+        Apply the molecular-quality weight (expects counts); it also weights the
+        annotations.
+    log1p
+        ``log1p``-transform the anchor values before generation.
 
     Returns
     -------
-    AnnData on the output support with generated ``X``, annotations, support
-    diagnostics in ``obs`` and provenance in ``uns["axis_generation"]``.
+    anndata.AnnData
+        Generated tissue on the output support: ``X``, generated annotations,
+        support diagnostics in ``obs`` and provenance in ``uns["axis_generation"]``.
     """
     pos = dict(positions) if isinstance(positions, Mapping) else {i: float(p) for i, p in enumerate(positions)}
     anchors = list(anchors) if anchors is not None else sorted(pos)
@@ -448,12 +541,63 @@ def match(
     sample. With ``reconstruct=True`` every sample is additionally
     reconstructed on a common support in the reference frame (by default the
     reference sample's own locations; ``beta_r = 1``), giving location-matched
-    AnnData objects that can be compared directly (see :func:`contrast`).
+    AnnData objects that can be compared directly (see [`contrast`][axis.tl.contrast]).
+
+    Parameters
+    ----------
+    adatas
+        Measured samples (modified in place).
+    fields
+        Their transition fields.
+    reference
+        Index of the sample whose anatomy defines the frame.
+    spatial_key
+        ``obsm`` key of the canvas coordinates.
+    key_added
+        ``obsm`` key receiving the transported coordinates.
+    reconstruct
+        Also reconstruct every sample on a common support and return the list.
+    grid
+        Reconstruction support: ``None`` (the reference sample's locations),
+        ``"visium"``/``"pixel"`` (see [`make_grid`][axis.tl.make_grid]) or
+        ``(M, 2)`` canvas coordinates.
+    grid_size
+        Lattice resolution for ``"visium"``/``"pixel"`` (about ``grid_size**2``
+        locations).
+    layer
+        Molecular values to reconstruct (default ``X``; counts are expected when
+        ``use_quality_weight`` is on).
+    genes
+        Optional subset of the features shared by all samples.
+    attr_keys
+        ``obs`` annotations to reconstruct.
+    attr_schema
+        Kind of each annotation (``"categorical"``, ``"continuous"`` or
+        ``"boolean"``). Inferred from the column dtypes when omitted; numeric
+        columns whose names contain e.g. ``cluster`` or ``domain`` count as
+        categorical.
+    spatial_bandwidth
+        ``sigma_x`` for molecules, in canvas pixels. Defaults to half the median
+        axis-aligned coordinate spacing of the support.
+    attr_spatial_bandwidth
+        ``sigma_x`` for annotations, in canvas pixels (default: the molecular
+        weights are reused).
+    max_dist
+        Tissue-support threshold, in canvas pixels.
+    knn
+        Number of nearest evidence points per output location; the
+        ``max(knn, min_neighbors)`` nearest are used.
+    min_neighbors
+        Lower bound on the number of nearest evidence points.
+    use_quality_weight
+        Apply the molecular-quality weight (expects counts); it also weights the
+        annotations.
 
     Returns
     -------
-    ``None``, or the list of reconstructed AnnData objects (same order as
-    ``adatas``) when ``reconstruct=True``.
+    list of anndata.AnnData or None
+        The reconstructed samples (same order as ``adatas``) when
+        ``reconstruct=True``, otherwise ``None``.
     """
     for i, adata in enumerate(adatas):
         adata.obsm[key_added] = fields.transport(_coords(adata, spatial_key), reference, i)
@@ -518,6 +662,53 @@ def integrate(
     total mass per sample, coupled to the reference support by sparse
     Sinkhorn transport and denoised by adaptive low-rank reconstruction.
     Defaults follow the DLPFC analysis.
+
+    Parameters
+    ----------
+    adatas
+        Measured samples.
+    fields
+        Their transition fields.
+    reference
+        Index of the reference sample, whose frame holds the output.
+    grid
+        Output support in the reference frame: ``"visium"``/``"pixel"`` (see
+        [`make_grid`][axis.tl.make_grid]) or ``(M, 2)`` canvas coordinates.
+    grid_size
+        Lattice resolution (about ``grid_size**2`` locations).
+    spatial_key
+        ``obsm`` key of the canvas coordinates.
+    layer
+        Molecular values to integrate (default ``X``); they must be non-negative
+        (counts).
+    genes
+        Optional subset of the features shared by all samples.
+    attr_keys
+        Categorical ``obs`` annotations transferred with the final coupling.
+    max_dist
+        Tissue-support threshold, in canvas pixels.
+    fuse_radius
+        Radius (canvas pixels) around each transported location within which
+        output locations are candidate coupling partners (the 64 nearest at
+        most).
+    alpha
+        Weight ``α`` of the spatial cost in Eq. (36) (``1 - alpha`` for the
+        molecular cost).
+    keep_nuc_frac
+        Retained singular-value mass ``η`` of Eq. (38).
+    pca_dim
+        PCA dimension of the molecular embedding used in the cost.
+    outer_loops
+        Number of coupling / low-rank rounds.
+    device
+        Torch device (default ``axis.settings.device``).
+
+    Returns
+    -------
+    anndata.AnnData
+        Population-level tissue on the supported output locations
+        (``obsm["spatial"]``), with the transferred annotations in ``obs`` and
+        provenance in ``uns["axis_integration"]``.
     """
     import anndata as ad
 
@@ -583,9 +774,38 @@ def contrast(
 ):
     """Location-wise molecular contrast ``a - b`` of two spatially matched tissues.
 
-    Thin wrapper around :func:`axis.matching.contrast.compute_spatial_delta`;
-    the inputs must share the same support (e.g. outputs of :func:`match` with
-    ``reconstruct=True``).
+    Thin wrapper around
+    [`axis.matching.contrast.compute_spatial_delta`][axis.matching.contrast.compute_spatial_delta];
+    the inputs must share the same support (e.g. outputs of [`match`][axis.tl.match]
+    with ``reconstruct=True``).
+
+    Parameters
+    ----------
+    adata_a
+        First tissue, with counts in ``X``.
+    adata_b
+        Second tissue on the same support, with counts in ``X``. Locations are
+        paired by ``obs_names`` or else by ``obsm["spatial"]``, and only
+        locations with ``obs["valid"]`` in both are kept (a missing column
+        counts as valid).
+    genes
+        Optional feature subset (library sizes always use all features).
+    normalize_total
+        Normalise each location to ``target_sum`` counts before ``log1p``.
+    target_sum
+        Library size after normalisation (default 1e4).
+    use_log1p
+        ``log1p``-transform before subtraction.
+    domain_key
+        Optional ``obs`` column of ``adata_a`` (a ``KeyError`` is raised if it is
+        missing), recorded in ``uns["spatial_delta"]``.
+
+    Returns
+    -------
+    anndata.AnnData
+        ``a - b`` per matched location and shared feature, with the ``obs`` and
+        ``obsm`` of ``adata_a`` at the retained locations and the settings in
+        ``uns["spatial_delta"]``.
     """
     from .matching.contrast import compute_spatial_delta
 
@@ -596,7 +816,27 @@ def contrast(
 
 
 def predict_modality(X, Y, target_names: Sequence[str], **kwargs):
-    """Cross-modality prediction from matched locations; see :func:`axis.matching.fit_cross_modality`."""
+    """Cross-modality prediction from matched locations; see [`axis.matching.fit_cross_modality`][axis.matching.cross_modality.fit_cross_modality].
+
+    Parameters
+    ----------
+    X
+        Predictor-modality matrix ``(n, p)``.
+    Y
+        Target matrix ``(n, t)``.
+    target_names
+        Names of the ``t`` targets.
+    **kwargs
+        Passed to ``fit_cross_modality`` (``test_size=0.2``, ``val_size=0.1``,
+        ``seed=0``, ``use_gpu=False``, ``n_jobs=8``, ``search``).
+
+    Returns
+    -------
+    CrossModalityResult
+        One fitted XGBoost model per target, the selected hyper-parameters, the
+        train / validation / test split, and the test-set predictions and
+        metrics.
+    """
     from .matching.cross_modality import fit_cross_modality
 
     return fit_cross_modality(X, Y, target_names, **kwargs)
