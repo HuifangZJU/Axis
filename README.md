@@ -49,7 +49,7 @@ Install the PyTorch build matching your CUDA version first if needed
 (<https://pytorch.org/get-started/locally/>). The distribution is called
 `axis-spatial`; the import name is `axis`.
 
-## 5-minute quickstart: SCC, patient 10
+## Quickstart: SCC, patient 10
 
 Three serial 10x Visium sections of a cutaneous squamous cell carcinoma
 (0, 10 and 20 µm; Ji *et al.*, *Cell* 2020). We learn transition fields, place
@@ -72,7 +72,7 @@ axis.pp.build_pseudoimages(adatas, n_comps=10, preset="visium")
 
 # 2. learn transition fields between all section pairs
 fields = axis.tl.fit_transition(adatas, morph_win=9, mol_win=5, lambda_mol=0.5,
-                                max_steps=3000)          # ~10 min on one GPU
+                                max_steps=3000)          # 500 epochs over the 6 ordered pairs
 fields.save("scc_fields")
 
 # 3. spatially matched analysis: express every section in the frame of section 0
@@ -92,11 +92,15 @@ published AXIS alignment, are packaged as a script:
 
 ```bash
 python examples/quickstart_scc.py --data-dir scc_patient10 --out quickstart_out             # GPU
-python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU, ~45 min
+python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU
 ```
 
-Pass `checkpoint=` to `axis.tl.fit_transition` (or `--checkpoint` to the
-script) to start from a trained model; `epochs=0` uses it as is.
+Training dominates the run time: 400 steps at 256 px took 55 min on 4 CPU
+cores (training at 512 px needs a GPU or more than 14 GB of RAM). Pass
+`checkpoint=` to `axis.tl.fit_transition` (or `--checkpoint` to the script) to
+start from a trained model; with `epochs=0` the whole quickstart then runs in
+about 1.5 min on the same CPU. Results of the CPU run are shown in the
+[gallery](https://huifangzju.github.io/Axis/gallery/).
 
 ## Usage by application
 

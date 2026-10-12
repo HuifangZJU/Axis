@@ -19,6 +19,8 @@ from .model import (
     build_model,
     load_model,
     load_state_dict_flexible,
+    load_state_dict_strict,
+    strip_derived_buffers,
 )
 from .train import save_checkpoint, seed_everything, train_transition_network
 from .warp import (
@@ -41,6 +43,8 @@ __all__ = [
     "build_model",
     "load_model",
     "load_state_dict_flexible",
+    "load_state_dict_strict",
+    "strip_derived_buffers",
     "NCC",
     "MaskedNCC",
     "Grad",

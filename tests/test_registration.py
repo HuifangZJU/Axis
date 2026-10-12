@@ -14,6 +14,7 @@ from axis.registration import (
     ensure_flow_2hw,
     find_inverse_warp_coords,
     load_model,
+    load_state_dict_strict,
     save_checkpoint,
     smoothness_loss,
     transport_points,
@@ -71,9 +72,15 @@ def test_canvas_must_be_divisible_by_16():
 def test_save_and_load_checkpoint(tmp_path):
     model = TransitionFieldNet(in_channels=1, in_gene_channels=3, fusion_module="linear")
     save_checkpoint(model, tmp_path / "m.pth")
+    stored = torch.load(tmp_path / "m.pth", weights_only=False)["state_dict"]
+    assert not any(k.endswith("relative_position_index") for k in stored)  # derived buffers are not saved
     loaded = load_model(tmp_path / "m.pth", device="cpu")
     for (k, a), (_, b) in zip(model.state_dict().items(), loaded.state_dict().items()):
         assert torch.equal(a, b), k
+    # a checkpoint that lacks a learned parameter is rejected
+    del stored["Decoder.conv_1.Conv_1.weight"]
+    with pytest.raises(RuntimeError):
+        load_state_dict_strict(TransitionFieldNet(in_channels=1, in_gene_channels=3, fusion_module="linear"), stored)
     # plain state_dict (original format) with explicit architecture
     torch.save(model.state_dict(), tmp_path / "plain.pth")
     loaded = load_model(tmp_path / "plain.pth", device="cpu", in_channels=1, in_gene_channels=3, fusion_module="linear")

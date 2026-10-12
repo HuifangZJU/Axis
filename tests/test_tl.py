@@ -56,6 +56,7 @@ def test_integrate(toy_series, toy_fields):
 def test_plots(toy_series, toy_fields):
     import matplotlib.pyplot as plt
 
+    axis.tl.match(toy_series, toy_fields, reference=0)
     axis.pl.pseudoimage(toy_series[0])
     axis.pl.matched(toy_series, color="domain")
     axis.pl.registration(toy_series[0].uns["axis"]["image"], toy_series[1].uns["axis"]["image"], toy_fields[(0, 1)])
@@ -64,4 +65,20 @@ def test_plots(toy_series, toy_fields):
     axis.pl.spatial(toy_series[0], "gradient", spatial_key="spatial_canvas")
     axis.pl.axis_weights([0, 20], 10)
     axis.pl.loss(toy_fields.history, smooth=1)
+    plt.close("all")
+
+
+def test_category_colours_do_not_depend_on_present_categories():
+    import anndata as ad
+    import matplotlib.pyplot as plt
+
+    def colours(labels):
+        a = ad.AnnData(np.zeros((len(labels), 1)))
+        a.obs["c"] = labels
+        a.obsm["spatial"] = np.random.default_rng(0).random((len(labels), 2))
+        ax = axis.pl.spatial(a, "c", categories=["0", "1", "2"])
+        return {t.get_text(): tuple(h.get_facecolor()[0]) for t, h in zip(ax.get_legend().texts, ax.get_legend().legend_handles)}
+
+    full, partial = colours(["0", "1", "2"] * 3), colours(["0", "2"] * 3)
+    assert partial["2"] == full["2"]
     plt.close("all")

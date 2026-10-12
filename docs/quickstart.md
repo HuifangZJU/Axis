@@ -48,9 +48,10 @@ axis.pl.registration(adatas[0].uns["axis"]["image"], adatas[2].uns["axis"]["imag
 
 !!! tip "Hardware"
     Training at 512 px is best done on a GPU (on CPU it needs more than 14 GB of RAM). On a CPU use
-    `canvas_size=256` in `prepare_canvas` and fewer steps; inference at 512 px
-    takes ~12 s per pair on 4 CPU cores. A trained checkpoint can be supplied
-    with `checkpoint=` (and `epochs=0` to skip training).
+    `canvas_size=256` in `prepare_canvas` and fewer steps: 400 steps took
+    55 min on 4 CPU cores. Inference at 512 px takes ~12 s per pair on the same
+    CPU. A trained checkpoint can be supplied with `checkpoint=` (and `epochs=0`
+    to skip training); the whole quickstart then runs in about 1.5 min.
 
 ## 3 · Spatially matched analysis
 

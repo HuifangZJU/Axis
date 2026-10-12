@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from ..settings import log, settings
 from .losses import NCC, RegistrationLoss, smoothness_loss
-from .model import TransitionFieldNet
+from .model import TransitionFieldNet, strip_derived_buffers
 
 __all__ = ["train_transition_network", "save_checkpoint", "seed_everything"]
 
@@ -31,10 +31,13 @@ def seed_everything(seed: int) -> None:
 def save_checkpoint(model: torch.nn.Module, path: Union[str, os.PathLike], **extra) -> None:
     """Save ``{"config": model.config, "state_dict": ..., **extra}``.
 
-    The file can be read back with :func:`axis.registration.load_model`.
+    Deterministic buffers (:data:`axis.registration.model.DERIVED_BUFFERS`) are
+    left out, which shrinks a checkpoint from ~2.2 GB to ~36 MB. The file can be
+    read back with :func:`axis.registration.load_model`.
     """
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    payload = {"config": getattr(model, "config", {}), "state_dict": model.state_dict(), **extra}
+    state_dict = strip_derived_buffers(model.state_dict())
+    payload = {"config": getattr(model, "config", {}), "state_dict": state_dict, **extra}
     torch.save(payload, path)
 
 

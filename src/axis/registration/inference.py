@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from ..settings import settings
+from .model import load_state_dict_strict
 from .warp import find_inverse_warp_coords, warp_highres_image_with_lowres_flow_cpu
 
 __all__ = [
@@ -97,7 +98,7 @@ def generate_pairwise_outputs(
     if ckpt_path is not None:
         payload = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         state_dict = payload["state_dict"] if isinstance(payload, dict) and "state_dict" in payload else payload
-        model.load_state_dict(state_dict)
+        load_state_dict_strict(model, state_dict)
     model.to(device).eval()
     spatial_transformer = model.SpatialTransformer
 

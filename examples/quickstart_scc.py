@@ -11,8 +11,10 @@ Steps
 4. Generate the 10-µm section from the 0- and 20-µm anchors and compare it
    with the measured (held-out) 10-µm section.
 
-On a GPU use the default 512-px canvas. On a laptop CPU use
-``--canvas-size 256 --max-steps 300`` (about 25 min on 4 cores).
+On a GPU use the default 512-px canvas. On a CPU use
+``--canvas-size 256 --max-steps 400`` (about 55 min on 4 cores; training at
+512 px needs more than 14 GB of RAM). With a trained model,
+``--checkpoint model_final.pth --epochs 0`` skips training.
 """
 
 from __future__ import annotations
@@ -151,10 +153,18 @@ def main() -> None:
     }
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
-    axis.pl.spatial(adatas[0], "original_clusters", spatial_key="spatial_canvas", ax=axes[0], title="measured 0 µm")
-    axis.pl.spatial(vt, "original_clusters", ax=axes[1], title="AXIS virtual 10 µm")
-    axis.pl.spatial(adatas[2], "original_clusters", spatial_key="spatial_canvas", ax=axes[2], title="measured 20 µm")
+    cats = sorted({c for a in adatas for c in a.obs["original_clusters"].astype(str)}, key=int)
+    fig, axes = plt.subplots(1, 4, figsize=(17, 4))
+    for ax, (a, key, title) in zip(
+        axes,
+        [
+            (adatas[0], "spatial_canvas", "measured 0 µm (anchor)"),
+            (vt, "spatial", "AXIS virtual 10 µm"),
+            (adatas[1], "spatial_canvas", "measured 10 µm (held out)"),
+            (adatas[2], "spatial_canvas", "measured 20 µm (anchor)"),
+        ],
+    ):
+        axis.pl.spatial(a, "original_clusters", spatial_key=key, categories=cats, ax=ax, title=title)
     fig.tight_layout()
     fig.savefig(out / "virtual_section.png", dpi=150)
 

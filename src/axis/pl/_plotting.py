@@ -44,6 +44,23 @@ def _finish(ax, invert: bool = True):
         spine.set_visible(False)
 
 
+def _category_order(values) -> list:
+    """Categories of an ``obs`` column: categorical order, else natural sort of the labels."""
+    if hasattr(values, "cat"):
+        return [str(c) for c in values.cat.categories]
+    labels = {str(v) for v in np.asarray(values) if str(v) not in ("nan", "None")}
+    return sorted(labels, key=lambda c: (0, int(c), c) if c.lstrip("-").isdigit() else (1, 0, c))
+
+
+def _category_colors(palette: str, n: int):
+    """``n`` colours; qualitative palettes keep their own colours so they are stable across plots."""
+    plt = _plt()
+    cmap = plt.get_cmap(palette)
+    if not hasattr(cmap, "colors") or cmap.N < n:
+        cmap = plt.get_cmap("tab20" if n <= 20 and palette == "tab10" else palette, max(n, 1))
+    return [cmap(k % cmap.N) for k in range(n)]
+
+
 def _to_display(img: np.ndarray) -> np.ndarray:
     img = np.asarray(img)
     if img.dtype != np.uint8 and img.max() > 1.0:
@@ -77,6 +94,7 @@ def spatial(
     s: float = 12,
     cmap: str = "magma",
     palette: str = "tab10",
+    categories: Optional[Sequence[str]] = None,
     image: Optional[np.ndarray] = None,
     title: Optional[str] = None,
     vmax: Optional[float] = None,
@@ -85,7 +103,9 @@ def spatial(
     """Scatter one AnnData by a gene (continuous) or an ``obs`` column (categorical).
 
     ``mask_key`` (``obs["valid"]`` for generated tissues) hides unsupported
-    output locations.
+    output locations. Category colours follow ``categories`` (default: the
+    column's category order), so panels that share it use the same colours
+    even when some categories are absent.
     """
     plt = _plt()
     if ax is None:
@@ -100,11 +120,12 @@ def spatial(
         ax.scatter(xy[keep, 0], xy[keep, 1], s=s, c="0.3", linewidths=0)
     elif color in adata.obs and not np.issubdtype(np.asarray(adata.obs[color]).dtype, np.number):
         labels = adata.obs[color].astype(str).to_numpy()
-        cats = [c for c in sorted(set(labels[keep])) if c not in ("nan", "None")]
-        colors = plt.get_cmap(palette, max(len(cats), 1))
+        cats = [str(c) for c in categories] if categories is not None else _category_order(adata.obs[color])
+        colors = _category_colors(palette, len(cats))
         for k, cat in enumerate(cats):
             sel = keep & (labels == cat)
-            ax.scatter(xy[sel, 0], xy[sel, 1], s=s, color=colors(k % colors.N), label=cat, linewidths=0)
+            if sel.any():
+                ax.scatter(xy[sel, 0], xy[sel, 1], s=s, color=colors[k], label=cat, linewidths=0)
         ax.legend(
             loc="center left",
             bbox_to_anchor=(1.0, 0.5),
@@ -144,21 +165,23 @@ def matched(
     fig, axes = _new_axes(2, size=4.2)
     markers = ["o", "^", "s", "D", "v", "P", "X"]
     names = list(names) if names is not None else [f"sample {i}" for i in range(len(adatas))]
+    if color is not None:  # one colour per category, shared by all samples
+        cats = []
+        for a in adatas:
+            cats += [c for c in _category_order(a.obs[color]) if c not in cats]
+        lut = dict(zip(cats, _category_colors("tab10", len(cats))))
     for ax, k, title in zip(axes, (before_key, key), ("before AXIS", "after AXIS")):
         for i, a in enumerate(adatas):
             xy = np.asarray(a.obsm[k])[:, :2]
             if color is None:
                 ax.scatter(xy[:, 0], xy[:, 1], s=s, alpha=0.6, label=names[i], linewidths=0)
             else:
-                codes = a.obs[color].astype("category").cat.codes.to_numpy()
+                labels = a.obs[color].astype(str).to_numpy()
                 ax.scatter(
                     xy[:, 0],
                     xy[:, 1],
                     s=s,
-                    c=codes,
-                    cmap="tab10",
-                    vmin=0,
-                    vmax=9,
+                    c=[lut.get(lab, (0.6, 0.6, 0.6, 1.0)) for lab in labels],
                     marker=markers[i % len(markers)],
                     alpha=0.7,
                     linewidths=0,

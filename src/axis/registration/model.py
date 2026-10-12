@@ -34,6 +34,8 @@ __all__ = [
     "build_model",
     "load_model",
     "load_state_dict_flexible",
+    "load_state_dict_strict",
+    "strip_derived_buffers",
 ]
 
 
@@ -191,6 +193,37 @@ def build_model(kind: str = "multimodal", **kwargs) -> nn.Module:
     raise ValueError(f"Unknown model kind {kind!r}")
 
 
+#: Buffers that are recomputed when a network is constructed. The Swin
+#: ``relative_position_index`` tables (int64, 4096 x 4096 per block) make up
+#: ~95% of a full ``state_dict``; :func:`axis.registration.save_checkpoint`
+#: leaves them out.
+DERIVED_BUFFERS = ("relative_position_index",)
+
+
+def _is_derived(key: str) -> bool:
+    return key.rsplit(".", 1)[-1] in DERIVED_BUFFERS
+
+
+def strip_derived_buffers(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    """Drop the deterministic buffers listed in :data:`DERIVED_BUFFERS`."""
+    return {k: v for k, v in state_dict.items() if not _is_derived(k)}
+
+
+def load_state_dict_strict(model: nn.Module, state_dict: Dict[str, torch.Tensor]) -> None:
+    """``load_state_dict(strict=True)`` that accepts checkpoints without derived buffers.
+
+    Checkpoints written by the original code (which include the buffers) and by
+    :func:`axis.registration.save_checkpoint` (which do not) both load.
+    """
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    missing = [k for k in missing if not _is_derived(k)]
+    if missing or unexpected:
+        raise RuntimeError(
+            f"Checkpoint does not match the network: {len(missing)} missing keys {missing[:3]}, "
+            f"{len(unexpected)} unexpected keys {unexpected[:3]}."
+        )
+
+
 def load_state_dict_flexible(model: nn.Module, state_dict: Dict[str, torch.Tensor], strict: bool = False) -> Tuple[list, list]:
     """Load the parameters whose names and shapes match.
 
@@ -238,5 +271,5 @@ def load_model(
         state_dict = payload
     kind = config.pop("kind", "multimodal")
     model = build_model(kind, **config)
-    model.load_state_dict(state_dict)
+    load_state_dict_strict(model, state_dict)
     return model.to(device).eval()
