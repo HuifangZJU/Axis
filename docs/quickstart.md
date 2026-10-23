@@ -55,7 +55,7 @@ axis.pl.registration(adatas[0].uns["axis"]["image"], adatas[2].uns["axis"]["imag
     `canvas_size=256` in `prepare_canvas` and fewer steps: 400 steps took
     55 min on 4 CPU cores. The bandwidths and `max_dist` in step 4 are in canvas
     pixels and set for 512 px; at 256 px halve them (`spatial_bandwidth=1.5,
-    attr_spatial_bandwidth=2, max_dist=5`), as `examples/quickstart_scc.py` does.
+    max_dist=5`), as `examples/quickstart_scc.py` does.
     A model trained in an earlier run can be supplied with `checkpoint=` (and
     `epochs=0` to skip training); the 256-px quickstart then runs in about
     1.5 min (81 s).
@@ -77,7 +77,7 @@ delta = axis.tl.contrast(matched[2], matched[0], genes=["KRT1", "COL1A1"])
 vt = axis.tl.generate(
     adatas, fields, positions=[0, 10, 20], query=10, anchors=[0, 2],
     grid="visium", grid_size=40,
-    attr_keys=["original_clusters"], spatial_bandwidth=3, attr_spatial_bandwidth=4, max_dist=10,
+    attr_keys=["original_clusters"], spatial_bandwidth=3, max_dist=10,   # Fig. 3 settings
 )
 axis.pl.spatial(vt, "original_clusters")
 axis.pl.spatial(vt, "KRT1")
@@ -91,9 +91,10 @@ anchor weights β = (0.5, 0.5).
 
 ```bash
 python examples/quickstart_scc.py --data-dir scc_patient10 --out quickstart_out             # GPU
-python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU (gallery run)
+python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU
 ```
 
-writes the figures shown in the [gallery](gallery.md) and a `report.json`
-comparing the learned alignment with the published one and the generated
-section with the held-out measurement.
+writes figures and a `report.json` comparing the learned alignment with the
+published one and the generated section with the held-out measurement (Fig. 3c
+cluster metrics). The [gallery](gallery.md) shows the results with the
+manuscript's trained model, with all parameters, next to the CPU run.

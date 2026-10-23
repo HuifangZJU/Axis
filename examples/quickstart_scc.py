@@ -8,8 +8,9 @@ Steps
 2. Learn transition fields between all section pairs.
 3. Spatially match sections 1 and 2 to section 0 (and compare with the
    published AXIS alignment stored in ``obsm["spatial_axis"]``).
-4. Generate the 10-µm section from the 0- and 20-µm anchors and compare it
-   with the measured (held-out) 10-µm section.
+4. Generate the 10-µm section from the 0- and 20-µm anchors with the settings
+   of the manuscript's Fig. 3 and compare it with the measured (held-out)
+   10-µm section using the Fig. 3c cluster metrics.
 
 On a GPU use the default 512-px canvas. On a CPU use
 ``--canvas-size 256 --max-steps 400`` (about 55 min on 4 cores; training at
@@ -46,6 +47,32 @@ def neighbourhood_agreement(ref_xy, ref_labels, xy, labels, radius):
         hits += lab in set(values[counts == counts.max()])
         n += 1
     return hits / max(n, 1)
+
+
+def cluster_fidelity(measured, generated, key="original_clusters"):
+    """Fig. 3c metrics, averaged over clusters (as in ``reproducibility/figure3/3bc_cluster_evaluation.py``).
+
+    Cluster composition (symmetric relative absolute error), within-cluster
+    nearest-neighbour distances in spot units (1-D Wasserstein distance) and
+    6-nearest-neighbour cluster connectivity (Jensen-Shannon distance); lower
+    is better. Each tissue uses its own ``obsm["spatial"]`` and spot spacing.
+    """
+    m = axis.metrics
+    xy = [np.asarray(a.obsm["spatial"], dtype=float)[:, :2] for a in (measured, generated)]
+    lab = [a.obs[key].astype(str).to_numpy() for a in (measured, generated)]
+    order = sorted(set(lab[0]) | set(lab[1]), key=lambda c: (0, float(c)) if c.replace(".", "", 1).isdigit() else (1, c))
+    srae = m.symmetric_relative_abs_error(m.cluster_composition(lab[0], order), m.cluster_composition(lab[1], order))
+    unit = [m.min_positive_spot_distance(c) for c in xy]
+    wasserstein = [
+        m.local_structure_distance(*(m.within_cluster_nn_distances(xy[i], lab[i], c, unit[i]) for i in (0, 1))) for c in order
+    ]
+    conn = [m.neighborhood_connectivity(xy[i], lab[i], order, k=6) for i in (0, 1)]
+    js = [m.js_distance(conn[0][i], conn[1][i]) for i in range(len(order))]
+    return {
+        "cluster_composition_srae": float(np.nanmean(srae)),
+        "within_cluster_nn_wasserstein": float(np.nanmean(wasserstein)),
+        "connectivity_js_distance": float(np.nanmean(js)),
+    }
 
 
 def main() -> None:
@@ -122,6 +149,8 @@ def main() -> None:
     )
 
     # 4 -- generate the held-out 10-µm section from the 0/20-µm anchors ------------------
+    # Fig. 3 settings (reproducibility/pipelines/generation/scc_depth.py): clusters are
+    # generated with the molecular bandwidth (no separate attr_spatial_bandwidth).
     vt = axis.tl.generate(
         adatas,
         fields,
@@ -132,25 +161,11 @@ def main() -> None:
         grid_size=40,
         attr_keys=["original_clusters"],
         spatial_bandwidth=3 * scale,
-        attr_spatial_bandwidth=4 * scale,
         max_dist=10 * scale,
     )
     vt.write_h5ad(out / "virtual_section_10um.h5ad")
-    measured = adatas[1]
     supported = vt[vt.obs["valid"].astype(bool)]
-    clusters = sorted(set(measured.obs["original_clusters"].astype(str)))
-    comp_measured = axis.metrics.cluster_composition(measured.obs["original_clusters"], clusters)
-    comp_virtual = axis.metrics.cluster_composition(supported.obs["original_clusters"].astype(str), clusters)
-    comp_anchor = axis.metrics.cluster_composition(adatas[0].obs["original_clusters"], clusters)
-    report["generation_10um"] = {
-        "n_supported_spots": int(supported.n_obs),
-        "cluster_composition_SRAE_virtual": float(
-            np.mean(axis.metrics.symmetric_relative_abs_error(comp_measured, comp_virtual))
-        ),
-        "cluster_composition_SRAE_copy_anchor0": float(
-            np.mean(axis.metrics.symmetric_relative_abs_error(comp_measured, comp_anchor))
-        ),
-    }
+    report["generation_10um"] = {"n_supported_spots": int(supported.n_obs), **cluster_fidelity(adatas[1], supported)}
     import matplotlib.pyplot as plt
 
     cats = sorted({c for a in adatas for c in a.obs["original_clusters"].astype(str)}, key=int)

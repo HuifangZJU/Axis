@@ -30,7 +30,7 @@ vt = axis.tl.generate(
     query=10, anchors=[0, 2],   # candidate anchors (default: all samples); the two bracketing the query are used
     grid="visium", grid_size=40,             # or grid="pixel", or an (M, 2) array (e.g. cells)
     attr_keys=["original_clusters"],          # annotations generated on the same support
-    spatial_bandwidth=3, attr_spatial_bandwidth=4,
+    spatial_bandwidth=3,                      # clusters use the same bandwidth (Fig. 3); attr_spatial_bandwidth=... sets their own
     max_dist=10,                              # tissue-support threshold (canvas px)
 )
 ```

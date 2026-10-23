@@ -22,6 +22,8 @@ First public release, restructured from the submission snapshot
 * `axis.pp.prepare_canvas` drops an alpha channel and rescales images with
   values above 255 (e.g. 16-bit DAPI) linearly by their maximum instead of
   clipping them; other inputs are unchanged.
+* `axis.pl.spatial` takes `vmin` (with `vmax`) to put continuous values of
+  several panels on one colour scale.
 * `axis.pl.spatial` and `axis.pl.matched` colour categories in a fixed order
   (the column's categorical order, otherwise a natural sort of the labels).
   `axis.pl.matched` gives each category one colour across all samples;

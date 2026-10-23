@@ -99,13 +99,15 @@ def spatial(
     title: Optional[str] = None,
     vmax: Optional[float] = None,
     mask_key: Optional[str] = "valid",
+    vmin: Optional[float] = None,
 ):
     """Scatter one AnnData by a gene (continuous) or an ``obs`` column (categorical).
 
     ``mask_key`` (``obs["valid"]`` for generated tissues) hides unsupported
     output locations. Category colours follow ``categories`` (default: the
     column's category order), so panels that share it use the same colours
-    even when some categories are absent.
+    even when some categories are absent. ``vmin`` / ``vmax`` fix the colour
+    range of continuous values, e.g. to compare panels on one scale.
     """
     plt = _plt()
     if ax is None:
@@ -142,7 +144,7 @@ def spatial(
             X = adata.layers[layer] if layer else adata.X
             col = X[:, adata.var_names.get_loc(color)]
             values = np.asarray(col.toarray() if hasattr(col, "toarray") else col, dtype=float).ravel()
-        sc = ax.scatter(xy[keep, 0], xy[keep, 1], c=values[keep], s=s, cmap=cmap, vmax=vmax, linewidths=0)
+        sc = ax.scatter(xy[keep, 0], xy[keep, 1], c=values[keep], s=s, cmap=cmap, vmin=vmin, vmax=vmax, linewidths=0)
         plt.colorbar(sc, ax=ax, fraction=0.046, pad=0.02)
     ax.set_title(title if title is not None else (color or ""), fontsize=10)
     _finish(ax)

@@ -82,7 +82,7 @@ axis.pl.matched(adatas, color="original_clusters", key="spatial_axis_new")
 # 4. virtual tissue generation at the unmeasured depth of 10 µm
 vt = axis.tl.generate(adatas, fields, positions=[0, 10, 20], query=10, anchors=[0, 2],
                       grid="visium", grid_size=40, attr_keys=["original_clusters"],
-                      spatial_bandwidth=3, attr_spatial_bandwidth=4, max_dist=10)
+                      spatial_bandwidth=3, max_dist=10)                    # Fig. 3 settings
 axis.pl.spatial(vt, "original_clusters")
 axis.pl.spatial(vt, "KRT1")
 ```
@@ -99,8 +99,10 @@ Training dominates the run time: 400 steps at 256 px took 55 min on 4 CPU
 cores (training at 512 px needs a GPU or more than 14 GB of RAM). Pass
 `checkpoint=` to `axis.tl.fit_transition` (or `--checkpoint` to the script) to
 start from a trained model; with `epochs=0` the whole quickstart then runs in
-about 1.5 min on the same CPU. Results of the CPU run are shown in the
-[gallery](https://huifangzju.github.io/Axis/gallery/).
+about 1.5 min on the same CPU. The
+[gallery](https://huifangzju.github.io/Axis/gallery/) reports the results with
+the manuscript's trained model, which reproduce the published alignment and
+the Fig. 3 evaluation, with all parameters, next to the CPU run.
 
 ## Usage by application
 

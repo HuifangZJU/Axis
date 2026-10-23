@@ -42,7 +42,7 @@ generation:                       # Fig. 3 (held-out 10-µm section)
   grid_size: 40
   max_dist: 10.0                  # canvas px
   spatial_bandwidth: 3            # canvas px (see "Notes for authors" in the release PR)
-  attr_spatial_bandwidth: 4
+  attr_spatial_bandwidth: null    # Fig. 3 run (scc_depth.py, query mode): clusters use spatial_bandwidth; Methods text says 4
   knn: 48
   min_neighbors: 1
   attr_keys: [original_clusters]
