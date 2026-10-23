@@ -82,7 +82,7 @@ axis.pl.matched(adatas, color="original_clusters", key="spatial_axis_new")
 # 4. virtual tissue generation at the unmeasured depth of 10 µm
 vt = axis.tl.generate(adatas, fields, positions=[0, 10, 20], query=10, anchors=[0, 2],
                       grid="visium", grid_size=40, attr_keys=["original_clusters"],
-                      spatial_bandwidth=3, attr_spatial_bandwidth=4, max_dist=10)
+                      spatial_bandwidth=3, max_dist=10)                    # Fig. 3 settings
 axis.pl.spatial(vt, "original_clusters")
 axis.pl.spatial(vt, "KRT1")
 ```
