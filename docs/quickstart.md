@@ -91,9 +91,10 @@ anchor weights β = (0.5, 0.5).
 
 ```bash
 python examples/quickstart_scc.py --data-dir scc_patient10 --out quickstart_out             # GPU
-python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU (gallery run)
+python examples/quickstart_scc.py --data-dir scc_patient10 --canvas-size 256 --max-steps 400  # CPU
 ```
 
-writes the figures shown in the [gallery](gallery.md) and a `report.json`
-comparing the learned alignment with the published one and the generated
-section with the held-out measurement.
+writes figures and a `report.json` comparing the learned alignment with the
+published one and the generated section with the held-out measurement (Fig. 3c
+cluster metrics). The [gallery](gallery.md) shows the results with the
+manuscript's trained model, with all parameters, next to the CPU run.
